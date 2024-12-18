@@ -15,6 +15,7 @@ Route::put('/api/users/{userid}', [UserController::class, 'edit'])->name('users.
 Route::get('/api/users/search', [UserController::class, 'search'])->name('users.search');
 Route::patch('/api/users/{userid}/change-role', [UserController::class, 'ChangeRole'])->name('users.ChangeRole');
 Route::delete('/api/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+Route::delete('/api/users', [UserController::class, 'bulkDelete'])->name('users.bulkDelete');
 
 
 // apis for doctors

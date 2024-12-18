@@ -13,11 +13,14 @@ const props = defineProps({
   index: {
     type: Number,
     required: true
+  },
+  selectAll :{
+    type:Boolean,
   }
 });
 
 const toaster = useToastr();
-const emit = defineEmits(['user-updated']);
+const emit = defineEmits(['user-updated', 'toggleSelection']);
 
 const showDeleteModel = ref(false);
 const isModalOpen = ref(false);
@@ -65,10 +68,12 @@ const roles = [
   { name: 'admin', value: 'doctor' }
 ];
 
+
 </script>
 
 <template>
   <tr>
+    <td><input type="checkbox" :checked="selectAll" @change="$emit('toggleSelection', props.user)"></td>
     <td>{{ index + 1 }}</td>
     <td>{{ user.name }}</td>
     <td>{{ user.email }}</td>

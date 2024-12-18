@@ -1,22 +1,26 @@
-<!-- UserList.vue -->
 <script setup>
 import { ref, onMounted, watch } from 'vue';
 import axios from 'axios';
 import { useToastr } from '../../Components/toster';
 import UserListItem from './UserListItem.vue';
 import AddUserComponent from '@/Components/AddUserComponent.vue';
+import { Bootstrap5Pagination } from 'laravel-vue-pagination';
 
 const users = ref([]);
+const pagination = ref({});
 const selectedUser = ref({ name: '', email: '', phone: '', password: '' });
 const isModalOpen = ref(false);
 const toaster = useToastr();
-const searchQuery = ref(" ");
+const searchQuery = ref('');
+const isLoading = ref(false);
+const selectedUserBox = ref([]);
 
 // Fetch users from the server
-const getUsers = async () => {
+const getUsers = async (page = 1) => {
   try {
-    const response = await axios.get('/api/users');
+    const response = await axios.get(`/api/users?page=${page}`);
     users.value = response.data.data;
+    pagination.value = response.data.meta; // Store meta data for pagination
   } catch (error) {
     toaster.error('Failed to fetch users');
     console.error('Error fetching users:', error);
@@ -38,10 +42,9 @@ const closeModal = () => {
 const refreshUsers = () => {
   getUsers();
 };
-const isLoading = ref(false);
 
 // Debounced search function
-const debouncedSearch = () => {
+const debouncedSearch = (() => {
   let timeout;
   return () => {
     clearTimeout(timeout);
@@ -49,25 +52,60 @@ const debouncedSearch = () => {
       try {
         isLoading.value = true;
         const response = await axios.get('/api/users/search', {
-          params: {
-            query: searchQuery.value
-          }
+          params: { query: searchQuery.value },
         });
         users.value = response.data.data;
+        pagination.value = response.data.meta; // Update pagination on search
       } catch (error) {
-        toaster.error('Failed to fetch users');
-        console.error('Error fetching users:', error);
+        toaster.error('Failed to search users');
+        console.error('Error searching users:', error);
       } finally {
         isLoading.value = false;
       }
     }, 300); // 300ms delay
   };
-};
+})();
 
 // Watch for search query changes
-watch(searchQuery, debouncedSearch());
+watch(searchQuery, debouncedSearch);
 
-// Fetch users when component is mounted
+const toggleSelection = (user) => {
+  const index = selectedUserBox.value.indexOf(user.id);
+  if (index === -1) {
+    selectedUserBox.value.push(user.id);
+  } else {
+    selectedUserBox.value.splice(index, 1);
+  }
+};
+
+const bulkDelete = async () => {
+  try {
+    const response = await axios.delete('/api/users', {
+      params: { ids: selectedUserBox.value },
+    });
+    toaster.success('Users deleted successfully!');
+    selectedUserBox.value =[];
+    selectAll.value =false;
+    getUsers();
+  } catch (error) {
+    toaster.error('Failed to delete users');
+    console.error('Error deleting users:', error);
+  }
+};
+const selectAll = ref(false);
+
+const selectAllUsers = () => {
+  if (selectAll.value) {
+    selectedUserBox.value = users.value.map(user => user.id); // Map user IDs
+  } else {
+    selectedUserBox.value = []; // Clear selection
+  }
+  console.log(selectedUserBox.value);
+};
+
+
+
+// Fetch users when the component is mounted
 onMounted(() => {
   getUsers();
 });
@@ -99,28 +137,44 @@ onMounted(() => {
         <div class="text-right mb-4">
           <div class="d-flex justify-content-between align-items mb-3">
             <!-- Search Bar -->
-
             <div class="mb-1">
-              <input type="text" class="form-control" v-model="searchQuery" placeholder="Search users">
+              <input type="text" class="form-control" v-model="searchQuery" placeholder="Search users" />
             </div>
 
-            <!-- Loading indicator -->
+            <!-- Loading Indicator -->
             <div v-if="isLoading" class="text-center">
               <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden"></span>
               </div>
             </div>
+
             <!-- Add User Button -->
-            <button class="btn btn-primary btn-sm w-2 rounded-lg" title="Add User" @click="openModal">
-              <i class="fas fa-plus-circle"></i> Add User
-            </button>
+            <div class="row mb-3">
+              <div class="col-12 d-flex flex-wrap justify-content-end gap-2">
+                <!-- Add User Button -->
+                <button class="btn btn-primary btn-sm d-flex align-items-center gap-1 px-3 py-2" title="Add User"
+                  @click="openModal">
+                  <i class="fas fa-plus-circle"></i>
+                  <span>Add User</span>
+                </button>
+
+                <!-- Delete Users Button -->
+                <button v-if="selectedUserBox.length > 0" @click="bulkDelete"
+                  class="btn btn-danger btn-sm d-flex align-items-center gap-1 px-3 py-2 ml-1" title="Delete Users">
+                  <i class="fas fa-trash-alt"></i>
+                  <span>Delete Users</span>
+                </button>
+              </div>
+            </div>
 
           </div>
         </div>
+
         <div class="table-responsive">
           <table class="table table-striped table-hover text-center align-middle">
             <thead class="table-primary">
               <tr>
+                <th><input type="checkbox" v-model="selectAll" @change="selectAllUsers"></th>
                 <th>#</th>
                 <th>Name</th>
                 <th>Email</th>
@@ -132,15 +186,17 @@ onMounted(() => {
             </thead>
             <tbody v-if="users.length > 0">
               <UserListItem v-for="(user, index) in users" :key="user.id" :user="user" :index="index"
-                @user-updated="refreshUsers" />
+                @user-updated="refreshUsers" @toggle-selection="toggleSelection" :selectAll="selectAll" />
             </tbody>
             <tbody v-else>
               <tr>
-                <td colspan="6" class="text-center">No Result Fount...</td>
+                <td colspan="7" class="text-center">No Results Found...</td>
               </tr>
             </tbody>
           </table>
+
         </div>
+        <Bootstrap5Pagination :data="pagination" @pagination-change-page="getUsers" />
       </div>
     </div>
 

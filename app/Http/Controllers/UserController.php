@@ -14,7 +14,7 @@ class UserController extends Controller
     public function index()
     {
         // Fetch all users from the database
-        $users = User::all();
+        $users = User::paginate();
     
         // Return the collection wrapped in a resource
         return UserResource::collection($users);  // Wrap collection with resource transformation
@@ -38,7 +38,6 @@ class UserController extends Controller
             'email' => 'required|email|unique:users,email',
             'phone' => 'required|string',
             'password' => 'required|string|min:8',
-            'role' => 'required|string|in:admin,doctor,receptionist', // Add role validation
         ]);
     
         // Create the user with role
@@ -47,7 +46,6 @@ class UserController extends Controller
             'email' => $validatedData['email'],
             'phone' => $validatedData['phone'],
             'password' => bcrypt($validatedData['password']),
-            'role' => $validatedData['role'], // Add role to creation
         ]);
     
         return new UserResource($user);
@@ -109,6 +107,8 @@ class UserController extends Controller
             "success" => true,
         ]);
     }
+
+
     public function search(Request $request)
     {
         $searchTerm = $request->query('query');
@@ -123,7 +123,7 @@ class UserController extends Controller
                   ->orWhere('phone', 'LIKE', "%{$searchTerm}%");
         })
         ->orderBy('created_at', 'desc')
-        ->get();
+        ->paginate();
     
         return UserResource::collection($users);
     }
@@ -147,5 +147,19 @@ class UserController extends Controller
         $user->delete(); // Performs a soft delete if the model uses SoftDeletes
         return response()->noContent(); // Returns a 204 No Content response
     }
+    
+    public function bulkDelete(Request $request)
+    {
+        $ids = $request->query('ids'); // Retrieve 'ids' from the query parameters
+    
+        if (!is_array($ids)) {
+            return response()->json(['message' => 'Invalid input'], 422);
+        }
+    
+        User::whereIn('id', $ids)->delete();
+    
+        return response()->json(['message' => 'Users deleted successfully!'], 200);
+    }
+    
     
 }
