@@ -191,7 +191,15 @@
                     <router-link to="/admin/users" active-class="active" class="nav-link">
                         <i class="nav-icon fas fa-users"></i>
                         <p>
-                            Users
+                            Admins
+                        </p>
+                    </router-link>
+                </li>
+                <li class="nav-item">
+                    <router-link to="/admin/docters" active-class="active" class="nav-link">
+                        <i class="nav-icon fas fa-users"></i>
+                        <p>
+                            Doctors
                         </p>
                     </router-link>
                 </li>

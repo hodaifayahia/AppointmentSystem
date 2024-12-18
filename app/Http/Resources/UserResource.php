@@ -19,9 +19,11 @@ class UserResource extends JsonResource
             'name' => $this->name,
             'email' => $this->email,
             'phone' => $this->phone,
-            // 'avatar' => $this->avatar ? url($this->avatar) : null,
-            'created_at' => $this->created_at->toDateTimeString(),
-            'updated_at' => $this->updated_at->toDateTimeString(),
+            'role' => $this->role,
+            // Format the date using Carbon
+            'created_at' => $this->created_at->format(config('app.date_formate')),
+            // Or use a specific format you prefer
+            'updated_at' => $this->updated_at->format(config('app.date_formate')), 
         ];
     }
 }

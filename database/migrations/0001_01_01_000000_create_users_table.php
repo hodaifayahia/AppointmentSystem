@@ -1,5 +1,6 @@
 <?php
 
+use App\RoleSystemEnum;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -18,7 +19,7 @@ return new class extends Migration
             $table->string('phone')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
-            $table->enum('role', ['admin', 'receptionist', 'doctor']);
+            $table->enum('role', ['admin', 'receptionist', 'doctor'])->default(RoleSystemEnum::ADMIN->admin);
             $table->string('avatar')->nullable(); // Add avatar field
             $table->string('background')->nullable(); // Add background field
             $table->rememberToken();

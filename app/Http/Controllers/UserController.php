@@ -11,16 +11,15 @@ class UserController extends Controller
     /**
      * Display a listing of the resource.
      */
-     public function index()
+    public function index()
     {
         // Fetch all users from the database
         $users = User::all();
-
-        // Explicitly return JSON response
-        return response()->json($users);
+    
+        // Return the collection wrapped in a resource
+        return UserResource::collection($users);  // Wrap collection with resource transformation
     }
     
-
     /**
      * Show the form for creating a new resource.
      */
@@ -39,20 +38,19 @@ class UserController extends Controller
             'email' => 'required|email|unique:users,email',
             'phone' => 'required|string',
             'password' => 'required|string|min:8',
+            'role' => 'required|string|in:admin,doctor,receptionist', // Add role validation
         ]);
     
-        // Create the user
+        // Create the user with role
         $user = User::create([
             'name' => $validatedData['name'],
             'email' => $validatedData['email'],
             'phone' => $validatedData['phone'],
             'password' => bcrypt($validatedData['password']),
+            'role' => $validatedData['role'], // Add role to creation
         ]);
     
-        // Return the user resource
         return new UserResource($user);
-
-
     }
 
     /**
@@ -66,10 +64,72 @@ class UserController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(string $id)
+    public function edit(Request $request, string $id)
     {
-        //
+        $user = User::findOrFail($id);
+    
+        $validatedData = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email,' . $id,
+            'phone' => 'required|string',
+            'role' => 'required|string|in:admin,doctor,receptionist', // Add role validation
+            'password' => 'nullable|string|min:8',
+        ]);
+    
+        $updateData = [
+            'name' => $validatedData['name'],
+            'email' => $validatedData['email'],
+            'phone' => $validatedData['phone'],
+            'role' => $validatedData['role'], // Add role to update data
+        ];
+    
+        if ($request->filled('password')) {
+            $updateData['password'] = bcrypt($request->input('password'));
+        }
+    
+        $user->update($updateData);
+    
+        return response()->json([
+            'user' => new UserResource($user),
+        ]);
     }
+    public function ChangeRole($userId, Request $request)
+    {
+        $user = User::findOrFail($userId);
+        
+        $validatedData = $request->validate([
+            'role' => 'required|string|in:admin,doctor,receptionist',
+        ]);
+        
+        $user->update([
+            'role' => $validatedData['role']
+        ]);
+        
+        return response()->json([
+            "success" => true,
+        ]);
+    }
+    public function search(Request $request)
+    {
+        $searchTerm = $request->query('query');
+        // If search term is empty, return an empty collection
+        if (empty($searchTerm)) {
+            return UserResource::collection(User::orderBy('created_at', 'desc')->get());
+        }
+    
+        $users = User::where(function($query) use ($searchTerm) {
+            $query->where('name', 'LIKE', "%{$searchTerm}%")
+                  ->orWhere('email', 'LIKE', "%{$searchTerm}%")
+                  ->orWhere('phone', 'LIKE', "%{$searchTerm}%");
+        })
+        ->orderBy('created_at', 'desc')
+        ->get();
+    
+        return UserResource::collection($users);
+    }
+    
+
+    
 
     /**
      * Update the specified resource in storage.
@@ -82,8 +142,10 @@ class UserController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+    public function destroy(User $user)
     {
-        //
+        $user->delete(); // Performs a soft delete if the model uses SoftDeletes
+        return response()->noContent(); // Returns a 204 No Content response
     }
+    
 }

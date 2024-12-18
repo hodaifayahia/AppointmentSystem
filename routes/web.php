@@ -7,6 +7,17 @@ use Illuminate\Support\Facades\Route;
 //     return view('welcome');
 // });
 
+// apis for admins 
+
 Route::get('api/users', [UserController::class, 'index'])->name('users.index');
 Route::post('api/users', [UserController::class, 'store'])->name('users.store');
+Route::put('/api/users/{userid}', [UserController::class, 'edit'])->name('users.edit');
+Route::get('/api/users/search', [UserController::class, 'search'])->name('users.search');
+Route::patch('/api/users/{userid}/change-role', [UserController::class, 'ChangeRole'])->name('users.ChangeRole');
+Route::delete('/api/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+
+
+// apis for doctors
+Route::get('api/doctors', [UserController::class, 'index'])->name('users.store');
+Route::post('api/doctors', [UserController::class, 'store'])->name('users.store');
 Route::get('{view}', [ApplicationController::class, '__invoke'])->where('view', '(.*)');

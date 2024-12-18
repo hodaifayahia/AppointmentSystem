@@ -1,73 +1,73 @@
-
-
+<!-- UserList.vue -->
 <script setup>
+import { ref, onMounted, watch } from 'vue';
 import axios from 'axios';
-import { ref, onMounted } from 'vue';
-import addUserComponent from '@/Components/addUserComponent.vue';
+import { useToastr } from '../../Components/toster';
+import UserListItem from './UserListItem.vue';
+import AddUserComponent from '@/Components/AddUserComponent.vue';
 
 const users = ref([]);
-const selectedUser = ref({ name: '', email: '', phone: '' });
+const selectedUser = ref({ name: '', email: '', phone: '', password: '' });
 const isModalOpen = ref(false);
+const toaster = useToastr();
+const searchQuery = ref(" ");
 
 // Fetch users from the server
-const getUsers = () => {
-  axios
-    .get('/api/users')
-    .then((response) => {
-      users.value = response.data;
-    })
-    .catch((error) => {
-      console.error('Error fetching users:', error);
-    });
+const getUsers = async () => {
+  try {
+    const response = await axios.get('/api/users');
+    users.value = response.data.data;
+  } catch (error) {
+    toaster.error('Failed to fetch users');
+    console.error('Error fetching users:', error);
+  }
 };
 
-// Method to open modal for adding a new user
+// Open modal for adding a new user
 const openModal = () => {
   selectedUser.value = { name: '', email: '', phone: '' }; // Clear form for new user
   isModalOpen.value = true;
 };
 
-// Method to handle form submission
-const handleSubmit = (userData) => {
-  if (userData.id) {
-    // Update existing user logic
-    axios
-      .put(`/api/users/${userData.id}`, userData)
-      .then(() => {
-        getUsers(); // Refresh the user list
-      })
-      .catch((error) => console.error(error));
-  } else {
-    // Add new user logic
-    axios
-      .post('/api/users', userData)
-      .then(() => {
-        getUsers(); // Refresh the user list
-      })
-      .catch((error) => console.error(error));
-  }
-};
-
-// Method to close modal
+// Close modal
 const closeModal = () => {
   isModalOpen.value = false;
 };
 
-const editUser = (user) => {
-  selectedUser.value = { ...user };
-  isModalOpen.value = true;
+// Refresh user list
+const refreshUsers = () => {
+  getUsers();
+};
+const isLoading = ref(false);
+
+// Debounced search function
+const debouncedSearch = () => {
+  let timeout;
+  return () => {
+    clearTimeout(timeout);
+    timeout = setTimeout(async () => {
+      try {
+        isLoading.value = true;
+        const response = await axios.get('/api/users/search', {
+          params: {
+            query: searchQuery.value
+          }
+        });
+        users.value = response.data.data;
+      } catch (error) {
+        toaster.error('Failed to fetch users');
+        console.error('Error fetching users:', error);
+      } finally {
+        isLoading.value = false;
+      }
+    }, 300); // 300ms delay
+  };
 };
 
-const deleteUser = (user) => {
-  axios
-    .delete(`/api/users/${user.id}`)
-    .then(() => {
-      getUsers(); // Refresh the user list
-    })
-    .catch((error) => console.error('Error deleting user:', error));
-};
+// Watch for search query changes
+watch(searchQuery, debouncedSearch());
 
-// Fetch users when the component is mounted
+// Fetch users when component is mounted
 onMounted(() => {
   getUsers();
 });
@@ -97,12 +97,25 @@ onMounted(() => {
       <div class="container">
         <h2 class="text-center mb-4">User Management</h2>
         <div class="text-right mb-4">
-          <button 
-            class="btn btn-primary btn-sm w-2 rounded-lg " 
-            title="Add User" 
-            @click="openModal">
-            <i class="fas fa-plus-circle"></i> Add User
-          </button>
+          <div class="d-flex justify-content-between align-items mb-3">
+            <!-- Search Bar -->
+
+            <div class="mb-1">
+              <input type="text" class="form-control" v-model="searchQuery" placeholder="Search users">
+            </div>
+
+            <!-- Loading indicator -->
+            <div v-if="isLoading" class="text-center">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden"></span>
+              </div>
+            </div>
+            <!-- Add User Button -->
+            <button class="btn btn-primary btn-sm w-2 rounded-lg" title="Add User" @click="openModal">
+              <i class="fas fa-plus-circle"></i> Add User
+            </button>
+
+          </div>
         </div>
         <div class="table-responsive">
           <table class="table table-striped table-hover text-center align-middle">
@@ -112,23 +125,18 @@ onMounted(() => {
                 <th>Name</th>
                 <th>Email</th>
                 <th>Phone Number</th>
+                <th>Role</th>
+                <th>Created at</th>
                 <th>Actions</th>
               </tr>
             </thead>
-            <tbody>
-              <tr v-for="(user, index) in users" :key="user.id">
-                <td>{{ index + 1 }}</td>
-                <td>{{ user.name }}</td>
-                <td>{{ user.email }}</td>
-                <td>{{ user.phone }}</td>
-                <td>
-                  <button class="btn btn-success mx-1 btn-sm me-2" title="Edit" @click="editUser(user)">
-                    <i class="fas fa-edit"></i>
-                  </button>
-                  <button class="btn btn-danger btn-sm" title="Delete" @click="deleteUser(user)">
-                    <i class="fas fa-trash-alt"></i>
-                  </button>
-                </td>
+            <tbody v-if="users.length > 0">
+              <UserListItem v-for="(user, index) in users" :key="user.id" :user="user" :index="index"
+                @user-updated="refreshUsers" />
+            </tbody>
+            <tbody v-else>
+              <tr>
+                <td colspan="6" class="text-center">No Result Fount...</td>
               </tr>
             </tbody>
           </table>
@@ -136,16 +144,23 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- User Modal -->
-    <addUserComponent
-      :showModal="isModalOpen"
-      :userData="selectedUser"
-      @close="closeModal"
-      @submit="handleSubmit"
-    />
+    <!-- Add User Modal -->
+    <AddUserComponent :show-modal="isModalOpen" :user-data="selectedUser" @close="closeModal"
+      @user-updated="refreshUsers" />
   </div>
 </template>
 
 <style scoped>
-/* Custom styles */
+.table {
+  min-width: 800px;
+}
+
+.table th,
+.table td {
+  vertical-align: middle;
+}
+
+.btn-sm {
+  padding: 0.25rem 0.5rem;
+}
 </style>
