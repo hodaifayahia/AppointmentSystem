@@ -21,6 +21,8 @@ const getUsers = async (page = 1) => {
     const response = await axios.get(`/api/users?page=${page}`);
     users.value = response.data.data;
     pagination.value = response.data.meta; // Store meta data for pagination
+    selectAll.value =false;
+    selectAllUsers.value = [];
   } catch (error) {
     toaster.error('Failed to fetch users');
     console.error('Error fetching users:', error);
@@ -136,18 +138,8 @@ onMounted(() => {
         <h2 class="text-center mb-4">User Management</h2>
         <div class="text-right mb-4">
           <div class="d-flex justify-content-between align-items mb-3">
-            <!-- Search Bar -->
-            <div class="mb-1">
-              <input type="text" class="form-control" v-model="searchQuery" placeholder="Search users" />
-            </div>
-
-            <!-- Loading Indicator -->
-            <div v-if="isLoading" class="text-center">
-              <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden"></span>
-              </div>
-            </div>
-
+            
+          
             <!-- Add User Button -->
             <div class="row mb-3">
               <div class="col-12 d-flex flex-wrap justify-content-end gap-2">
@@ -159,11 +151,25 @@ onMounted(() => {
                 </button>
 
                 <!-- Delete Users Button -->
-                <button v-if="selectedUserBox.length > 0" @click="bulkDelete"
-                  class="btn btn-danger btn-sm d-flex align-items-center gap-1 px-3 py-2 ml-1" title="Delete Users">
-                  <i class="fas fa-trash-alt"></i>
-                  <span>Delete Users</span>
-                </button>
+                 <div v-if="selectedUserBox.length > 0" class="row ml-2">
+                   <button  @click="bulkDelete"
+                     class="btn btn-danger btn-sm d-flex align-items-center gap-1 px-3 py-2 ml-1" title="Delete Users">
+                     <i class="fas fa-trash-alt mr-1"></i>
+                     <span >Delete Users</span>
+                   </button>
+                   <span class="ml-2 mt-1"> selected ({{ selectedUserBox.length }}) users</span>
+                 </div>
+              </div>
+            </div>
+              <!-- Search Bar -->
+              <div class="mb-1">
+              <input type="text" class="form-control" v-model="searchQuery" placeholder="Search users" />
+            </div>
+
+            <!-- Loading Indicator -->
+            <div v-if="isLoading" class="text-center">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden"></span>
               </div>
             </div>
 
@@ -190,7 +196,7 @@ onMounted(() => {
             </tbody>
             <tbody v-else>
               <tr>
-                <td colspan="7" class="text-center">No Results Found...</td>
+                <td colspan="8" class="text-center">No Results Found...</td>
               </tr>
             </tbody>
           </table>
