@@ -102,7 +102,6 @@ const selectAllUsers = () => {
   } else {
     selectedUserBox.value = []; // Clear selection
   }
-  console.log(selectedUserBox.value);
 };
 
 

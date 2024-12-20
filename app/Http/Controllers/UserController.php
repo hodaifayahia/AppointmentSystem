@@ -70,7 +70,6 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email,' . $id,
             'phone' => 'required|string',
-            'role' => 'required|string|in:admin,doctor,receptionist', // Add role validation
             'password' => 'nullable|string|min:8',
         ]);
     
@@ -160,6 +159,8 @@ class UserController extends Controller
     
         return response()->json(['message' => 'Users deleted successfully!'], 200);
     }
+
+    
     
     
 }

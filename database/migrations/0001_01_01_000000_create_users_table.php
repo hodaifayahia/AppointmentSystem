@@ -19,10 +19,12 @@ return new class extends Migration
             $table->string('phone')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
-            $table->enum('role', ['admin', 'receptionist', 'doctor'])->default(RoleSystemEnum::ADMIN->admin);
+            $table->enum('role', ['admin', 'receptionist', 'doctor'])->default('admin');
             $table->string('avatar')->nullable(); // Add avatar field
             $table->string('background')->nullable(); // Add background field
+            $table->integer('created_by');
             $table->rememberToken();
+            $table->softDeletes(); 
             $table->timestamps();
         });
 

@@ -211,14 +211,14 @@
                         </p>
                     </router-link>
                 </li>
-                <li class="nav-item">
+                {{-- <li class="nav-item">
                     <router-link to="/admin/logout" active-class="active" class="nav-link">
                         <i class="nav-icon fas fa-sign-out-alt"></i>
                         <p>
                             Logout
                         </p>
                     </router-link>
-                </li>
+                </li> --}}
             </ul>
             
             

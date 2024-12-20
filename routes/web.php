@@ -1,7 +1,9 @@
 <?php
 use App\Http\Controllers\ApplicationController;
+use App\Http\Controllers\DoctorController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
+
 
 // Route::get('/', function () {
 //     return view('welcome');
@@ -19,6 +21,14 @@ Route::delete('/api/users', [UserController::class, 'bulkDelete'])->name('users.
 
 
 // apis for doctors
-Route::get('api/doctors', [UserController::class, 'index'])->name('users.store');
-Route::post('api/doctors', [UserController::class, 'store'])->name('users.store');
+Route::get('api/doctors', [DoctorController::class, 'index'])->name('users.store');
+Route::post('api/doctors', [DoctorController::class, 'store'])->name('users.store');
+Route::put('api/doctors/{doctorid}', [DoctorController::class, 'update'])->name('users.update');
+Route::delete('/api/doctors/{doctorid}', [DoctorController::class, 'destroy'])->name('users.destroy');
+Route::delete('/api/doctors', [DoctorController::class, 'bulkDelete'])->name('users.bulkDelete');
+Route::get('api/doctors/search', [DoctorController::class, 'search'])->name('users.search');
+
+
+Route::get('api/doctors/search', [AppointmentController::class, 'search'])->name('users.search');
+
 Route::get('{view}', [ApplicationController::class, '__invoke'])->where('view', '(.*)');

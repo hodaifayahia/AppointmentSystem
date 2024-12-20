@@ -16,6 +16,8 @@ return new class extends Migration
             $table->string('Firstname');
             $table->string('Lastname');
             $table->string('phone');
+            $table->integer('created_by');
+            $table->softDeletes(); 
             $table->timestamps();
         });
     }

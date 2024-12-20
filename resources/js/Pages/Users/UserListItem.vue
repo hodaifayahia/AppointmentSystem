@@ -1,9 +1,9 @@
-<!-- UserListItem.vue -->
 <script setup>
 import { ref } from 'vue';
 import AddUserComponent from '@/Components/AddUserComponent.vue';
 import DeleteUserModel from '@/Components/DeleteUserModel.vue';
 import { useToastr } from '../../Components/toster';
+import axios from 'axios';
 
 const props = defineProps({
   user: {
@@ -14,8 +14,9 @@ const props = defineProps({
     type: Number,
     required: true
   },
-  selectAll :{
-    type:Boolean,
+  selectAll: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -26,83 +27,93 @@ const showDeleteModel = ref(false);
 const isModalOpen = ref(false);
 const selectedUser = ref(null);
 
-
-
-// Close modals
 const closeModal = () => {
   isModalOpen.value = false;
   showDeleteModel.value = false;
   selectedUser.value = null;
 };
 
-// Handle editing user
 const editUser = () => {
   selectedUser.value = { ...props.user };
   isModalOpen.value = true;
 };
 
-// Open delete confirmation modal
 const openDeleteModal = () => {
   selectedUser.value = { ...props.user };
   showDeleteModel.value = true;
 };
 
-// Handle user updates
 const handleUserUpdate = () => {
   emit('user-updated');
   closeModal();
 };
 
 const ChangeRole = async (user, role) => {
-  axios.patch(`/api/users/${user.id}/change-role`, { role })
-  .then(()=>{
+  try {
+    await axios.patch(`/api/users/${user.id}/change-role`, { role });
     toaster.success('Role Changed Successfully');
-  })
-  
+    emit('user-updated');
+  } catch (error) {
+    console.error('Error changing role:', error);
+    toaster.error('Failed to change role');
+  }
 };
 
-
 const roles = [
-  { name: 'doctor', value: 'admin' },
+  { name: 'doctor', value: 'doctor' },
   { name: 'receptionist', value: 'receptionist' },
-  { name: 'admin', value: 'doctor' }
+  { name: 'admin', value: 'admin' }
 ];
 
+const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
 
+const formatDate = (dateString) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'short', 
+    day: 'numeric' 
+  });
+};
 </script>
 
 <template>
-  <tr>
-    <td><input type="checkbox" :checked="selectAll" @change="$emit('toggleSelection', props.user)"></td>
-    <td>{{ index + 1 }}</td>
-    <td>{{ user.name }}</td>
-    <td>{{ user.email }}</td>
-    <td>{{ user.phone || 'N/A' }}</td>
-    <td>
-      <select @change="ChangeRole(user,$event.target.value)" class="form form-control">
-  <option 
-    v-for="role in roles" 
-    :key="role.value" 
-    :value="role.value" 
-    :selected="(user.role == role.name)"
-  >
-    {{ role.name }}
-  </option>
-</select>
-
+  <tr class="user-item">
+    <td class="select-column">
+      <input type="checkbox" :checked="selectAll" @change="$emit('toggleSelection', props.user)">
     </td>
-    <td>{{ user.created_at}}</td>
-    <td>
-      <div class="d-flex justify-content-center gap-2">
+    <td>{{ index + 1 }}</td>
+    <td class="user-name">{{ user.name }}</td>
+    <td class="user-email">{{ user.email }}</td>
+    <td class="user-phone">{{ user.phone || 'N/A' }}</td>
+    <td class="user-role">
+      <select 
+        @change="ChangeRole(user, $event.target.value)" 
+        class="form-control form-select-sm"
+        :disabled="user.role === 'admin'"
+      >
+        <option 
+          v-for="role in roles" 
+          :key="role.value" 
+          :value="role.value" 
+          :selected="user.role === role.name"
+        >
+          {{ capitalize(role.name) }}
+        </option>
+      </select>
+    </td>
+    <td class="user-created-at">{{ formatDate(user.created_at) }}</td>
+    <td class="user-actions">
+      <div class="btn-group">
         <button
-          class="btn btn-outline-success btn-sm"
+          class="btn btn-sm btn-outline-primary mx-1"
           title="Edit"
           @click="editUser"
         >
           <i class="fas fa-edit"></i>
         </button>
         <button
-          class="btn btn-outline-danger btn-sm"
+          class="btn btn-sm btn-outline-danger"
           title="Delete"
           @click="openDeleteModal"
         >
@@ -131,22 +142,58 @@ const roles = [
   </Teleport>
 </template>
 
+
+
 <style scoped>
-.badge {
-  padding: 0.5em 0.75em;
-  font-size: 0.85em;
-  border-radius: 0.25rem;
-  text-transform: capitalize;
+.user-item {
+  transition: background-color 0.3s ease;
 }
 
-.btn-sm {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 2.5rem;
+.user-item:hover {
+  background-color: rgba(0, 123, 255, 0.075);
 }
 
-.btn i {
+.select-column {
+  width: 5%;
+}
+
+.user-name, .user-email, .user-phone, .user-role, .user-created-at {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-name {
+  max-width: 150px;
+}
+
+.user-email, .user-phone {
+  max-width: 180px;
+}
+
+.user-role {
+  width: 150px;
+}
+
+.user-created-at {
+  width: 120px;
+}
+
+.user-actions {
+  width: 120px;
+}
+
+.btn-group .btn {
+  padding: 0.25rem 0.5rem;
   font-size: 0.875rem;
+  line-height: 1.5;
+  border-radius: 50px;
+}
+
+.form-select-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  border-radius: 50px;
 }
 </style>

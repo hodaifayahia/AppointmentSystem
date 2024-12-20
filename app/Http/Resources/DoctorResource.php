@@ -14,21 +14,21 @@ class DoctorResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-          return [
-            'id' => $this->id,
-            'name' => $this->name,
-            'email' => $this->email,
-            'phone' => $this->phone,
+        return [
+            'id' => $this->user->id,
+            'name' => $this->user->name,
+            'email' => $this->user->email,
+            'phone' => $this->user->phone,
             'specialization' => $this->specialization,
-            // 'avatar' => $this->avatar ? url($this->avatar) : null,
-            'day' =>$this->day,
-            'start_time' =>$this->start_time,
-            'end_time' =>$this->end_time,
-            'frequency' =>$this->frequency,
-            'number_of_patient' =>$this->number_of_patient,
-            'specific_date' =>$this->specific_date,
-            'created_at' => $this->created_at->toDateTimeString(),
-            'updated_at' => $this->updated_at->toDateTimeString(),
+            'days' => $this->days, // Changed from day to days
+            'start_time' => $this->start_time->format(config('app.time_format')),
+            'end_time' => $this->end_time->format(config('app.time_format')),
+            'frequency' => $this->frequency,
+            'number_of_patients_per_day' => $this->number_of_patients_per_day, // Changed from number_of_patient
+            'specific_date' => $this->specific_date,
+            'appointment_booking_window' => $this->appointment_booking_window,
+            'created_at' => $this->created_at->format(config('app.date_formate')),
+            'updated_at' => $this->updated_at->format(config('app.date_formate')),
         ];
     }
 }

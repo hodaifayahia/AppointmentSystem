@@ -18,7 +18,9 @@ return new class extends Migration
             $table->text('notes')->nullable();
             $table->date('appointment_date');
             $table->time('appointment_time');
-            $table->enum('status', ['Scheduled', 'Completed', 'Canceled'])->default('Scheduled');
+            $table->integer('created_by');
+            $table->softDeletes(); 
+            $table->integer('status')->default(0) ;// 0 is booked
             $table->timestamps();
         });
     }
