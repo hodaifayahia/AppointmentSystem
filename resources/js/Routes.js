@@ -1,5 +1,6 @@
 import Dashboard from "./Components/Dashboard.vue";
 import ListAppointment from "./Pages/Appointments/ListAppointment.vue";
+import AppointmentForm from "./Pages/Appointments/AppointmentForm.vue";
 import ListUsers from "./Pages/Users/ListUsers.vue";
 import ListDoctors from "./Pages/Users/ListDoctors.vue";
 import Profile from "./Pages/Profile/Profile.vue";
@@ -17,6 +18,11 @@ export default [
         component: ListAppointment,
     },
     {
+        path: '/admin/appointments/create',  // Corrected path
+        name: 'admin.appointments.create',
+        component: AppointmentForm,
+    },
+    {
         path: '/admin/users',  // Corrected path
         name: 'admin.users',
         component: ListUsers,
@@ -25,6 +31,11 @@ export default [
         path: '/admin/docters',  // Corrected path
         name: 'admin.docters',
         component: ListDoctors,
+    },
+    {
+        path: '/admin/settings',  // Corrected path (lowercase "s")
+        name: 'admin.settings',
+        component: settings,
     },
     {
         path: '/admin/settings',  // Corrected path (lowercase "s")

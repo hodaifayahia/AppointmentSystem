@@ -11,13 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('patients', function (Blueprint $table) {
+        Schema::create('specializations', function (Blueprint $table) {
             $table->id();
-            $table->string('Firstname');
-            $table->string('Lastname');
-            $table->string('phone');
-            $table->integer('created_by')->default(2);
-            $table->softDeletes(); 
+            $table->string('name')->unique(); // Assuming each specialization has a unique name
+            $table->text('description')->nullable(); // Optional description of the specialization
             $table->timestamps();
         });
     }
@@ -27,6 +24,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('patients');
+        Schema::dropIfExists('specializations');
     }
 };

@@ -2,14 +2,13 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Models\Specialization;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Doctor extends Model 
 {
-    use HasFactory;
     use SoftDeletes;
 
     /**
@@ -18,7 +17,7 @@ class Doctor extends Model
      * @var array<string>
      */
     protected $fillable = [
-        'specialization',
+        'specialization_id',
         'days',
         'start_time',
         'end_time',
@@ -29,6 +28,7 @@ class Doctor extends Model
         'patients_based_on_time',
         'appointment_booking_window',
         'time_slot',
+        'created_by',
         'user_id',
     ];
 
@@ -86,6 +86,10 @@ class Doctor extends Model
     {
         return $value;
     }
+    public function specialization()
+{
+    return $this->belongsTo(Specialization::class);
+}
 
     /**
      * Set frequency attribute.

@@ -7,6 +7,7 @@ use App\Http\Resources\DoctorResource;
 use App\Models\Doctor;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 
 class DoctorController extends Controller
@@ -59,6 +60,7 @@ class DoctorController extends Controller
                 'name' => $validatedData['name'],
                 'email' => $validatedData['email'],
                 'phone' => $validatedData['phone'],
+                'created_by' => 2,//TOdo
                 'password' => bcrypt($validatedData['password']),
                 'role' => 'doctor',
             ]);
@@ -71,7 +73,8 @@ class DoctorController extends Controller
             // Create doctor
             $doctor = Doctor::create([
                 'user_id' => $user->id,
-                'specialization' => $validatedData['specialization'],
+                'specialization_id' => $validatedData['specialization'],
+                'created_by' => 2, //TODO
                 'days' => json_encode($validatedData['days']), // Explicitly encode the days array
                 'start_time' => $validatedData['start_time'],
                 'end_time' => $validatedData['end_time'],
@@ -129,9 +132,11 @@ class DoctorController extends Controller
     // Make sure your DoctorResource handles JSON days properly
     public function update(Request $request, string $id)
     {
-        $doctor = Doctor::findOrFail($id);
-        
-        // Validate the request (similar to store but email unique rule should exclude current user)
+        // Find doctor by user_id and eager load user relationship
+        $doctor = Doctor::with('user')
+            ->where('user_id', $id)
+            ->firstOrFail();
+        // Validate the request
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email,' . $doctor->user_id,
@@ -147,11 +152,11 @@ class DoctorController extends Controller
             'number_of_patients_per_day' => 'required_if:patients_based_on_time,false|nullable|integer',
             'time_slot' => 'required_if:patients_based_on_time,true|nullable|string',
         ]);
-
+    
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
-
+    
         try {
             // Update user
             $doctor->user->update([
@@ -159,17 +164,17 @@ class DoctorController extends Controller
                 'email' => $request->email,
                 'phone' => $request->phone,
             ]);
-
+    
             if ($request->filled('password')) {
                 $doctor->user->update([
                     'password' => bcrypt($request->password)
                 ]);
             }
-
-            // Update doctor with JSON days
+    
+            // Update doctor
             $doctor->update([
                 'specialization' => $request->specialization,
-                'days' => json_encode($request->days), // Explicitly encode the days array
+                'days' => $request->days, // The array will be automatically JSON encoded by the cast
                 'start_time' => $request->start_time,
                 'end_time' => $request->end_time,
                 'number_of_patients_per_day' => $request->number_of_patients_per_day,
@@ -178,12 +183,15 @@ class DoctorController extends Controller
                 'appointment_booking_window' => $request->appointmentBookingWindow,
                 'time_slot' => $request->time_slot,
             ]);
-
+    
+            // Refresh the model to get the updated data with relationships
+            $doctor = $doctor->fresh('user');
+    
             return response()->json([
                 'message' => 'Doctor updated successfully!',
                 'doctor' => new DoctorResource($doctor),
             ]);
-
+    
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Error updating doctor',

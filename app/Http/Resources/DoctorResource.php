@@ -15,11 +15,12 @@ class DoctorResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => $this->user->id,
+            'id' => $this->id,
             'name' => $this->user->name,
             'email' => $this->user->email,
             'phone' => $this->user->phone,
             'specialization' => $this->specialization,
+            'time_slots' => $this->time_slots,
             'days' => $this->days, // Changed from day to days
             'start_time' => $this->start_time->format(config('app.time_format')),
             'end_time' => $this->end_time->format(config('app.time_format')),

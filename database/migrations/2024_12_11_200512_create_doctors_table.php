@@ -13,8 +13,7 @@ public function up(): void
 {
     Schema::create('doctors', function (Blueprint $table) {
         $table->id();
-        $table->string('specialization');
-        $table->json('days')->nullable();
+        $table->foreignId('specialization_id')->nullable()->constrained('specializations')->onDelete('set null');        $table->json('days')->nullable();
         $table->time('start_time');
         $table->time('end_time');
         $table->integer('number_of_patient')->default(0);
@@ -25,7 +24,8 @@ public function up(): void
         $table->integer('number_of_patients_per_day')->default(0);
         $table->integer('time_slot')->nullable();
         $table->integer('appointment_booking_window')->default(1); 
-        $table->integer('created_by');
+
+        $table->integer('created_by')->default(2);
         // Change column name to `user_id`
         $table->softDeletes(); 
         $table->unsignedBigInteger('user_id');

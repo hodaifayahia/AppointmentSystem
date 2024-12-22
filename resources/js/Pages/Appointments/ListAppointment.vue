@@ -1,149 +1,237 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import axios from 'axios'
 
-const appointments = ref([
-  { id: 1, clientName: 'Mr. Martin Glover MD', date: '2023-01-27', time: '05:40 PM', status: 'closed' },
-  { id: 1, clientName: 'Mr. Martin Glover MD', date: '2023-01-27', time: '05:40 PM', status: 'closed' },
-  { id: 1, clientName: 'Mr. Martin Glover MD', date: '2023-01-27', time: '05:40 PM', status: 'closed' },
-  { id: 1, clientName: 'Mr. Martin Glover MD', date: '2023-01-27', time: '05:40 PM', status: 'closed' },
-  // Add more appointments here
-])
+const appointments = ref([])
+const loading = ref(true)
+const currentPage = ref(1)
+const totalPages = ref(1)
+const error = ref(null)
+const statuses = ref([])
 
-const Appointments = ref([]);
-const getAppointment = async (page = 1) => {
+const getAppointments = async (status, page = 1) => {
   try {
-    const response = await axios.get(`/api/appointment?page=${page}`);
-    Appointments.value = response.data.data; // Immediately update the list
+    const params = { page };
+    if (status && status !== 'ALL') {
+      params.status = status;
+    }
+
+    loading.value = true;
+    // Fix: Pass params directly, not nested
+    const response = await axios.get('/api/appointment', { params });
+
+    appointments.value = response.data.data;
+    currentPage.value = page;
+
   } catch (error) {
-    toaster.error('Failed to fetch doctors');
-    console.error('Error fetching doctors:', error);
+    console.error('Error fetching appointments:', error);
+    error.value = error.response?.data?.message || 'Failed to load appointments';
+  } finally {
+    loading.value = false;
   }
 };
 
-const statuses = ['All', 'Scheduled', 'Closed']
-const currentFilter = ref('All')
+const formatDate = (dateString) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'short', 
+    day: 'numeric' 
+  });
+};
 
-const filteredAppointments = computed(() => {
-  if (currentFilter.value === 'All') return appointments.value
-  return appointments.value.filter(a => a.status.toLowerCase() === currentFilter.value.toLowerCase())
-})
+const formatTime = (time) => {
+  // Extract the time part from the datetime string
+  const [, timePart] = time.split('T');
+  if (timePart.length === 5) {
+    return timePart;
+  }
+  // Handle other formats:
+  const [hours, minutes] = timePart.split(':');
+  return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+};
+const currentFilter = ref('ALL');
+
+
+const filterAppointments = (status) => {
+  currentFilter.value = status;
+};
 
 const getStatusCount = (status) => {
-  if (status === 'All') return appointments.value.length
-  return appointments.value.filter(a => a.status.toLowerCase() === status.toLowerCase()).length
+  if (status === 'ALL') return appointments.value.length;
+  return appointments.value.filter(a => a.status?.name === status).length;
+};
+
+const getPatientFullName = (patient) => {
+  if (!patient) return 'N/A'
+  return `${patient.patient_first_name} ${patient.patient_last_name}`
 }
 
-const getStatusColor = (status) => {
-  switch (status.toLowerCase()) {
-    case 'scheduled': return 'primary'
-    case 'closed': return 'success'
-    default: return 'secondary'
+const getAppointmentsStatus = async () => {
+  try {
+    const response = await axios.get(`/api/appointmentStatus`)
+    statuses.value = response.data;
+    console.log(statuses.value);
+  } catch (error) {
+    console.error('Error fetching appointments:', error)
+    error.value = 'Failed to load appointments'
   }
 }
 
-const filterAppointments = (status) => {
-  currentFilter.value = status
+
+
+const getBadgeClass = (status) => {
+  const colorMap = {
+    'SCHEDULED': 'bg-primary',
+    'DONE': 'bg-success',
+    'CANCELED': 'bg-danger',
+    'PENDING': 'bg-warning'
+  }
+  return colorMap[status?.name] || 'bg-secondary'
+}
+
+const getStatusText = (status) => {
+  return status?.name || 'Unknown'
 }
 
 const openAddAppointmentModal = () => {
-  // Implement modal logic here
   console.log('Open modal to add appointment')
 }
 
 const editAppointment = (appointment) => {
-  // Implement edit logic here
   console.log('Edit appointment:', appointment)
 }
 
-const deleteAppointment = (id) => {
-  // Implement delete logic here
-  console.log('Delete appointment:', id)
+const deleteAppointment = async (id) => {
+  if (!confirm('Are you sure you want to delete this appointment?')) return
+
+  try {
+    await axios.delete(`/api/appointment/${id}`)
+    await getAppointments(currentPage.value)
+  } catch (error) {
+    console.error('Error deleting appointment:', error)
+  }
 }
+
+onMounted(() => {
+  getAppointments();
+  getAppointmentsStatus();
+})
 </script>
 
-
-
 <template>
-    <div class="appointment-page">
-      <!-- Header -->
-      <div class="content-header">
-        <div class="container-fluid">
-          <div class="row mb-2">
-            <div class="col-sm-6">
-              <h1 class="m-0">Appointments</h1>
-            </div>
-            <div class="col-sm-6">
-              <ol class="breadcrumb float-sm-right">
-                <li class="breadcrumb-item"><a href="#">Home</a></li>
-                <li class="breadcrumb-item active">Appointments</li>
-              </ol>
-            </div>
+  <div class="appointment-page">
+    <!-- Header -->
+    <div class="content-header">
+      <div class="container-fluid">
+        <div class="row mb-2">
+          <div class="col-sm-6">
+            <h1 class="m-0">Appointments</h1>
+          </div>
+          <div class="col-sm-6">
+            <ol class="breadcrumb float-sm-right">
+              <li class="breadcrumb-item"><a href="#">Home</a></li>
+              <li class="breadcrumb-item active">Appointments</li>
+            </ol>
           </div>
         </div>
       </div>
-  
-      <!-- Main Content -->
-      <div class="content">
-        <div class="container-fluid">
-          <div class="row">
-            <div class="col-lg-12">
-              <div class="d-flex justify-content-between align-items-center mb-3">
-                <!-- Add New Appointment Button -->
-                <button @click="openAddAppointmentModal" class="btn btn-primary btn-rounded">
-                  <i class="feather icon-plus-circle"></i> Add New Appointment
+    </div>
+
+    <!-- Main Content -->
+    <div class="content">
+      <div class="container-fluid">
+        <div class="row">
+          <div class="col-lg-12">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <router-link to="/admin/appointments/create"  class="btn btn-primary btn-rounded">
+                <i class="fas fa-plus-circle"></i> Add New Appointment
+              </router-link>
+
+              <!-- Status Filters -->
+              <div class="btn-group" role="group" aria-label="Appointment status filters">
+                <button v-for="status in statuses" :key="status.name" @click="getAppointments(status.value)" :class="[
+                  'btn',
+                  currentFilter === status.name ? `btn-${status.color}` : `btn-outline-${status.color}`,
+                  'btn-sm'
+                ]">
+                  {{ status.name }}
+                  <span class="badge rounded-pill ms-1"
+                    :class="currentFilter === status.name ? 'bg-light text-dark' : `bg-${status.color}`">
+                    {{ getStatusCount(status.name) }}
+                  </span>
                 </button>
-  
-                <!-- Status Filters -->
-                <div class="btn-group" role="group" aria-label="Appointment status filters">
-                  <button 
-                    v-for="status in statuses" 
-                    :key="status" 
-                    @click="filterAppointments(status)"
-                    :class="{'btn-primary': currentFilter === status, 'btn-outline-primary': currentFilter !== status}"
-                    class="btn btn-sm"
-                  >
-                    {{ status }}
-                    <span class="badge badge-pill ml-1" :class="{'badge-secondary': currentFilter === status, 'badge-light': currentFilter !== status}">
-                      {{ getStatusCount(status) }}
-                    </span>
-                  </button>
-                </div>
               </div>
-  
-              <!-- Appointment List -->
-              <div class="card shadow-sm">
-                <div class="card-body">
-                  <table class="table table-hover">
-                    <thead>
-                      <tr>
-                        <th scope="col">#</th>
-                        <th scope="col">Client Name</th>
-                        <th scope="col">Date</th>
-                        <th scope="col">Time</th>
-                        <th scope="col">Status</th>
-                        <th scope="col">Options</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr v-for="(appointment, index) in filteredAppointments" :key="appointment.id">
-                        <td>{{ index + 1 }}</td>
-                        <td>{{ appointment.clientName }}</td>
-                        <td>{{ appointment.date }}</td>
-                        <td>{{ appointment.time }}</td>
-                        <td>
-                          <span :class="`badge badge-${getStatusColor(appointment.status)}`">{{ appointment.status }}</span>
-                        </td>
-                        <td>
-                          <button @click="editAppointment(appointment)" class="btn btn-sm btn-outline-primary mr-2">
-                            <i class=" fas fa-edit"></i>
-                          </button>
-                          <button @click="deleteAppointment(appointment.id)" class="btn btn-sm btn-outline-danger">
-                            <i class="fas fa-trash-alt"></i>
-                          </button>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+            </div>
+
+
+
+            <!-- Appointment List -->
+            <div class="card shadow-sm">
+              <div class="card-body">
+                <div v-if="error" class="alert alert-danger" role="alert">
+                  {{ error }}
+                </div>
+
+                <div v-if="loading" class="text-center py-4">
+                  <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden"></span>
+                  </div>
+                </div>
+
+                <table v-else class="table table-hover">
+                  <thead>
+                    <tr>
+                      <th scope="col">#</th>
+                      <th scope="col">Patient Name</th>
+                      <th scope="col">Phone</th>
+                      <th scope="col">Doctor Name</th>
+                      <th scope="col">Date</th>
+                      <th scope="col">Time</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-if="appointments.length === 0">
+                      <td colspan="8" class="text-center">No appointments found</td>
+                    </tr>
+                    <tr v-else v-for="(appointment, index) in appointments" :key="appointment.id">
+                      <td>{{ index + 1 }}</td>
+                      <td>{{ getPatientFullName(appointment) }}</td>
+                      <td>{{ appointment.phone }}</td>
+                      <td>{{ appointment.doctor_name }}</td>
+                      <td>{{ formatDate(appointment.appointment_date) }}</td>
+                      <td>{{ formatTime(appointment.appointment_time) }}</td>
+                      <td>
+                        <span :class="`badge ${getBadgeClass(appointment.status)}`">
+                          {{ getStatusText(appointment.status) }}
+                        </span>
+                      </td>
+                      <td>
+                        <button @click="editAppointment(appointment)" class="btn btn-sm btn-outline-primary me-2">
+                          <i class="fas fa-edit"></i>
+                        </button>
+                        <button @click="deleteAppointment(appointment.id)" class="btn btn-sm btn-outline-danger">
+                          <i class="fas fa-trash-alt"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <!-- Pagination -->
+                <div v-if="!loading && totalPages > 1" class="d-flex justify-content-center mt-4">
+                  <nav aria-label="Appointments pagination">
+                    <ul class="pagination">
+                      <li v-for="page in totalPages" :key="page"
+                        :class="['page-item', { active: page === currentPage }]">
+                        <a class="page-link" href="#" @click.prevent="getAppointments(page)">
+                          {{ page }}
+                        </a>
+                      </li>
+                    </ul>
+                  </nav>
                 </div>
               </div>
             </div>
@@ -151,43 +239,50 @@ const deleteAppointment = (id) => {
         </div>
       </div>
     </div>
-  </template>
-  
+  </div>
+</template>
 
-  
-  <style scoped>
-  .appointment-page {
-    background-color: #f8f9fa;
-  }
-  
-  .btn-rounded {
-    border-radius: 50px;
-  }
-  
-  .btn-sm {
-    padding: 0.25rem 0.75rem;
-    font-size: 0.875rem;
-  }
-  
-  .badge-pill {
-    font-size: 85%;
-    font-weight: 600;
-  }
-  
-  .card {
-    border-radius: 10px;
-    overflow: hidden;
-  }
-  
-  .card-body {
-    padding: 1.5rem;
-  }
-  
-  .table-hover tbody tr:hover {
-    background-color: rgba(0, 123, 255, 0.075);
-  }
-  
-  .table td, .table th {
-    vertical-align: middle;
-  }
-  </style>
+<style scoped>
+.appointment-page {
+  background-color: #f8f9fa;
+}
+
+.btn-rounded {
+  border-radius: 50px;
+}
+
+.btn-sm {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.badge {
+  padding: 0.5em 1em;
+}
+
+.card {
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.card-body {
+  padding: 1.5rem;
+}
+
+.table-hover tbody tr:hover {
+  background-color: rgba(0, 123, 255, 0.075);
+}
+
+.table td,
+.table th {
+  vertical-align: middle;
+}
+
+.pagination {
+  margin-bottom: 0;
+}
+
+.me-2 {
+  margin-right: 0.5rem;
+}
+</style>

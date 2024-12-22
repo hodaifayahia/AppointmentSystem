@@ -46,6 +46,7 @@ class UserController extends Controller
             'email' => $validatedData['email'],
             'phone' => $validatedData['phone'],
             'password' => bcrypt($validatedData['password']),
+            'created_by' => Auth::id(),
         ]);
     
         return new UserResource($user);

@@ -1,8 +1,12 @@
 <?php
 use App\Http\Controllers\ApplicationController;
+use App\Http\Controllers\AppointmentController;
+use App\Http\Controllers\AppointmentStatus;
 use App\Http\Controllers\DoctorController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
+
+
 
 
 // Route::get('/', function () {
@@ -29,6 +33,13 @@ Route::delete('/api/doctors', [DoctorController::class, 'bulkDelete'])->name('us
 Route::get('api/doctors/search', [DoctorController::class, 'search'])->name('users.search');
 
 
-Route::get('api/doctors/search', [AppointmentController::class, 'search'])->name('users.search');
+Route::get('/api/appointment', [AppointmentController::class, 'index'])->name('users.index');
+Route::post('/api/appointment', [AppointmentController::class, 'store']);
+Route::put('/api/appointment/{appointmentid}', [AppointmentController::class, 'update'])->name('users.index');
+Route::delete('/api/appointment/{appointmentid}', [AppointmentController::class, 'destory'])->name('users.index');
+Route::get('/api/appointmentStatus', [AppointmentStatus::class, 'appointmentStatus']);
+
+
+
 
 Route::get('{view}', [ApplicationController::class, '__invoke'])->where('view', '(.*)');

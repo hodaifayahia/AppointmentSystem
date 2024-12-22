@@ -22,7 +22,7 @@ return new class extends Migration
             $table->enum('role', ['admin', 'receptionist', 'doctor'])->default('admin');
             $table->string('avatar')->nullable(); // Add avatar field
             $table->string('background')->nullable(); // Add background field
-            $table->integer('created_by');
+            $table->integer('created_by')->default(2);
             $table->rememberToken();
             $table->softDeletes(); 
             $table->timestamps();

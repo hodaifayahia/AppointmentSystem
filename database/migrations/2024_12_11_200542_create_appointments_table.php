@@ -18,7 +18,7 @@ return new class extends Migration
             $table->text('notes')->nullable();
             $table->date('appointment_date');
             $table->time('appointment_time');
-            $table->integer('created_by');
+            $table->integer('created_by')->default(2);
             $table->softDeletes(); 
             $table->integer('status')->default(0) ;// 0 is booked
             $table->timestamps();
