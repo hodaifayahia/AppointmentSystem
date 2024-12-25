@@ -9,6 +9,7 @@ use App\Models\Appointment;
 use App\Models\Doctor;
 use App\Models\Patient;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 class AppointmentController extends Controller
 {
@@ -34,29 +35,151 @@ class AppointmentController extends Controller
     return AppointmentResource::collection($appointment);
     }
 
-
-    public function checkAvailability(Request $request)
+    
+    public function getTimeSlots(Request $request)
     {
         $request->validate([
-            'doctor_id' => 'required|exists:doctors,id',
             'date' => 'required|date_format:Y-m-d',
+            'doctor_id' => 'required|exists:doctors,id'
         ]);
 
-        $doctor = Doctor::findOrFail($request->doctor_id);
-        $date = $request->date;
+        try {
+            $date = Carbon::parse($request->date);
+            $doctor = Doctor::findOrFail($request->doctor_id);
+            
+            // Validate if the date is not in the past
+            if ($date->startOfDay()->lt(Carbon::today())) {
+                return response()->json(['error' => 'Cannot book appointments for past dates'], 422);
+            }
 
-        // Get all booked appointments for the doctor on the specified date
-        $bookedSlots = Appointment::where('doctor_id', $doctor->id)
+            // Get doctor's schedule
+            $startTime = Carbon::parse($doctor->start_time);
+            $endTime = Carbon::parse($doctor->end_time);
+            $slotDuration = $doctor->time_slots ?? 30; // minutes
+            
+            // Get booked appointments for the day
+            $bookedSlots = Appointment::where('doctor_id', $doctor->id)
+                ->whereDate('appointment_date', $date)
+                ->whereIn('status', ['scheduled', 'confirmed'])
+                ->pluck('appointment_time')
+                ->map(fn($time) => Carbon::parse($time)->format('H:i'))
+                ->toArray();
+
+            // Calculate available slots
+            $slots = [];
+            $currentTime = $date->copy()->setTimeFrom($startTime);
+            $endDateTime = $date->copy()->setTimeFrom($endTime);
+
+            while ($currentTime < $endDateTime) {
+                $timeString = $currentTime->format('H:i');
+                
+                // Check if slot is available
+                $isAvailable = !in_array($timeString, $bookedSlots) && 
+                             $this->isWithinWorkingHours($currentTime, $doctor) &&
+                             $this->hasntReachedDailyLimit($date, $doctor);
+
+                $slots[] = [
+                    'time' => $timeString,
+                    'available' => $isAvailable
+                ];
+                
+                $currentTime->addMinutes($slotDuration);
+            }
+
+            return response()->json([
+                'slots' => $slots,
+                'slot_duration' => $slotDuration
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error in getTimeSlots: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to fetch time slots'], 500);
+        }
+    }
+
+    private function isWithinWorkingHours(Carbon $time, Doctor $doctor)
+    {
+        // Convert time to minutes for easier comparison
+        $timeInMinutes = $time->hour * 60 + $time->minute;
+        $startInMinutes = Carbon::parse($doctor->start_time)->hour * 60 + Carbon::parse($doctor->start_time)->minute;
+        $endInMinutes = Carbon::parse($doctor->end_time)->hour * 60 + Carbon::parse($doctor->end_time)->minute;
+
+        // Check if time is within working hours
+        if ($timeInMinutes < $startInMinutes || $timeInMinutes >= $endInMinutes) {
+            return false;
+        }
+
+        // Add break time logic if needed
+        if ($doctor->break_start && $doctor->break_end) {
+            $breakStartMinutes = Carbon::parse($doctor->break_start)->hour * 60 + Carbon::parse($doctor->break_start)->minute;
+            $breakEndMinutes = Carbon::parse($doctor->break_end)->hour * 60 + Carbon::parse($doctor->break_end)->minute;
+            
+            if ($timeInMinutes >= $breakStartMinutes && $timeInMinutes < $breakEndMinutes) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function hasntReachedDailyLimit(Carbon $date, Doctor $doctor)
+    {
+        if (!$doctor->daily_appointment_limit) {
+            return true;
+        }
+
+        $appointmentCount = Appointment::where('doctor_id', $doctor->id)
             ->whereDate('appointment_date', $date)
-            ->pluck('appointment_time')
-            ->map(function($time) {
-                return Carbon::parse($time)->format('H:i');
-            })
-            ->toArray();
+            ->whereIn('status', ['scheduled', 'confirmed'])
+            ->count();
 
-        return response()->json([
-            'booked_slots' => $bookedSlots
+        return $appointmentCount < $doctor->daily_appointment_limit;
+    }
+
+
+
+    public function checkAvailability(Request $request) 
+    {
+        // Validate the request data
+        $data = $request->validate([
+            'days' => 'required|integer|min:1',
         ]);
+    
+        try {
+            // Ensure the days are treated as an integer
+            $days = (int) $data['days'];
+    
+            $currentDate = Carbon::now();
+            $nextAppointment = $currentDate->copy()->addDays($days);
+            $period = $this->calculatePeriod($days);
+    
+            return response()->json([
+                'current_date' => $currentDate->format('Y-m-d'),
+                'next_appointment' => $nextAppointment->format('Y-m-d'),
+                'period' => $period,
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error checking availability: ' . $e->getMessage());
+            return response()->json(['error' => 'An error occurred while checking availability.'], 500);
+        }
+    }
+    
+
+    private function calculatePeriod($days)
+    {
+        if ($days >= 365) {
+            $years = floor($days / 365);
+            $remainingDays = $days % 365;
+            return $years . ' year(s)' . ($remainingDays ? ' and ' . $remainingDays . ' day(s)' : '');
+        }
+        
+        if ($days >= 30) {
+            $months = floor($days / 30);
+            $remainingDays = $days % 30;
+            return $months . ' month(s)' . ($remainingDays ? ' and ' . $remainingDays . ' day(s)' : '');
+        }
+        
+        return $days . ' day(s)';
     }
     public function store(Request $request)
     {

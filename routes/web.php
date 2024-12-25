@@ -29,19 +29,22 @@ Route::delete('/api/users', [UserController::class, 'bulkDelete'])->name('users.
 
 
 // apis for doctors
-Route::get('api/doctors', [DoctorController::class, 'index']);
-Route::post('api/doctors', [DoctorController::class, 'store'])->name('users.store');
-Route::put('api/doctors/{doctorid}', [DoctorController::class, 'update'])->name('users.update');
+Route::get('/api/doctors', [DoctorController::class, 'index']);
+Route::post('/api/doctors', [DoctorController::class, 'store'])->name('users.store');
+Route::put('/api/doctors/{doctorid}', [DoctorController::class, 'update'])->name('users.update');
 Route::delete('/api/doctors/{doctorid}', [DoctorController::class, 'destroy'])->name('users.destroy');
 Route::delete('/api/doctors', [DoctorController::class, 'bulkDelete'])->name('users.bulkDelete');
-Route::get('api/doctors/search', [DoctorController::class, 'search'])->name('users.search');
+Route::get('/api/doctors/search', [DoctorController::class, 'search'])->name('users.search');
+Route::get('/api/doctors/{doctorid}', [DoctorController::class, 'specificDoctor']);
 
 
-Route::get('/api/appointment', [AppointmentController::class, 'index'])->name('users.index');
-Route::post('/api/appointment', [AppointmentController::class, 'store']);
+Route::get('api/appointments/checkAvailability', [AppointmentController::class, 'checkAvailability']);
+Route::get('/api/appointments', [AppointmentController::class, 'index'])->name('users.index');
+Route::post('/api/appointments', [AppointmentController::class, 'store']);
 Route::put('/api/appointment/{appointmentid}', [AppointmentController::class, 'update'])->name('users.index');
 Route::delete('/api/appointment/{appointmentid}', [AppointmentController::class, 'destory'])->name('users.index');
 Route::get('/api/appointmentStatus', [AppointmentStatus::class, 'appointmentStatus']);
+Route::get('api/appointments/time-slots', [AppointmentController::class, 'getTimeSlots']);
 
 
 Route::get('/api/specializations', [specializationsController::class, 'index']);
@@ -57,4 +60,5 @@ Route::post('/api/patients', [PatientController::class, 'store']);
 Route::post('/api/patients/{patientid}', [PatientController::class, 'update']);
 Route::get('/api/patients/search', [PatientController::class, 'search']);
 
-Route::get('{view}', [ApplicationController::class, '__invoke'])->where('view', '(.*)');
+Route::get('{view}', [ApplicationController::class, '__invoke'])
+    ->where('view', '(.*)');

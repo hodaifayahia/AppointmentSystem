@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import {useRoute } from 'vue-router';
+import {useRoute,useRouter } from 'vue-router';
 import axios from 'axios'
 
 const appointments = ref([]);
@@ -11,9 +11,8 @@ const error = ref(null);
 const statuses = ref([]);
 const route = useRoute();
 const doctorId = route.params.id; // Access specialization ID
-console.log(doctorId);
 
-
+const router = useRouter();
 const getAppointments = async (status, page = 1, doctorId = null) => {
   try {
     const params = { page };
@@ -122,9 +121,14 @@ const deleteAppointment = async (id) => {
   }
 }
 
+const goToNextPage = () => {
+  router.push({ name: 'admin.appointments.create', params: { doctorId } }); // Replace `NextPage` with your route name
+};
+
 onMounted(() => {
   getAppointments();
   getAppointmentsStatus();
+
 })
 </script>
 
@@ -153,9 +157,7 @@ onMounted(() => {
         <div class="row">
           <div class="col-lg-12">
             <div class="d-flex justify-content-between align-items-center mb-3">
-              <router-link to="/admin/appointments/create"  class="btn btn-primary btn-rounded">
-                <i class="fas fa-plus-circle"></i> Add New Appointment
-              </router-link>
+              <button @click="goToNextPage">Go to Next Page</button>
 
               <!-- Status Filters -->
               <div class="btn-group" role="group" aria-label="Appointment status filters">

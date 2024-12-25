@@ -33,7 +33,7 @@ export default [
         component: ListAppointment,
     },
     {
-        path: '/admin/appointments/create',  // Corrected path
+        path: '/admin/appointments/create/:id',  // Corrected path
         name: 'admin.appointments.create',
         component: AppointmentPage,
     },

@@ -223,6 +223,7 @@ class DoctorController extends Controller
         $doctors = Doctor::whereHas('specialization', function ($query) use ($searchTerm) {
             // Search in Specialization table
             $query->where('name', 'LIKE', "%{$searchTerm}%");
+            $query->where('id', 'LIKE', $searchTerm);
         })
         ->orWhereHas('user', function ($query) use ($searchTerm) {
             // Search in User table
@@ -239,6 +240,20 @@ class DoctorController extends Controller
     /**
      * Display the specified resource.
      */
+    public function specificDoctor(Request $request)
+    {
+        // Retrieve the doctor using the `doctorid` parameter
+        $doctor = Doctor::find(8);
+    
+        if (!$doctor) {
+            return response()->json(['error' => 'Doctor not found'], 404);
+        }
+    
+        // Return the formatted doctor data using a resource
+        return new DoctorResource($doctor);
+    }
+    
+
     public function show(string $id)
     {
         //

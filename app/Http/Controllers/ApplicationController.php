@@ -9,9 +9,14 @@ class ApplicationController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function __invoke()  {
-        return view('admin.layout.app');
+  public function __invoke($view = null)
+{
+    if (request()->is('api/*')) {
+        return response()->json(['error' => 'Not found'], 404);
     }
+    
+    return view('admin.layout.app');
+}
 
     public function index()
     {
