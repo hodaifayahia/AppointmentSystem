@@ -3,7 +3,6 @@ import { ref, computed, defineProps, defineEmits, watch } from 'vue';
 import { Field, Form } from 'vee-validate';
 import * as yup from 'yup';
 import axios from 'axios';
-
 import { useToastr } from '../Components/toster';
 
 const props = defineProps({
@@ -17,35 +16,41 @@ const props = defineProps({
   },
 });
 
-
 const emit = defineEmits(['close', 'doctorUpdated']);
 const toaster = useToastr();
 const errors = ref({});
+const specializations = ref({});
 const showPassword = ref(false);
 const patients_based_on_time = ref(false);
-const number_of_patients_per_day = ref(0);
+const number_of_patients_per_day = ref(false);
 const time_slot = ref('');
-const appointmentBookingWindow = ref(0);
-
 
 const doctor = ref({
   id: props.doctorData?.id || null,
   name: props.doctorData?.name || '',
   email: props.doctorData?.email || '',
   phone: props.doctorData?.phone || '',
-  specialization: props.doctorData?.specialization || '',
+  specialization: props.doctorData?.specialization || 0,  // Changed from 0 to ''
   frequency: props.doctorData?.frequency || '',
   start_time: props.doctorData?.start_time || '',
   end_time: props.doctorData?.end_time || '',
   days: Array.isArray(props.doctorData?.days)
     ? props.doctorData?.days
     : props.doctorData?.days?.split(',').filter(Boolean) || [],
-    appointmentBookingWindow: props.doctorData?.appointmentBookingWindow || 1, 
-    password: ''
+  appointmentBookingWindow: props.doctorData?.appointmentBookingWindow || 1,
+  password: ''
 });
-
+const getSpecializations = async (page = 1) => {
+  try {
+    const response = await axios.get('/api/specializations'); // Changed endpoint to plural
+    specializations.value = response.data.data || response.data; // Adjust based on your API response structure
+  } catch (error) {
+    console.error('Error fetching specializations:', error);
+    error.value = error.response?.data?.message || 'Failed to load specializations';
+  } finally {
+  }
+};
 const isEditMode = computed(() => !!props.doctorData?.id);
-
 
 const handlePatientSelectionChange = () => {
   if (patients_based_on_time.value) {
@@ -55,49 +60,6 @@ const handlePatientSelectionChange = () => {
   }
 };
 
-watch(
-  () => props.doctorData,
-  (newValue) => {
-    let parsedDays = [];
-    if (newValue?.days) {
-      try {
-        // Handle both string JSON and array cases
-        parsedDays = typeof newValue.days === 'string'
-          ? JSON.parse(newValue.days)
-          : newValue.days;
-      } catch (e) {
-        parsedDays = newValue.days.split(',').filter(Boolean);
-      }
-    }
-
-    doctor.value = {
-      ...doctor.value,
-      id: newValue?.id || null,
-      name: newValue?.name || '',
-      email: newValue?.email || '',
-      phone: newValue?.phone || '',
-      specialization: newValue?.specialization || '',
-      frequency: newValue?.frequency || '',
-      start_time: newValue?.start_time || '',
-      end_time: newValue?.end_time || '',
-      appointmentBookingWindow: newValue?.appointmentBookingWindow || 1,
-      days: parsedDays,
-
-      password: ''
-    };
-
-    patients_based_on_time.value = newValue?.patients_based_on_time || false;
-    number_of_patients_per_day.value = newValue?.number_of_patients_per_day || 0;
-    time_slot.value = newValue?.time_slot || '';
-  },
-  { immediate: true, deep: true }
-);
-
-
-
-const togglePasswordVisibility = () => {
-  showPassword.value = !showPassword.value;
-};
 
 const closeModal = () => {
   errors.value = {};
@@ -120,6 +82,7 @@ const handleBackendErrors = (error) => {
     toaster.error('An unexpected error occurred');
   }
 };
+// Added specialization to validation schema
 const getDoctorSchema = (isEditMode) => {
   const baseSchema = {
     name: yup.string().required('Name is required'),
@@ -128,25 +91,22 @@ const getDoctorSchema = (isEditMode) => {
       .string()
       .matches(/^[0-9]{10,15}$/, 'Phone number must be between 10 and 15 digits')
       .required('Phone number is required'),
-    specialization: yup.string().required('Specialization is required'),
+    specialization: yup.string().required('Specialization is required'),  // Added validation
     frequency: yup.string().required('Frequency is required'),
     start_time: yup.string().required('Start time is required'),
     end_time: yup.string().required('End time is required'),
     days: yup.array().min(1, 'Select at least one day'),
     appointmentBookingWindow: yup
-  .number()
-  .required('Please select a booking window')
-  .oneOf([1, 3, 5], 'Invalid booking window'),
+      .number()
+      .required('Please select a booking window')
+      .oneOf([1, 3, 5], 'Invalid booking window'),
   };
 
-  // Only add password validation if not in edit mode or if password is provided
   if (!isEditMode) {
-    // For new doctors, password is required
     baseSchema.password = yup.string()
       .required('Password is required')
       .min(8, 'Password must be at least 8 characters');
   } else {
-    // For edit mode, only validate password if it's provided
     baseSchema.password = yup.string()
       .transform((value) => (value === '' ? undefined : value))
       .optional()
@@ -155,15 +115,53 @@ const getDoctorSchema = (isEditMode) => {
 
   return yup.object(baseSchema);
 };
+getSpecializations();
 
-const doctorSchema = computed(() => getDoctorSchema(isEditMode.value));
+// Update the watch function to correctly set specialization
+watch(
+  () => props.doctorData,
+  (newValue) => {
+    let parsedDays = [];
+    if (newValue?.days) {
+      try {
+        parsedDays = typeof newValue.days === 'string'
+          ? JSON.parse(newValue.days)
+          : newValue.days;
+      } catch (e) {
+        parsedDays = newValue.days.split(',').filter(Boolean);
+      }
+    }
 
+    doctor.value = {
+      ...doctor.value,
+      id: newValue?.id || null,
+      name: newValue?.name || '',
+      email: newValue?.email || '',
+      phone: newValue?.phone || '',
+      specialization: newValue?.specialization || '', // Update specialization here
+      frequency: newValue?.frequency || '',
+      start_time: newValue?.start_time || '',
+      end_time: newValue?.end_time || '',
+      appointmentBookingWindow: newValue?.appointmentBookingWindow || 1,
+      days: parsedDays,
+      password: ''
+    };
+
+    patients_based_on_time.value = newValue?.patients_based_on_time || false;
+    number_of_patients_per_day.value = newValue?.number_of_patients_per_day || 0;
+    time_slot.value = newValue?.time_slot || '';
+  },
+  { immediate: true, deep: true }
+);
+
+// Update the submit function
 const submitForm = async (values, { resetForm }) => {
   try {
     const submissionData = {
-      ...doctor.value,
       ...values,
-      ppointmentBookingWindow: doctor.value.appointmentBookingWindow,
+      id: doctor.value.id,
+      appointmentBookingWindow: doctor.value.appointmentBookingWindow,
+      specialization: doctor.value.specialization, // Include specialization
       days: Array.isArray(values.days) ? values.days : [],
       patients_based_on_time: patients_based_on_time.value,
       number_of_patients_per_day: number_of_patients_per_day.value,
@@ -175,12 +173,11 @@ const submitForm = async (values, { resetForm }) => {
     }
 
     if (isEditMode.value) {
+     
       await axios.put(`/api/doctors/${submissionData.id}`, submissionData);
       toaster.success('Doctor updated successfully');
-
     } else {
-      console.log(submissionData);
-      
+      console.log('Creating doctor with data:', submissionData);
       await axios.post('/api/doctors', submissionData);
       toaster.success('Doctor added successfully');
     }
@@ -190,12 +187,6 @@ const submitForm = async (values, { resetForm }) => {
   } catch (error) {
     handleBackendErrors(error);
   }
-};
-const validateDays = (value) => {
-  if (!Array.isArray(value) || value.length === 0) {
-    return 'Select at least one day';
-  }
-  return true;
 };
 
 
@@ -240,9 +231,15 @@ const validateDays = (value) => {
               </div>
               <div class="col-md-6 mb-4">
                 <label for="specialization" class="form-label fs-5">Specialization</label>
-                <Field type="text" id="specialization" name="specialization"
+                <Field as="select" id="specialization" name="specialization"
                   :class="{ 'is-invalid': validationErrors.specialization }" v-model="doctor.specialization"
-                  class="form-control form-control-lg" />
+                  class="form-control form-control-lg">
+                  <option value="">Select Specialization</option>
+                  <option v-for="spec in specializations" :key="spec.id" :value="spec.id">
+                    {{ spec.name }}
+                  </option>
+                </Field>
+                {{ doctor.specialization }}
                 <span class="text-sm invalid-feedback">{{ validationErrors.specialization }}</span>
               </div>
             </div>
@@ -317,25 +314,20 @@ const validateDays = (value) => {
             </div>
             <div class="row">
               <div class="col-md-6 mb-4">
-                  <label for="appointmentBookingWindow" class="form-label fs-5">Appointment Booking Window</label>
-                  <Field
-  as="select"
-  id="appointmentBookingWindow"
-  name="appointmentBookingWindow"
-  v-model="doctor.appointmentBookingWindow"
-  class="form-control form-control-lg"
-  :class="{ 'is-invalid': validationErrors.appointmentBookingWindow }"
->
-  <option value="" disabled>Select Booking Window</option>
-  <option :value="1">1 Month</option>
-  <option :value="3">3 Months</option>
-  <option :value="5">5 Months</option>
-</Field>
+                <label for="appointmentBookingWindow" class="form-label fs-5">Appointment Booking Window</label>
+                <Field as="select" id="appointmentBookingWindow" name="appointmentBookingWindow"
+                  v-model="doctor.appointmentBookingWindow" class="form-control form-control-lg"
+                  :class="{ 'is-invalid': validationErrors.appointmentBookingWindow }">
+                  <option value="" disabled>Select Booking Window</option>
+                  <option :value="1">1 Month</option>
+                  <option :value="3">3 Months</option>
+                  <option :value="5">5 Months</option>
+                </Field>
 
-                  <span class="text-sm invalid-feedback">
-                    {{ validationErrors.appointmentBookingWindow }}
-                  </span>
-                </div>
+                <span class="text-sm invalid-feedback">
+                  {{ validationErrors.appointmentBookingWindow }}
+                </span>
+              </div>
               <div class="col-md-6 mb-4">
                 <label for="password" class="form-label fs-5">
                   {{ isEditMode ? 'Password (leave blank to keep current)' : 'Password' }}

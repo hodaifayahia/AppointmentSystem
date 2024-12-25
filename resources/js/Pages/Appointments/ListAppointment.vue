@@ -1,23 +1,31 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue';
+import {useRoute } from 'vue-router';
 import axios from 'axios'
 
-const appointments = ref([])
-const loading = ref(true)
-const currentPage = ref(1)
-const totalPages = ref(1)
-const error = ref(null)
-const statuses = ref([])
+const appointments = ref([]);
+const loading = ref(true);
+const currentPage = ref(1);
+const totalPages = ref(1);
+const error = ref(null);
+const statuses = ref([]);
+const route = useRoute();
+const doctorId = route.params.id; // Access specialization ID
+console.log(doctorId);
 
-const getAppointments = async (status, page = 1) => {
+
+const getAppointments = async (status, page = 1, doctorId = null) => {
   try {
     const params = { page };
+
     if (status && status !== 'ALL') {
       params.status = status;
     }
-
+    if (doctorId) {
+      params.doctor_id = doctorId; 
+    }
     loading.value = true;
-    // Fix: Pass params directly, not nested
+
     const response = await axios.get('/api/appointment', { params });
 
     appointments.value = response.data.data;
@@ -30,6 +38,7 @@ const getAppointments = async (status, page = 1) => {
     loading.value = false;
   }
 };
+
 
 const formatDate = (dateString) => {
   const date = new Date(dateString);

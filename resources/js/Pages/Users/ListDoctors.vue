@@ -13,7 +13,7 @@ const selectedDoctor = ref({
   email: '',
   phone: '',
   password: '',
-  specialization: '',
+  specialization: 0,
   number_of_patients_per_day: '',
   patients_based_on_time: '',
   time_slot: '',
@@ -34,6 +34,8 @@ const getDoctors = async (page = 1) => {
   try {
     const response = await axios.get(`/api/doctors?page=${page}`);
     doctors.value = response.data.data; // Immediately update the list
+    console.log(doctors.value);
+    
   } catch (error) {
     toaster.error('Failed to fetch doctors');
     console.error('Error fetching doctors:', error);
@@ -47,7 +49,7 @@ const openModal = () => {
     email: '',
     phone: '',
     password: '',
-    specialization: '',
+    specialization: 0,
     number_of_patients_per_day: '',
     patients_based_on_time: '',
     appointmentBookingWindow: '',

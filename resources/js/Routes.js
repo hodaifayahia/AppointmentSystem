@@ -3,8 +3,13 @@ import ListAppointment from "./Pages/Appointments/ListAppointment.vue";
 import AppointmentForm from "./Pages/Appointments/AppointmentForm.vue";
 import ListUsers from "./Pages/Users/ListUsers.vue";
 import ListDoctors from "./Pages/Users/ListDoctors.vue";
+import PatientList from "./Pages/Patient/PatientList.vue";
 import Profile from "./Pages/Profile/Profile.vue";
+import specializationList from "./Pages/Specialization/specializationList.vue";
 import settings from "./Pages/Setting/settings.vue";
+import DoctorListAppointment from "./Pages/Appointments/DoctorListAppointment.vue";
+import SpecializationListAppointment from "./Pages/Appointments/SpecializationListAppointment.vue";
+import AppointmentPage from "./Pages/Appointments/AppointmentPage.vue";
 
 export default [
     {
@@ -13,14 +18,29 @@ export default [
         component: Dashboard,
     },
     {
-        path: '/admin/appointments',  // Corrected path
+        path: '/admin/appointments/specialization',  // Corrected path
+        name: 'admin.appointments.specialization',
+        component: SpecializationListAppointment,
+    },
+    {
+        path: '/admin/appointments/doctors/:id',  // Corrected path
+        name: 'admin.appointments.doctors',
+        component: DoctorListAppointment,
+    },
+    {
+        path: '/admin/appointments/:id',  // Corrected path
         name: 'admin.appointments',
         component: ListAppointment,
     },
     {
         path: '/admin/appointments/create',  // Corrected path
         name: 'admin.appointments.create',
-        component: AppointmentForm,
+        component: AppointmentPage,
+    },
+    {
+        path: '/admin/patient',  // Corrected path
+        name: 'admin.patient',
+        component: PatientList,
     },
     {
         path: '/admin/users',  // Corrected path
@@ -38,9 +58,9 @@ export default [
         component: settings,
     },
     {
-        path: '/admin/settings',  // Corrected path (lowercase "s")
-        name: 'admin.settings',
-        component: settings,
+        path: '/admin/specializations',  // Corrected path (lowercase "s")
+        name: 'admin.specialization',
+        component: specializationList,
     },
     {
         path: '/admin/profile',  // Corrected path

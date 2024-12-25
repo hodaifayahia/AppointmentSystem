@@ -121,6 +121,7 @@ const formatTime = (time) => {
   <!-- Modals -->
   <Teleport to="body">
     <DoctorModel
+      v-if="isModalOpen"
       :show-modal="isModalOpen"
       :doctor-data="selectedUser"
       @close="closeModal"

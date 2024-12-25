@@ -15,6 +15,8 @@ return new class extends Migration
             $table->id();
             $table->string('name')->unique(); // Assuming each specialization has a unique name
             $table->text('description')->nullable(); // Optional description of the specialization
+            $table->softDeletes(); 
+            $table->integer('created_by')->default(2);
             $table->timestamps();
         });
     }

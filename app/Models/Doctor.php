@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Specialization;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -86,7 +87,7 @@ class Doctor extends Model
     {
         return $value;
     }
-    public function specialization()
+    public function specialization(): BelongsTo
 {
     return $this->belongsTo(Specialization::class);
 }

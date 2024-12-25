@@ -13,7 +13,7 @@ public function up(): void
 {
     Schema::create('doctors', function (Blueprint $table) {
         $table->id();
-        $table->foreignId('specialization_id')->nullable()->constrained('specializations')->onDelete('set null');        $table->json('days')->nullable();
+        $table->foreignId('specialization_id')->references('id')->constrained('specializations')->onDelete('set null');        $table->json('days')->nullable();
         $table->time('start_time');
         $table->time('end_time');
         $table->integer('number_of_patient')->default(0);

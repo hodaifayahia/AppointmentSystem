@@ -24,6 +24,9 @@ class AppointmentController extends Controller
         ->when($request->status, function ($query, $status) {
             $query->where('status', $status);
         })
+        ->when($request->doctor_id, function ($query, $doctor_id) {
+            $query->where('doctor_id', $doctor_id);
+        })
         ->whereNull('deleted_at')
         ->latest()
         ->get();

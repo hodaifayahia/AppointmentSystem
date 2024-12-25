@@ -26,6 +26,7 @@
         "v-date-picker": "^0.3.0",
         "vee-validate": "^4.14.7",
         "vue": "^3.5.13",
+        "vue-next-select": "^2.10.5",
         "vue-router": "^4.5.0",
         "yup": "^1.5.0"
     }

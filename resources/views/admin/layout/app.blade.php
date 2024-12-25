@@ -180,7 +180,7 @@
                     </router-link>
                 </li>
                 <li class="nav-item">
-                    <router-link to="/admin/appointments" active-class="active" class="nav-link">
+                    <router-link to="/admin/appointments/specialization" active-class="active" class="nav-link">
                         <i class="nav-icon fas fa-calendar-alt"></i>
                         <p>
                             Appointment
@@ -195,11 +195,26 @@
                         </p>
                     </router-link>
                 </li>
+                
                 <li class="nav-item">
                     <router-link to="/admin/docters" active-class="active" class="nav-link">
                         <i class="nav-icon fas fa-users"></i>
                         <p>
                             Doctors
+                        </p>
+                    </router-link>
+                </li>
+                <li class="nav-item">
+                  <router-link to="/admin/patient" active-class="active" class="nav-link">
+                    <i class="nav-icon fas fa-user-injured"></i>                        <p>
+                          Patient
+                      </p>
+                  </router-link>
+              </li>
+                <li class="nav-item">
+                    <router-link to="/admin/specializations "active-class="active" class="nav-link">
+                      <i class="nav-icon fas fa-briefcase"></i>                        <p>
+                          specializations
                         </p>
                     </router-link>
                 </li>

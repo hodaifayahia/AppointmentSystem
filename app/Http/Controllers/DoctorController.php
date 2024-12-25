@@ -15,14 +15,22 @@ class DoctorController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $doctors = Doctor::withTrashed()->whereHas('user', function ($query) {
+        $filter = $request->query('query');
+        $doctorsQuery = Doctor::whereHas('user', function ($query) {
             $query->where('role', 'doctor');
-        })->with('user')->paginate(2);
+        })->with('user');
         
+        if ($filter) {
+            $doctorsQuery->where('specialization_id', $filter);
+        }
+        
+        $doctors = $doctorsQuery->paginate();
         return DoctorResource::collection($doctors);
     }
+    
+
 
     /**
      * Show the form for creating a new resource.
@@ -43,7 +51,7 @@ class DoctorController extends Controller
             'email' => 'required|email|unique:users,email',
             'phone' => 'required|string',
             'password' => 'required|min:8',
-            'specialization' => 'required|string',
+            'specialization' => 'required',
             'days' => 'required|array',
             'start_time' => 'required|date_format:H:i',
             'end_time' => 'required|date_format:H:i',
@@ -86,7 +94,6 @@ class DoctorController extends Controller
                 'specific_date' => null,
                 'notes' => null,
             ]);
-    
             return response()->json([
                 'message' => 'Doctor created successfully!',
                 'doctor' => new DoctorResource($doctor),
@@ -133,16 +140,15 @@ class DoctorController extends Controller
     public function update(Request $request, string $id)
     {
         // Find doctor by user_id and eager load user relationship
-        $doctor = Doctor::with('user')
-            ->where('user_id', $id)
-            ->firstOrFail();
+        $doctor = Doctor::with('user')->where('id', $id)->firstOrFail();
+
         // Validate the request
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email,' . $doctor->user_id,
             'phone' => 'required|string',
             'password' => 'nullable|min:8',
-            'specialization' => 'required|string',
+            'specialization' => 'required',
             'days' => 'required|array',
             'start_time' => 'required',
             'end_time' => 'required',
@@ -173,7 +179,7 @@ class DoctorController extends Controller
     
             // Update doctor
             $doctor->update([
-                'specialization' => $request->specialization,
+                'specialization_id' => $request->specialization,
                 'days' => $request->days, // The array will be automatically JSON encoded by the cast
                 'start_time' => $request->start_time,
                 'end_time' => $request->end_time,
@@ -204,26 +210,32 @@ class DoctorController extends Controller
     {
         $searchTerm = $request->query('query');
         
-        // If search term is empty, return an empty collection
+        // If search term is empty, return all doctors paginated
         if (empty($searchTerm)) {
-            return DoctorResource::collection(Doctor::with('user')->orderBy('created_at', 'desc')->paginate());
+            return DoctorResource::collection(
+                Doctor::with(['user', 'specialization']) // Load specialization too
+                    ->orderBy('created_at', 'desc')
+                    ->paginate()
+            );
         }
     
-        // Search across both Doctor and User tables
-        $doctors = Doctor::where(function($query) use ($searchTerm) {
-            // Search in Doctor table
-            $query->Where('specialization', 'LIKE', "%{$searchTerm}%");
-        })->orWhereHas('user', function($query) use ($searchTerm) {
+        // Search across related tables (Doctor, User, Specialization)
+        $doctors = Doctor::whereHas('specialization', function ($query) use ($searchTerm) {
+            // Search in Specialization table
+            $query->where('name', 'LIKE', "%{$searchTerm}%");
+        })
+        ->orWhereHas('user', function ($query) use ($searchTerm) {
             // Search in User table
             $query->where('email', 'LIKE', "%{$searchTerm}%")
                   ->orWhere('phone', 'LIKE', "%{$searchTerm}%");
         })
-        ->with('user') // Eager load the user to avoid N+1 queries
+        ->with(['user', 'specialization']) // Eager load User and Specialization
         ->orderBy('created_at', 'desc')
         ->paginate();
     
         return DoctorResource::collection($doctors);
     }
+    
     /**
      * Display the specified resource.
      */

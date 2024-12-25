@@ -1,332 +1,191 @@
 <script setup>
-import axios from 'axios';
-import { reactive, onMounted, ref, watch } from 'vue';
+import { reactive, ref, watch, computed , onMounted} from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useToastr } from '@/Components/toster';
 import { Form } from 'vee-validate';
 import flatpickr from "flatpickr";
-import 'flatpickr/dist/themes/light.css';
+import PatientSearch from './PatientSearch.vue';
+import TimeSlotSelector from './TimeSlotSelector.vue';
+
+const props = defineProps({
+  editMode: {
+    type: Boolean,
+    default: false
+  }
+});
 
 const router = useRouter();
 const route = useRoute();
 const toastr = useToastr();
 
-
 const form = reactive({
-    first_name: '',
-    last_name: '',
-    description: '',
-    phone: '',
-    doctor_id: 0,
-    start_time: '',
-    appointment_time: '',
-    status: 0
+  first_name: '',
+  last_name: '',
+  description: '',
+  phone: '',
+  doctor_id: 0,
+  start_time: '',
+  start_date: '',
+  appointment_time: '',
+  status: 0
 });
-
-
 
 const doctors = ref([]);
 const selectedDoctor = ref(null);
 const availableSlots = ref([]);
+const searchQuery = ref('');
 
-const getDoctors = async (page = 1) => {
-    try {
-        const response = await axios.get(`/api/doctors?page=${page}`);
-        doctors.value = response.data.data; // Immediately update the list
-    } catch (error) {
-        toaster.error('Failed to fetch doctors');
-        console.error('Error fetching doctors:', error);
-    }
+const getDoctors = async () => {
+  try {
+    const response = await axios.get('/api/doctors');
+    doctors.value = response.data.data;
+  } catch (error) {
+    toastr.error('Failed to fetch doctors');
+    console.error('Error fetching doctors:', error);
+  }
 };
 
-
-const handleSubmit = (values, actions) => {
-    if (editMode.value) {
-        editAppointment(values, actions);
-    } else {
-        createAppointment(values, actions);
-    }
-};
-
-const createAppointment = (values, actions) => {
-    axios.post('/api/appointment', form)
-        .then(() => {
-            router.push('/admin/appointments');
-            toastr.success('Appointment created successfully!');
-        })
-        .catch((error) => {
-            actions.setErrors(error.response.data.errors);
-        });
-};
-
-const editAppointment = (values, actions) => {
-    axios.put(`/api/appointments/${route.params.id}/edit`, form)
-        .then(() => {
-            router.push('/admin/appointments');
-            toastr.success('Appointment updated successfully!');
-        })
-        .catch((error) => {
-            actions.setErrors(error.response.data.errors);
-        });
-};
-const selectSlot = (time) => {
-    form.appointment_time = time;
-};
-const Patient = ref([]);
-const getPatient = () => {
-    axios.get('/api/Patient')
-        .then((response) => {
-            Patient.value = response.data;
-        });
-};
-
-// const getAppointment = () => {
-//     axios.get(`/api/appointments/${route.params.id}/edit`)
-//         .then(({ data }) => {
-//             form.client_id = data.client_id;
-//             form.start_time = data.formatted_start_time;
-//             form.end_time = data.formatted_end_time;
-//             form.description = data.description;
-//             form.patient_first_name = data.patient_first_name;
-//             form.patient_last_name = data.patient_last_name;
-//             form.phone = data.phone;
-//             form.doctor_name = data.doctor_name;
-//             form.appointment_date = data.appointment_date;
-//             form.appointment_time = data.appointment_time;
-//             form.status = data.status;
-//         });
-// };
-
-// New function to calculate slots based on date and doctor's schedule
 const calculateSlots = (doctor, date) => {
-    if (!doctor || !doctor.start_time || !doctor.end_time || !date) return [];
+  if (!doctor || !doctor.start_time || !doctor.end_time || !date) return [];
 
-    const slots = [];
-    const startTime = new Date(`${date}T${doctor.start_time}`);
-    const endTime = new Date(`${date}T${doctor.end_time}`);
+  const slots = [];
+  const startTime = new Date(`${date}T${doctor.start_time}`);
+  const endTime = new Date(`${date}T${doctor.end_time}`);
 
-    if (doctor.time_slots) {
-        // If 'time_slots' is provided, use it as the duration between slots
-        const slotDuration = parseInt(doctor.time_slots);
-        let currentTime = startTime;
-        while (currentTime < endTime) {
-            slots.push({
-                time: currentTime.toTimeString().slice(0, 5),
-                available: true
-            });
-            currentTime = new Date(currentTime.getTime() + slotDuration * 60000); // Add minutes
-        }
-    } else if (doctor.number_of_patients_per_day) {
-        // If 'number_of_patients_per_day' is provided, calculate slots based on this
-        const totalMinutes = (endTime - startTime) / 60000; // Convert to minutes
-        const slotDuration = Math.floor(totalMinutes / doctor.number_of_patients_per_day);
-
-        let currentTime = startTime;
-        for (let i = 0; i < doctor.number_of_patients_per_day; i++) {
-            slots.push({
-                time: currentTime.toTimeString().slice(0, 5),
-                available: true
-            });
-            currentTime = new Date(currentTime.getTime() + slotDuration * 60000); // Add minutes
-        }
+  if (doctor.time_slots) {
+    const slotDuration = parseInt(doctor.time_slots);
+    let currentTime = startTime;
+    while (currentTime < endTime) {
+      slots.push({
+        time: currentTime.toTimeString().slice(0, 5),
+        available: true
+      });
+      currentTime = new Date(currentTime.getTime() + slotDuration * 60000);
     }
+  } else if (doctor.number_of_patients_per_day) {
+    const totalMinutes = (endTime - startTime) / 60000;
+    const slotDuration = Math.floor(totalMinutes / doctor.number_of_patients_per_day);
 
-    return slots;
+    let currentTime = startTime;
+    for (let i = 0; i < doctor.number_of_patients_per_day; i++) {
+      slots.push({
+        time: currentTime.toTimeString().slice(0, 5),
+        available: true
+      });
+      currentTime = new Date(currentTime.getTime() + slotDuration * 60000);
+    }
+  }
+
+  return slots;
 };
-// Watch for changes in both doctor_id and start_date
-watch([() => form.doctor_id, () => form.start_date], ([newDoctorId, newDate]) => {
-    const doctor = doctors.value.find(d => d.id === newDoctorId);
-    if (doctor && newDate) {
-        selectedDoctor.value = doctor;
-        availableSlots.value = calculateSlots(doctor, newDate);
+
+const handleSubmit = async (values, actions) => {
+  try {
+    if (props.editMode) {
+      await axios.put(`/api/appointments/${route.params.id}/edit`, form);
+      toastr.success('Appointment updated successfully!');
     } else {
-        selectedDoctor.value = null;
-        availableSlots.value = [];
+      await axios.post('/api/appointment', form);
+      toastr.success('Appointment created successfully!');
     }
+    router.push('/admin/appointments');
+  } catch (error) {
+    if (error.response?.data?.errors) {
+      actions.setErrors(error.response.data.errors);
+    }
+  }
+};
+
+const handlePatientSelect = (patient) => {
+  form.first_name = patient.firstname;
+  form.last_name = patient.lastname;
+  form.phone = patient.phone;
+};
+
+watch([() => form.doctor_id, () => form.start_date], ([newDoctorId, newDate]) => {
+  const doctor = doctors.value.find(d => d.id === newDoctorId);
+  if (doctor && newDate) {
+    selectedDoctor.value = doctor;
+    availableSlots.value = calculateSlots(doctor, newDate);
+  } else {
+    selectedDoctor.value = null;
+    availableSlots.value = [];
+  }
 });
 
-const editMode = ref(false);
+onMounted(async () => {
+  if (props.editMode) {
+    const { data } = await axios.get(`/api/appointments/${route.params.id}/edit`);
+    Object.assign(form, data);
+    searchQuery.value = `${data.first_name} ${data.last_name}`;
+  }
 
-onMounted(() => {
-    if (route.name === 'admin.appointments.edit') {
-        editMode.value = true;
-        getAppointment();
-    }
+  flatpickr(".flatpickr", {
+    dateFormat: "Y-m-d",
+  });
 
-    flatpickr(".flatpickr", {
-        dateFormat: "Y-m-d", // Only date, no time
-    });
-
-    getPatient();
-    getDoctors();
+  await getDoctors();
 });
-
 </script>
+
 <template>
-    <div class="appointment-page">
-        <div class="content-header text-black">
-            <div class="container-fluid">
-                <div class="row mb-2">
-                    <div class="col-sm-6">
-                        <h1 class="m-0">
-                            <span v-if="editMode">Edit</span>
-                            <span v-else>Create</span>
-                            Appointment
-                        </h1>
-                    </div>
-                    <div class="col-sm-6 text-right">
-                        <ol class="breadcrumb float-sm-right breadcrumb-dark">
-                            <li class="breadcrumb-item"><router-link to="/admin/dashboard"
-                                    class="text-white">Home</router-link></li>
-                            <li class="breadcrumb-item"><router-link to="/admin/appointments"
-                                    class="text-white">Appointments</router-link></li>
-                            <li class="breadcrumb-item active">
-                                <span v-if="editMode">Edit</span>
-                                <span v-else>Create</span>
-                            </li>
-                        </ol>
-                    </div>
-                </div>
-            </div>
+  <Form @submit="handleSubmit" v-slot="{ errors }">
+    <PatientSearch
+      v-model="searchQuery"
+      @patientSelected="handlePatientSelect"
+    />
+
+    <div class="row">
+      <div class="col-md-6">
+        <div class="form-group mb-4">
+          <label for="doctor" class="text-muted">Doctor</label>
+          <select 
+            v-model="form.doctor_id" 
+            id="doctor"
+            class="form-control form-select-sm rounded-pill"
+            :class="{ 'is-invalid': errors.doctor_id }"
+          >
+            <option value="">Select Doctor</option>
+            <option v-for="doctor in doctors" 
+              :key="doctor.id"
+              :value="doctor.id"
+            >
+              {{ doctor.full_name }}
+            </option>
+          </select>
+          <span class="invalid-feedback">{{ errors.doctor_id }}</span>
         </div>
-
-        <div class="content">
-            <div class="container-fluid">
-                <div class="row justify-content-center">
-                    <div class="col-md-10">
-                        <div class="card ">
-                            <div class="card-body">
-                                <Form @submit="handleSubmit" v-slot:default="{ errors }">
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="form-group mb-4">
-                                                <label for="patient-first-name" class="text-muted">Patient First
-                                                    Name</label>
-                                                <input v-model="form.first_name" type="text"
-                                                    class="form-control form-control-sm rounded-pill"
-                                                    :class="{ 'is-invalid': errors.patient_first_name }"
-                                                    id="patient-first-name" placeholder="Enter Patient First Name">
-                                                <span class="invalid-feedback">{{ errors.patient_first_name }}</span>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="form-group mb-4">
-                                                <label for="patient-last-name" class="text-muted">Patient Last
-                                                    Name</label>
-                                                <input v-model="form.last_name" type="text"
-                                                    class="form-control form-control-sm rounded-pill"
-                                                    :class="{ 'is-invalid': errors.patient_last_name }"
-                                                    id="patient-last-name" placeholder="Enter Patient Last Name">
-                                                <span class="invalid-feedback">{{ errors.patient_last_name }}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="form-group mb-4">
-                                                <label for="phone" class="text-muted">Phone</label>
-                                                <input v-model="form.phone" type="text"
-                                                    class="form-control form-control-sm rounded-pill"
-                                                    :class="{ 'is-invalid': errors.phone }" id="phone"
-                                                    placeholder="Enter Phone">
-                                                <span class="invalid-feedback">{{ errors.phone }}</span>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-
-                                            <div class="form-group mb-4">
-                                                <label for="doctor" class="text-muted">Doctor</label>
-                                                <select id="doctor" v-model="form.doctor_id"
-                                                    class="form-control form-select-sm rounded-pill"
-                                                    :class="{ 'is-invalid': errors.doctor_id }">
-                                                    <option value="">Select Doctor</option>
-                                                    <option v-for="doctor in doctors" :key="doctor.id"
-                                                        :value="doctor.id">
-                                                        {{ doctor.name }} - {{ doctor.specialization }}
-
-                                                    </option>
-                                                </select>
-                                                <span class="invalid-feedback">{{ errors.doctor_id }}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="form-group mb-4">
-                                                <label for="status" class="text-muted ">Status</label>
-                                                <select v-model="form.status" id="status"
-                                                    class="form-control form-select-sm rounded-pill"
-                                                    :class="{ 'is-invalid': errors.status }">
-                                                    <option :value=-1>Select Status</option>
-                                                    <option :value=0>SCHEDULED</option>
-                                                    <option :value=1>Confirmed</option>
-                                                    <option :value=2>Cancelled</option>
-                                                    <option :value=3>Pending</option>
-                                                </select>
-                                                {{ form.status }}
-                                                <span class="invalid-feedback">{{ errors.status }}</span>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="form-group mb-4">
-                                                <label for="start-date" class="text-muted">Date</label>
-                                                <input v-model="form.start_date" type="text"
-                                                    class="form-control form-control-sm flatpickr rounded-pill"
-                                                    :class="{ 'is-invalid': errors.start_date }" id="start-date"
-                                                    placeholder="Select Date">
-                                                <span class="invalid-feedback">{{ errors.start_date }}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="row" v-if="selectedDoctor && form.start_date">
-                                        <div class="col-md-12">
-                                            <div class="form-group mb-4">
-                                                <label class="text-muted">Available Time Slots</label>
-                                                <div class="slot-container">
-                                                    <div v-if="availableSlots.length > 0">
-                                                        <span class="badge bg-primary mb-2">Number of slots: {{
-                                                            availableSlots.length }}</span>
-                                                        <div class="d-flex flex-wrap" style="gap: 10px;">
-                                                            <button type="button" v-for="slot in availableSlots"
-                                                                :key="slot.time"
-                                                                class="btn btn-outline-primary btn-sm slot-btn" :class="{
-                                                                    'btn-primary': form.appointment_time === slot.time
-                                                                }" @click="selectSlot(slot.time)">
-                                                                {{ slot.time }}
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                    <div v-else class="text-muted">No slots available for this date and
-                                                        doctor.</div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="form-group mb-4">
-                                        <label for="description" class="text-muted">Description</label>
-                                        <textarea v-model="form.description"
-                                            class="form-control form-control-lg rounded"
-                                            :class="{ 'is-invalid': errors.description }" id="description" rows="3"
-                                            placeholder="Enter Description"></textarea>
-                                        <span class="invalid-feedback">{{ errors.description }}</span>
-                                    </div>
-
-                                    <button type="submit" class=" btn btn-md  btn-primary  rounded-pill">Submit</button>
-                                </Form>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+      </div>
     </div>
-</template>
 
+    <div class="form-group mb-4">
+      <label for="start_date" class="text-muted">Start Date</label>
+      <input 
+        v-model="form.start_date" 
+        id="start_date" 
+        type="text"
+        class="form-control form-control-sm rounded-pill flatpickr"
+        placeholder="Select Date"
+      >
+    </div>
+
+    <TimeSlotSelector
+      v-model="form.appointment_time"
+      :slots="availableSlots"
+    />
+
+    <div class="form-group">
+      <button type="submit" class="btn btn-primary rounded-pill">
+        {{ props.editMode ? 'Update Appointment' : 'Create Appointment' }}
+      </button>
+    </div>
+  </Form>
+</template>
 <style scoped>
+.vue-select {
+    border-radius: 50px;
+}
+
 .appointment-page {
     background-color: #f8f9fa;
 }
@@ -361,9 +220,153 @@ onMounted(() => {
     margin-bottom: 5px;
 }
 
+.relative {
+    position: relative;
+}
+
+.absolute {
+    position: absolute;
+    max-height: 200px;
+    overflow-y: auto;
+    width: 100%;
+}
+
 @media (max-width: 768px) {
     .slot-btn {
         width: 100%;
     }
 }
+
+.search-wrapper {
+    position: relative;
+    margin-bottom: 2rem;
+}
+
+.search-wrapper input {
+    padding: 1rem 1.5rem;
+    font-size: 1rem;
+    border: 2px solid #e2e8f0;
+    transition: all 0.3s ease;
+}
+
+.search-wrapper input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.patient-dropdown {
+    position: absolute;
+    top: calc(100% + 5px);
+    left: 0;
+    right: 0;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    max-height: 350px;
+    overflow-y: auto;
+    z-index: 1050;
+    border: 1px solid #e2e8f0;
+    animation: dropdownFade 0.2s ease-out;
+}
+
+.loading-state {
+    padding: 1.5rem;
+    text-align: center;
+    color: #6b7280;
+    font-size: 0.95rem;
+}
+
+.dropdown-header {
+    padding: 0.75rem 1rem;
+    background: #f8fafc;
+    color: #64748b;
+    font-weight: 600;
+    border-bottom: 1px solid #e2e8f0;
+    border-radius: 12px 12px 0 0;
+}
+
+.patient-list {
+    padding: 0.5rem 0;
+}
+
+.patient-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.patient-item:hover {
+    background-color: #f1f5f9;
+}
+
+.patient-info {
+    flex: 1;
+}
+
+.patient-name {
+    font-weight: 600;
+    color: #1e293b;
+    font-size: 1rem;
+    margin-bottom: 0.25rem;
+}
+
+.patient-phone {
+    color: #64748b;
+    font-size: 0.875rem;
+}
+
+.select-icon {
+    color: #94a3b8;
+    margin-left: 1rem;
+}
+
+.no-results {
+    padding: 2rem;
+    text-align: center;
+    color: #64748b;
+}
+
+.no-results-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.no-results-text {
+    font-size: 0.95rem;
+}
+
+/* Custom Scrollbar */
+.patient-dropdown::-webkit-scrollbar {
+    width: 8px;
+}
+
+.patient-dropdown::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 0 12px 12px 0;
+}
+
+.patient-dropdown::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+.patient-dropdown::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+@keyframes dropdownFade {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 </style>

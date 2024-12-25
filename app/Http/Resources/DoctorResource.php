@@ -19,7 +19,7 @@ class DoctorResource extends JsonResource
             'name' => $this->user->name,
             'email' => $this->user->email,
             'phone' => $this->user->phone,
-            'specialization' => $this->specialization,
+            'specialization' => $this->specialization->name,
             'time_slots' => $this->time_slots,
             'days' => $this->days, // Changed from day to days
             'start_time' => $this->start_time->format(config('app.time_format')),
