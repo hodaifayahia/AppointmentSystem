@@ -3,6 +3,11 @@
 import { defineProps, defineEmits , ref} from 'vue';
 import DoctorModel from '../../Components/DoctorModel.vue';
 import DeleteDoctorModel from '../../Components/DeleteDoctorModel.vue';
+import { useRouter } from 'vue-router';
+
+
+
+const router = useRouter();
 
 const props = defineProps({
   doctor: {
@@ -71,12 +76,19 @@ const formatTime = (time) => {
   return `${formattedHour}:${minutes} ${ampm}`;
 };
 
-
+const goToDoctorSchdulePage = (doctorId) => {
+  // Navigate using the router
+  router.push({ name: 'admin.docters.schedule', params: { id: doctorId } });
+};
 
 </script>
 
 <template>
-  <tr class="doctor-item">
+  <tr 
+  class="doctor-item"
+  @click="goToDoctorSchdulePage(doctor.id)" 
+  style="cursor: pointer;" 
+  >
     <td class="select-column">
       <input 
         type="checkbox" 
@@ -90,24 +102,22 @@ const formatTime = (time) => {
     <td class="doctor-phone">{{ doctor.phone }}</td>
     <td class="doctor-specialization">{{ doctor.specialization }}</td>
     <td class="doctor-frequency">{{ doctor.frequency }}</td>
-    <td class="doctor-start-time">{{ formatTime(doctor.start_time) }}</td>
-    <td class="doctor-end-time">{{ formatTime(doctor.end_time) }}</td>
     <td class="doctor-patients">
-      {{ doctor.patients_based_on_time ? `${doctor.time_slot} min slots` : `${doctor.number_of_patients_per_day} patients/day` }}
+      {{ `${doctor.time_slots} min slots`  }}
     </td>
     <td class="doctor-actions">
       <div class="btn-group">
         <button 
           class="btn btn-sm btn-outline-primary mx-1" 
           title="Edit"
-          @click="editUser"
+          @click.stop="editUser"
         >
           <i class="fas fa-edit"></i>
         </button>
         <button 
           class="btn btn-sm btn-outline-danger" 
           title="Delete"
-          @click="openDeleteModal"
+          @click.stop="openDeleteModal"
         >
           <i class="fas fa-trash-alt"></i>
         </button>

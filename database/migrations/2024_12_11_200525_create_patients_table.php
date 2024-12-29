@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('Lastname');
             $table->string('phone');
             $table->date('dateOfBirth')->nullable();
-            $table->date('Idnum')->nullable();
+            $table->integer('Idnum')->nullable();
             $table->integer('created_by')->default(2);
             $table->softDeletes(); 
             $table->timestamps();

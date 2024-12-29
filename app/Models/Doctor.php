@@ -19,10 +19,6 @@ class Doctor extends Model
      */
     protected $fillable = [
         'specialization_id',
-        'days',
-        'start_time',
-        'end_time',
-        'number_of_patients_per_day',
         'frequency',
         'specific_date',
         'notes',
@@ -54,7 +50,7 @@ class Doctor extends Model
      */
     public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'user_id');
+        return $this->belongsTo(User::class, 'user_id', 'id');
     }
 
     /**
@@ -62,9 +58,9 @@ class Doctor extends Model
      *
      * @return array
      */
-    public function getAvailableDays(): array
+    public function schedules()
     {
-        return $this->days ?? [];
+        return $this->hasMany(Schedule::class, 'doctor_id');
     }
 
     /**

@@ -4,9 +4,11 @@ use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\AppointmentStatus;
 use App\Http\Controllers\DoctorController;
 use App\Http\Controllers\PatientController;
+use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\specializationsController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
+
 
 
 
@@ -38,14 +40,20 @@ Route::get('/api/doctors/search', [DoctorController::class, 'search'])->name('us
 Route::get('/api/doctors/{doctorid}', [DoctorController::class, 'specificDoctor']);
 
 
+// apis for schedules
+Route::get('/api/schedules/{doctorid}', [ScheduleController::class, 'index']);
+
+// apis for appointments
+
 Route::get('api/appointments/checkAvailability', [AppointmentController::class, 'checkAvailability']);
 Route::get('/api/appointments', [AppointmentController::class, 'index'])->name('users.index');
+Route::patch('/api/appointment/{appointmentId}/status', [AppointmentController::class, 'changeAppointmentStatus'])->name('users.index');
 Route::post('/api/appointments', [AppointmentController::class, 'store']);
-Route::put('/api/appointment/{appointmentid}', [AppointmentController::class, 'update'])->name('users.index');
-Route::delete('/api/appointment/{appointmentid}', [AppointmentController::class, 'destory'])->name('users.index');
+Route::put('/api/appointments/{appointmentid}', [AppointmentController::class, 'update'])->name('users.index');
+Route::delete('/api/appointments/{appointmentid}', [AppointmentController::class, 'destroy']);
 Route::get('/api/appointmentStatus', [AppointmentStatus::class, 'appointmentStatus']);
-Route::get('api/appointments/time-slots', [AppointmentController::class, 'getTimeSlots']);
-
+Route::get('/api/appointments/time-slots', [AppointmentController::class, 'checkAvailability']);
+Route::get('/api/appointments/available', [AppointmentController::class, 'AiailableAppointments']);
 
 Route::get('/api/specializations', [specializationsController::class, 'index']);
 Route::post('/api/specializations', [specializationsController::class, 'store']);

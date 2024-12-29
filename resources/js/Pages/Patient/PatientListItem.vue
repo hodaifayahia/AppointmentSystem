@@ -83,9 +83,9 @@ onMounted(() => {
         <div class="row">
           <div class="col-lg-12">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <button class="btn btn-primary btn-sm d-flex align-items-center gap-1 px-3 py-2" title="Add User"
+                <button class="btn btn-primary btn-sm d-flex rounded-pill align-items-center gap-1 px-3 py-2" title="Add User"
                   @click="openModal">
-                  <i class="fas fa-plus-circle"></i>
+                  <i class="fas fa-plus-circle pr-1"></i>
                   <span>Add Patient</span>
                 </button>
             </div>
@@ -103,12 +103,14 @@ onMounted(() => {
                   </div>
                 </div>
 
-                <table v-else class="table table-hover">
+                <table v-else class="table table-hover ">
                   <thead>
                     <tr>
                       <th scope="col">#</th>
                       <th scope="col">First Name</th>
                       <th scope="col">last Name</th>
+                      <th scope="col">idantifcation number</th>
+                      <th scope="col">date of birth</th>
                       <th scope="col">Phone</th>
                       <th scope="col">Actions</th>
                     </tr>
@@ -121,6 +123,8 @@ onMounted(() => {
                       <td>{{ index + 1 }}</td>
                       <td>{{ Patient.Firstname }}</td>
                       <td>{{ Patient.Lastname }}</td>
+                      <td>{{ Patient.Idnum }}</td>
+                      <td>{{ Patient.dateOfBirth }}</td>
                       <td>{{ Patient.phone }}</td>
                       <td>
                         <button @click="openModal(Patient)" class="btn btn-sm btn-outline-primary me-2">

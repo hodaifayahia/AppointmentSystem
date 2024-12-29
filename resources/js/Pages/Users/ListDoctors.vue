@@ -218,9 +218,7 @@ onMounted(() => {
                 <th>Phone</th>
                 <th>Specialization</th>
                 <th>Frequency</th>
-                <th>start time</th>
-                <th>end time</th>
-                <th>Patients Daily</th>
+                <th>Time Slots</th>
                 <th>Actions</th>
               </tr>
             </thead>

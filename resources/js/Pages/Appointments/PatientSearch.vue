@@ -43,7 +43,7 @@ const handleSearch = debounce(async (query) => {
 const selectPatient = (patient) => {
   if (!patient) return;
   emit('patientSelected', patient);
-  emit('update:modelValue', `${patient.firstname} ${patient.lastname} ${patient.phone}`);
+  emit('update:modelValue', `${patient.firstname} ${patient.dateOfBirth} ${patient.Idnum} ${patient.lastname} ${patient.phone}`);
   showDropdown.value = false;
 };
 
@@ -102,21 +102,25 @@ onMounted(() => {
             :key="patient.id"
             class="patient-item"
             @click="selectPatient(patient)"
-          >
-            <div class="patient-info">
-              <div class="patient-name">
-                {{ patient.firstname }} {{ patient.lastname }}
-              </div>
-              <div class="patient-phone">
-                📞 {{ patient.phone }}
-              </div>
+            >
+          <div class="patient-info border-0">
+            <div class="patient-name">
+              <h6 class="fw-bold">{{ patient.firstname }} {{ patient.lastname }}</h6>
+              <span class="patient-details">
+                <strong>Date of Birth:</strong> {{ patient.dateOfBirth }} 
+                <strong>ID:</strong> {{ patient.Idnum }}
+              </span>
             </div>
+            <div class="patient-contact">
+              <i class="fas fa-phone-alt text-danger mr-2"></i> 
+              <span class="patient-phone"> {{ patient.phone }}</span>
+            </div>
+          </div>
             <div class="select-icon">
               <i class="fas fa-chevron-right"></i>
             </div>
           </div>
         </div>
-
         <div v-if="patients.length === 0 && modelValue?.length >= 2"
           class="no-results">
           <div class="no-results-icon">🔍</div>

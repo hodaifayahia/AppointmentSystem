@@ -4,6 +4,7 @@ import { Field, Form } from 'vee-validate';
 import * as yup from 'yup';
 import axios from 'axios';
 import { useToastr } from '../Components/toster';
+import DoctorSchedules from './Doctor/DoctorSchedules.vue';
 
 const props = defineProps({
   showModal: {
@@ -32,11 +33,6 @@ const doctor = ref({
   phone: props.doctorData?.phone || '',
   specialization: props.doctorData?.specialization || 0,  // Changed from 0 to ''
   frequency: props.doctorData?.frequency || '',
-  start_time: props.doctorData?.start_time || '',
-  end_time: props.doctorData?.end_time || '',
-  days: Array.isArray(props.doctorData?.days)
-    ? props.doctorData?.days
-    : props.doctorData?.days?.split(',').filter(Boolean) || [],
   appointmentBookingWindow: props.doctorData?.appointmentBookingWindow || 1,
   password: ''
 });
@@ -93,9 +89,6 @@ const getDoctorSchema = (isEditMode) => {
       .required('Phone number is required'),
     specialization: yup.string().required('Specialization is required'),  // Added validation
     frequency: yup.string().required('Frequency is required'),
-    start_time: yup.string().required('Start time is required'),
-    end_time: yup.string().required('End time is required'),
-    days: yup.array().min(1, 'Select at least one day'),
     appointmentBookingWindow: yup
       .number()
       .required('Please select a booking window')
@@ -121,17 +114,6 @@ getSpecializations();
 watch(
   () => props.doctorData,
   (newValue) => {
-    let parsedDays = [];
-    if (newValue?.days) {
-      try {
-        parsedDays = typeof newValue.days === 'string'
-          ? JSON.parse(newValue.days)
-          : newValue.days;
-      } catch (e) {
-        parsedDays = newValue.days.split(',').filter(Boolean);
-      }
-    }
-
     doctor.value = {
       ...doctor.value,
       id: newValue?.id || null,
@@ -140,10 +122,7 @@ watch(
       phone: newValue?.phone || '',
       specialization: newValue?.specialization || '', // Update specialization here
       frequency: newValue?.frequency || '',
-      start_time: newValue?.start_time || '',
-      end_time: newValue?.end_time || '',
       appointmentBookingWindow: newValue?.appointmentBookingWindow || 1,
-      days: parsedDays,
       password: ''
     };
 
@@ -154,18 +133,33 @@ watch(
   { immediate: true, deep: true }
 );
 
+
+const calculatePatientsPerDay = (startTime, endTime, timeSlot) => {
+  const start = new Date(`2000-01-01 ${startTime}`);
+  const end = new Date(`2000-01-01 ${endTime}`);
+  const diffInMinutes = (end - start) / (1000 * 60);
+  return Math.floor(diffInMinutes / timeSlot);
+};
+
+// In your parent component
+const scheduleData = ref([]);
+
+const handleSchedulesUpdated = (newSchedules) => {
+  scheduleData.value = newSchedules;
+};
 // Update the submit function
 const submitForm = async (values, { resetForm }) => {
   try {
+
     const submissionData = {
       ...values,
       id: doctor.value.id,
       appointmentBookingWindow: doctor.value.appointmentBookingWindow,
-      specialization: doctor.value.specialization, // Include specialization
+      specialization: doctor.value.specialization,
       days: Array.isArray(values.days) ? values.days : [],
       patients_based_on_time: patients_based_on_time.value,
-      number_of_patients_per_day: number_of_patients_per_day.value,
-      time_slot: time_slot.value
+      time_slot: time_slot.value,
+      schedules: scheduleData.value // Add schedules to submission data
     };
 
     if (!submissionData.password?.trim()) {
@@ -173,11 +167,9 @@ const submitForm = async (values, { resetForm }) => {
     }
 
     if (isEditMode.value) {
-     
       await axios.put(`/api/doctors/${submissionData.id}`, submissionData);
       toaster.success('Doctor updated successfully');
     } else {
-      console.log('Creating doctor with data:', submissionData);
       await axios.post('/api/doctors', submissionData);
       toaster.success('Doctor added successfully');
     }
@@ -204,7 +196,7 @@ const submitForm = async (values, { resetForm }) => {
           </button>
         </div>
         <div class="modal-body">
-          <Form v-slot="{ errors: validationErrors }" @submit="submitForm" :validation-schema="doctorSchema">
+          <Form v-slot="{ errors: validationErrors }" @submit="submitForm" :validation-schema="getDoctorSchema">
             <!-- First Row: Name and Email -->
             <div class="row">
               <div class="col-md-6 mb-4">
@@ -280,37 +272,37 @@ const submitForm = async (values, { resetForm }) => {
                 </Field>
                 <span class="text-sm invalid-feedback">{{ validationErrors.frequency }}</span>
               </div>
-              <div class="col-md-6 mb-4">
+              <!-- <div class="col-md-6 mb-4">
                 <label for="start_time" class="form-label fs-5">Start Time</label>
                 <Field type="time" id="start_time" name="start_time"
                   :class="{ 'is-invalid': validationErrors.start_time }" v-model="doctor.start_time"
                   class="form-control form-control-lg" />
                 <span class="text-sm invalid-feedback">{{ validationErrors.start_time }}</span>
-              </div>
+              </div> -->
             </div>
 
             <!-- End Time and Days -->
             <div class="row">
-              <div class="col-md-6 mb-4">
+              <!-- <div class="col-md-6 mb-4">
                 <label for="end_time" class="form-label fs-5">End Time</label>
                 <Field type="time" id="end_time" name="end_time" :class="{ 'is-invalid': validationErrors.end_time }"
                   v-model="doctor.end_time" class="form-control form-control-lg" />
                 <span class="text-sm invalid-feedback">{{ validationErrors.end_time }}</span>
-              </div>
-              <div class="col-md-6 mb-4">
+              </div> -->
+              <!-- <div class="col-md-6 mb-4">
                 <label for="days" class="form-label fs-5">Days</label>
-                <div class="d-flex flex-wrap">
-                  <!-- Remove this line -->
-                  <!-- {{  JSON.stringify(doctor.days) }} -->
-                  <div v-for="day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']"
+                <div class="d-flex flex-wrap"> -->
+              <!-- Remove this line -->
+              <!-- {{  JSON.stringify(doctor.days) }} -->
+              <!-- <div v-for="day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']"
                     :key="day" class="form-check me-3">
                     <Field type="checkbox" :id="day.toLowerCase()" name="days" :value="day" v-model="doctor.days"
                       class="form-check-input" />
                     <label class="form-check-label mx-1" :for="day.toLowerCase()">{{ day }}</label>
                   </div>
-                </div>
-                <span class="text-sm invalid-feedback" v-if="validationErrors.days">{{ validationErrors.days }}</span>
-              </div>
+                </div> -->
+              <!-- <span class="text-sm invalid-feedback" v-if="validationErrors.days">{{ validationErrors.days }}</span>
+              </div> -->
             </div>
             <div class="row">
               <div class="col-md-6 mb-4">
@@ -343,6 +335,16 @@ const submitForm = async (values, { resetForm }) => {
                 <span class="text-sm invalid-feedback">{{ validationErrors.password }}</span>
               </div>
             </div>
+            <div class="row">
+              <div class="col-md-12">
+                <DoctorSchedules :doctorId="doctor.id"
+                 :patients_based_on_time="patients_based_on_time"
+                  :time_slot="time_slot"
+                  :number_of_patients_per_day="number_of_patients_per_day"
+                 @schedulesUpdated="handleSchedulesUpdated" />
+              </div>
+            </div>
+
 
             <!-- Modal Footer -->
             <div class="modal-footer">

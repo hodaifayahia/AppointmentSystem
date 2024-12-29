@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\AppointmentBookingWindow;
 use App\Http\Resources\DoctorResource;
 use App\Models\Doctor;
+use App\Models\Schedule;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class DoctorController extends Controller
@@ -45,72 +47,84 @@ class DoctorController extends Controller
      */
     public function store(Request $request)
     {
-        // Validate the request
         $validatedData = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'phone' => 'required|string',
             'password' => 'required|min:8',
             'specialization' => 'required',
-            'days' => 'required|array',
-            'start_time' => 'required|date_format:H:i',
-            'end_time' => 'required|date_format:H:i',
             'frequency' => 'required|string',
             'patients_based_on_time' => 'required|boolean',
             'appointmentBookingWindow' => 'required|integer|in:1,3,5',
-            'number_of_patients_per_day' => 'required_if:patients_based_on_time,false|nullable|integer',
-            'time_slot' => 'required_if:patients_based_on_time,true|nullable|integer', // Assuming time_slot should be integer for minutes
+            'time_slot' => 'required_if:patients_based_on_time,true|nullable|integer',
+            'schedules' => 'required|array',
+            'schedules.*.day_of_week' => 'required|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+            'schedules.*.shift_period' => 'required|in:morning,afternoon',
+            'schedules.*.start_time' => 'required|date_format:H:i',
+            'schedules.*.end_time' => 'required|date_format:H:i',
+            'schedules.*.number_of_patients_per_day' => 'required|integer',
         ]);
     
         try {
+            DB::beginTransaction();
+            
             // Create user
             $user = User::create([
                 'name' => $validatedData['name'],
                 'email' => $validatedData['email'],
                 'phone' => $validatedData['phone'],
-                'created_by' => 2,//TOdo
+                'created_by' => 2, // Replace with actual creator ID
                 'password' => bcrypt($validatedData['password']),
                 'role' => 'doctor',
             ]);
-    
-            // Calculate number_of_patients_per_day based on time_slot if patients_based_on_time is true
-            $number_of_patients_per_day = $validatedData['patients_based_on_time'] 
-                ? $this->calculatePatientsPerDay($validatedData['start_time'], $validatedData['end_time'], $validatedData['time_slot']) 
-                : $validatedData['number_of_patients_per_day'];
     
             // Create doctor
             $doctor = Doctor::create([
                 'user_id' => $user->id,
                 'specialization_id' => $validatedData['specialization'],
-                'created_by' => 2, //TODO
-                'days' => json_encode($validatedData['days']), // Explicitly encode the days array
-                'start_time' => $validatedData['start_time'],
-                'end_time' => $validatedData['end_time'],
-                'number_of_patients_per_day' => $number_of_patients_per_day,
+                'created_by' => 2, // Replace with actual creator ID
                 'frequency' => $validatedData['frequency'],
                 'patients_based_on_time' => $validatedData['patients_based_on_time'],
                 'time_slot' => $validatedData['time_slot'],
                 'appointment_booking_window' => AppointmentBookingWindow::from($validatedData['appointmentBookingWindow'])->value,
-                'specific_date' => null,
-                'notes' => null,
             ]);
+    
+            // Prepare schedules data for insertion
+            $schedulesData = [];
+            foreach ($validatedData['schedules'] as $scheduleData) {
+                $schedulesData[] = [
+                    'doctor_id' => $doctor->id,
+                    'day_of_week' => $scheduleData['day_of_week'],
+                    'shift_period' => $scheduleData['shift_period'],
+                    'start_time' => $scheduleData['start_time'],
+                    'end_time' => $scheduleData['end_time'],
+                    'number_of_patients_per_day' => $scheduleData['number_of_patients_per_day'],
+                    'is_active' => true,
+                ];
+            }
+
+    
+            // Insert all schedules at once
+            Schedule::insert($schedulesData);
+    
+            DB::commit();
+    
             return response()->json([
-                'message' => 'Doctor created successfully!',
+                'message' => 'Doctor and schedules created successfully!',
                 'doctor' => new DoctorResource($doctor),
             ], 201);
-    
         } catch (\Exception $e) {
-            // If something goes wrong, delete the user if it was created
+            DB::rollBack();
             if (isset($user)) {
                 $user->delete();
             }
-            
             return response()->json([
                 'message' => 'Error creating doctor',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
+    
     
     /**
      * Calculate the number of patients per day based on start time, end time, and time slot.
@@ -254,9 +268,43 @@ class DoctorController extends Controller
     }
     
 
-    public function show(string $id)
+    public function storeSchedules($id, Request $request)
     {
-        //
+
+        dd($request->all());
+        // Validate the request
+        $validatedData = $request->validate([
+            'schedules' => 'required|array',
+            'schedules.*.day_of_week' => 'required|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+            'schedules.*.shift_period' => 'required|in:morning,afternoon,evening',
+            'schedules.*.start_time' => 'required|date_format:H:i',
+            'schedules.*.end_time' => 'required|date_format:H:i',
+        ]);
+    
+        try {
+            // Fetch the doctor by ID
+            $doctor = Doctor::find($validatedData['doctor_id']);
+    
+            if (!$doctor) {
+                return response()->json(['error' => 'Doctor not found'], 404);
+            }
+    
+            // Create schedules
+            foreach ($validatedData['schedules'] as $scheduleData) {
+                $doctor->schedules()->create([
+                    'doctor_id' => $scheduleData['doctor_id'],
+                    'day_of_week' => $scheduleData['day_of_week'],
+                    'shift_period' => $scheduleData['shift_period'],
+                    'start_time' => $scheduleData['start_time'],
+                    'end_time' => $scheduleData['end_time'],
+                    
+                ]);
+            }
+    
+            return response()->json(['message' => 'Schedules created successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
     }
 
     /**

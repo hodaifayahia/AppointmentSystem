@@ -19,6 +19,8 @@ class PatientResource extends JsonResource
             'firstname' => $this->Firstname,
             'lastname' => $this->Lastname,
             'phone' => $this->phone,
+            'dateOfBirth' => $this->dateOfBirth,
+            'Idnum' => $this->Idnum,
             // Format the date using Carbon
             'created_at' => $this->created_at->format(config('app.date_formate')),
             // Or use a specific format you prefer

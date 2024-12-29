@@ -18,6 +18,8 @@ class AppointmentStatus extends Controller
                 'value'=>$status->value,
                 'count'=>Appointment::where('status',$status->value)->count(),
                 'color'=>AppointmentSatatusEnum::from($status->value)->color(),
+                'icon' => $status->icon(), // Include icon in the response
+
             ];
         });
     }

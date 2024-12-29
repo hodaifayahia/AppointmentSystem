@@ -17,6 +17,7 @@
     "dependencies": {
         "@popperjs/core": "^2.11.8",
         "@vitejs/plugin-vue": "^5.2.1",
+        "@vuepic/vue-datepicker": "^10.0.0",
         "admin-lte": "^3.2.0",
         "bootstrap": "^5.3.3",
         "flatpickr": "^4.6.13",

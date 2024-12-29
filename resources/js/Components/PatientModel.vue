@@ -24,6 +24,8 @@ const Patient = ref({
     first_name: props.specData?.first_name || '',
     last_name: props.specData?.last_name || '',
     phone: props.specData?.phone || '',
+    Idnum: props.specData?.Idnum || '',
+    dateOfBirth: props.specData?.dateOfBirth || null,
 });
 
 const isEditMode = computed(() => !!props.specData?.id);
@@ -36,6 +38,8 @@ watch(
             first_name: newValue?.first_name || '',
             last_name: newValue?.last_name || '',
             phone: newValue?.phone || '',
+            Idnum: newValue?.Idnum || '',
+            dateOfBirth: newValue?.dateOfBirth || null,
         };
     },
     { immediate: true, deep: true }
@@ -56,8 +60,13 @@ const PatientSchema = yup.object({
         .string()
         .required('Phone number is required')
         .matches(/^[0-9]{10,15}$/, 'Phone number must be between 10 and 15 digits and contain only numbers'),
+    Idnum: yup
+        .string()
+        .matches(/^[A-Za-z0-9]{5,20}$/, 'ID Number must be 5-20 alphanumeric characters'),
+    dateOfBirth: yup
+        .date()
+        .max(new Date(), 'Date of Birth cannot be in the future'),
 });
-
 const closeModal = () => {
     emit('close');
 };
@@ -162,7 +171,45 @@ const submitForm = async (values) => {
                                     <span class="invalid-feedback">{{ errors.phone }}</span>
                                 </div>
                             </div>
+                       
+                         <!-- ID Number -->
+                            <!-- ID Number (Optional) -->
+
+                            <div class="col-md-12">
+                                <div class="form-group mb-4">
+                                    <label for="patient-idnum" class="text-muted">ID Number (optional)</label>
+                                    <Field
+                                        name="Idnum"
+                                        v-model="Patient.Idnum"
+                                        type="text"
+                                        class="form-control form-control-md rounded-pill"
+                                        :class="{ 'is-invalid': errors.Idnum }"
+                                        id="patient-idnum"
+                                        placeholder="Enter ID Number"
+                                    />
+                                    <span class="invalid-feedback">{{ errors.Idnum }}</span>
+                                </div>
+                            </div>
+
+                            <!-- Date of Birth (Optional) -->
+                            <div class="col-md-12">
+                                <div class="form-group mb-4">
+                                    <label for="patient-dob" class="text-muted">Date of Birth (optional)</label>
+                                    <Field
+                                        name="dateOfBirth"
+                                        v-model="Patient.dateOfBirth"
+                                        type="date"
+                                        class="form-control form-control-md rounded-pill"
+                                        :class="{ 'is-invalid': errors.dateOfBirth }"
+                                        id="patient-dob"
+                                    />
+                                    <span class="invalid-feedback">{{ errors.dateOfBirth }}</span>
+                                </div>
+                            </div>
+                          
                         </div>
+                   
+
 
                         <div class="modal-footer">
                             <button type="button" class="btn btn-outline-secondary" @click="closeModal">Cancel</button>

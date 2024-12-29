@@ -25,33 +25,41 @@ class PatientController extends Controller
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string', 
             'phone' => 'required|string',
+            'dateOfBirth' => 'nullable|date|string',
+            'Idnum' => 'nullable|string|max:20', // Assuming ID can be up to 20 characters long
         ]);
-
-        $Patient = Patient::create([
+    
+        $patient = Patient::create([
             'Firstname' => $validatedData['first_name'],
             'Lastname' => $validatedData['last_name'],
             'phone' => $validatedData['phone'],
+            'dateOfBirth' => $validatedData['dateOfBirth'] ?? null, // Handle optional date
+            'Idnum' => $validatedData['Idnum'] ?? null, // Handle optional ID number
             'created_by' => 2,
         ]);
-
-        return new PatientResource($Patient);
+       
+    
+        return new PatientResource($patient);
     }
-
+    
     public function update(Request $request, Patient $patient)
     {
-        
         $validatedData = $request->validate([
             'firstname' => 'required|string|max:255',
             'lastname' => 'required|string', 
             'phone' => 'required|string',
+            'dateOfBirth' => 'nullable|date|string',
+            'Idnum' => 'nullable|string|max:20',
         ]);
-
+    
         $patient->update([
             'Firstname' => $validatedData['firstname'],
             'Lastname' => $validatedData['lastname'],
             'phone' => $validatedData['phone'],
+            'dateOfBirth' => $validatedData['dateOfBirth'] ?? null,
+            'Idnum' => $validatedData['Idnum'] ?? null,
         ]);
-
+    
         return new PatientResource($patient);
     }
 
@@ -74,6 +82,8 @@ public function search(Request $request)
     $patients = Patient::where(function($query) use ($searchTerm) {
         $query->where('Firstname', 'LIKE', "%{$searchTerm}%")
               ->orWhere('Lastname', 'LIKE', "%{$searchTerm}%")
+              ->orWhere('dateOfBirth', 'LIKE', "%{$searchTerm}%")
+              ->orWhere('Idnum', 'LIKE', "%{$searchTerm}%")
               ->orWhere('phone', 'LIKE', "%{$searchTerm}%");
     })
     ->orderBy('created_at', 'desc')
