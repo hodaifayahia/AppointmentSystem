@@ -1,35 +1,65 @@
 <script setup>
-import { ref, watch, onMounted } from 'vue';
-import TimeSlotSelector from './TimeSlotSelector.vue'; // Assuming you have the TimeSlotSelector component already
+import { ref, onMounted } from 'vue';
+import TimeSlotSelector from './TimeSlotSelector.vue';
 import { formatDateHelper } from '@/Components/helper.js';
 
 const props = defineProps({
- 
   doctorId: {
     type: Number,
     required: true,
   },
 });
-const availableAppointments = ref([]);
 
-const selectedAppointment = ref(null);
-const fetchAvilableAppointments = async () => {
+const emit = defineEmits(['dateSelected', 'timeSelected']);
 
-const response = await axios.get('/api/appointments/available', { params: { doctor_id: props.doctorId } });
-availableAppointments.value = response.data;
-console.log(availableAppointments.value);
-
-
-};
-
-
-const selectAppointment = (appointment) => {
-  selectedAppointment.value = appointment;
-};
-onMounted(() => {
-  fetchAvilableAppointments();
+const availableAppointments = ref({
+  canceled_appointments: [],
+  normal_appointments: null
 });
 
+const selectedAppointment = ref(null);
+
+const fetchAvailableAppointments = async () => {
+  try {
+    const response = await axios.get('/api/appointments/available', {
+      params: { doctor_id: props.doctorId }
+    });
+    availableAppointments.value = {
+      canceled_appointments: response.data.canceled_appointments,
+      normal_appointments: response.data.normal_appointments
+    };
+  } catch (error) {
+    console.error('Error fetching available appointments:', error);
+  }
+};
+
+const selectAppointment = (event) => {
+  // Find the selected appointment from the available appointments
+  const selectedValue = event.target.value;
+  let found = availableAppointments.value.canceled_appointments.find(
+    app => formatDateHelper(app.date) === selectedValue
+  );
+  
+  if (!found && availableAppointments.value.normal_appointments) {
+    if (formatDateHelper(availableAppointments.value.normal_appointments.date) === selectedValue) {
+      found = availableAppointments.value.normal_appointments;
+    }
+  }
+
+  if (found) {
+    selectedAppointment.value = found;
+    
+    emit('dateSelected', selectedAppointment.value.date);
+  }
+};
+
+const handleTimeSelected = (time) => {
+  emit('timeSelected', time);
+};
+
+onMounted(() => {
+  fetchAvailableAppointments();
+});
 </script>
 
 <template>
@@ -37,7 +67,10 @@ onMounted(() => {
     <label class="text-muted mb-2">Available Appointment Dates</label>
 
     <!-- If no appointments available, show a message -->
-    <div v-if="availableAppointments.length === 0" class="text-muted p-3 border rounded">
+    <div 
+      v-if="availableAppointments.canceled_appointments.length === 0 && !availableAppointments.normal_appointments" 
+      class="text-muted p-3 border rounded"
+    >
       No available appointments.
     </div>
 
@@ -47,25 +80,39 @@ onMounted(() => {
         <select
           v-model="selectedAppointment"
           class="form-select form-control w-full mb-3"
+          @change="selectAppointment"
         >
           <option disabled value="">Select an appointment</option>
-          <option
-            v-for="appointment in availableAppointments"
-            :key="appointment.id"
-            :value="appointment"
-          >
-            {{ formatDateHelper(appointment.date) }}
-          </option>
+          <template v-if="availableAppointments.canceled_appointments.length > 0">
+            <optgroup label="Canceled Appointments">
+              <option
+                v-for="appointment in availableAppointments.canceled_appointments"
+                :key="appointment.date"
+                :value="formatDateHelper(appointment.date)"
+              >
+                {{ formatDateHelper(appointment.date) }}
+              </option>
+            </optgroup>
+          </template>
+          <template v-if="availableAppointments.normal_appointments">
+            <optgroup label="Normal Appointments">
+              <option
+                :value="formatDateHelper(availableAppointments.normal_appointments.date)"
+              >
+                {{ formatDateHelper(availableAppointments.normal_appointments.date) }}
+              </option>
+            </optgroup>
+          </template>
         </select>
       </div>
     </div>
 
-    <!-- If an appointment is selected, show the TimeSlotSelector component -->
+    <!-- TimeSlotSelector component -->
     <TimeSlotSelector
       v-if="selectedAppointment"
-      :date="selectedAppointment.a"
+      :date="selectedAppointment.date"
       :doctorid="doctorId"
-      :deletedslots="selectedAppointment.available_times"
+      @timeSelected="handleTimeSelected"
       class="mt-4"
     />
   </div>

@@ -1,127 +1,136 @@
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
+import axios from 'axios';
+import TimeSlotSelector from './TimeSlotSelector.vue';
+import Datepicker from '@vuepic/vue-datepicker';
+import '@vuepic/vue-datepicker/dist/main.css';
 
-const emit = defineEmits(['dateTimeSelected']);
-
-const selectedDate = ref('');
-const selectedTime = ref('');
-const error = ref('');
-const confirmed = ref(false);
-
-const handleDateChange = (event) => {
-  selectedDate.value = event.target.value;
-  error.value = ''; 
-  confirmed.value = false; // Reset confirmation message when changing selections
-};
-
-const handleTimeChange = (event) => {
-  selectedTime.value = event.target.value;
-  error.value = ''; 
-  confirmed.value = false; // Reset confirmation message when changing selections
-};
-
-const confirmDateTime = () => {
-  if (selectedDate.value && selectedTime.value) {
-    emit('dateTimeSelected', { date: selectedDate.value, time: selectedTime.value });
-    confirmed.value = true; // Show confirmation message
-    error.value = ''; // Clear any error
-  } else {
-    error.value = 'Please select both a date and a time.';
-  }
-};
-
-watch([selectedDate, selectedTime], () => {
-  if (selectedDate.value && selectedTime.value) {
-    error.value = '';
-  }
+const props = defineProps({
+  doctorId: { type: Number, required: true },
+  days: { type: Number, default: 0 }
 });
+
+const emit = defineEmits(['timeSelected', 'dateSelected']);
+const availableSlots = ref({});  // Changed to object to hold multiple properties
+const selectedDate = ref(null);  // Initialize as null
+
+const formattedDate = computed(() => {
+  if (!selectedDate.value) return '';
+  return `${selectedDate.value.getFullYear()}-${(selectedDate.value.getMonth() + 1).toString().padStart(2, '0')}-${selectedDate.value.getDate().toString().padStart(2, '0')}`;
+});
+
+const fetchSlots = async () => {
+  try {
+    const response = await axios.get('/api/appointments/ForceSlots', {
+        params: {
+          days: props.days,  // Assuming days is needed for this endpoint, adjust if not
+          doctor_id: props.doctorId
+        }
+      });      
+    
+    availableSlots.value = {
+      gap_slots: response.data.gap_slots || [],
+      additional_slots: response.data.additional_slots || [],
+      next_available_date: response.data.next_available_date ? new Date(response.data.next_available_date) : null
+    };
+    
+
+    // Set the selected date to the next available date if it exists
+    selectedDate.value = availableSlots.value.next_available_date;
+    emit('dateSelected', response.data.next_available_date); // Emit selected date to the parent
+    
+  } catch (error) {
+    console.error('Error fetching slots:', error);
+    availableSlots.value = {};
+    selectedDate.value = null; // Reset selectedDate if there's an error
+  }
+};
+
+
+const handleTimeSelected = (time) => {
+  emit('timeSelected', time); // Emit the selected time to parent
+};
+
+// Combine gap and additional slots for TimeSlotSelector
+const allSlots = computed(() => {
+  return [...(availableSlots.value.gap_slots || []), ...(availableSlots.value.additional_slots || [])];
+});
+
+// Fetch slots on component mount or when props change
+watch(() => [props.days, props.doctorId], fetchSlots, { immediate: true });
+
+// Function to reset the date selection
+const resetDateSelection = () => {
+  selectedDate.value = selectedDate; 
+  availableSlots.value = {};
+};
 </script>
 
 <template>
-    <div class="premium-calendar">
-      <div class="date-time-select">
-        <div class="input-group">
-          <label for="dateInput" class="premium-label">Select Date:</label>
-          <input type="date" id="dateInput" v-model="selectedDate" @change="handleDateChange" class="premium-input">
+  <div class="appointment-selection">
+    <div class="row">
+      <div class="col">
+        <div class="mb-3">
+          <label for="datepicker" class="form-label">Select Date</label>
+          <Datepicker 
+            v-model="selectedDate" 
+            id="datepicker" 
+            :enable-time-picker="false"
+            style="display: block; width: 100%;"
+          />
         </div>
-        <div class="input-group">
-          <label for="timeInput" class="premium-label">Select Time:</label>
-          <input type="time" id="timeInput" v-model="selectedTime" @change="handleTimeChange" class="premium-input">
+
+        <div v-if="availableSlots.next_available_date" class="mt-3">
+          <h6 class="mb-2">Next Available Appointment:</h6>
+          <p class="mb-0">{{ availableSlots.next_available_date.toDateString() }}</p>
         </div>
-      </div>
-      <button @click="confirmDateTime" class="bg-primary premium-button mt-4">Confirm Selection</button>
-      <div v-if="error" class="error-message">
-        <p class="text-danger">{{ error }}</p>
-      </div>
-      <div v-if="confirmed" class="success-message">
-        <p class="text-success">Your time has been selected.</p>
       </div>
     </div>
-  </template>
-  <style scoped>
-  .premium-calendar {
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    max-width: 100%;
-    margin: 0 auto;
-  }
-  
-  .date-time-select {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-  }
-  
-  .input-group {
-    display: flex;
-    flex-direction: column;
-  }
-  
-  .premium-label {
-    font-weight: bold;
-    color: #333;
-    margin-bottom: 5px;
-  }
-  
-  .premium-input {
-    border: 1px solid #d1d1d1;
-    border-radius: 5px;
-    padding: 10px;
-    font-size: 16px;
-    transition: border-color 0.3s ease-in-out;
-  }
-  
-  .premium-input:focus {
-    outline: none;
-    border-color: #42b983;
-    box-shadow: 0 0 0 3px rgba(66, 185, 131, 0.1);
-  }
-  
-  .premium-button {
-    color: white;
-    border: none;
-    border-radius: 5px;
-    padding: 10px 20px;
-    font-size: 16px;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-  }
-  
-  .premium-button:hover {
-    background-color: #36a475;
-  }
-  
-  .error-message, .success-message {
-    text-align: center;
-    margin-top: 10px;
-  }
-  
-  .text-danger {
-    color: #ff4136;
-  }
-  
-  .text-success {
-    color: #28a745;
-  }
-  </style>
+
+    <div v-if="selectedDate" class="card mb-3 shadow-sm">
+      <div class="card-body">
+        <TimeSlotSelector
+          :date="formattedDate"
+          :forceAppointment="true"
+          :doctorid="props.doctorId"
+          :days="props.days"
+          @timeSelected="handleTimeSelected"
+          class="mt-3"
+        />
+        <button @click="resetDateSelection" class="btn btn-outline-secondary btn-sm mt-3">Reset Selection</button>
+      </div>
+    </div>
+  </div>
+</template>
+<style scoped>
+.appointment-selection {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.card {
+  border: none;
+}
+
+.form-label {
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.form-control {
+  border-radius: 8px;
+}
+
+.btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  border-radius: 0.2rem;
+}
+
+h6 {
+  color: #333;
+  font-weight: 600;
+}
+</style>

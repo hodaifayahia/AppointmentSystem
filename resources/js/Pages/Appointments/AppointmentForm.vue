@@ -99,7 +99,8 @@ onMounted(async () => {
     <PatientSearch v-model="searchQuery" @patientSelected="handlePatientSelect" />
 
     <!-- Available Appointments Component -->
-    <AvailableAppointments :doctorId="props.doctorId" />
+    <AvailableAppointments :doctorId="props.doctorId"   @dateSelected="handleDateSelected"
+    @timeSelected="handleTimeSelected" />
 
     <!-- Appointment Method Selection -->
     <div class="form-group mb-4">
@@ -125,6 +126,7 @@ onMounted(async () => {
     />
 
     <!-- Show Calendar if 'By Calendar' Option is Selected -->
+
     <AppointmentCalendar
       v-if="form.selectionMethod === 'calendar'"
       :doctorId="props.doctorId"

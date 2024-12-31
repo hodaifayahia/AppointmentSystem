@@ -1,7 +1,7 @@
 <script setup>
-import { defineProps, defineEmits, ref, onMounted } from 'vue';
+import { defineProps, defineEmits, ref, onMounted, watch } from 'vue';
 import axios from 'axios';
-import { useToastr } from '@/Components/toster';
+import { useToastr } from '../../Components/toster';
 
 
 const props = defineProps({
@@ -21,29 +21,39 @@ const props = defineProps({
         type: Number,
         required: true
     },
+    doctorId: {
+        type: String,
+        required: true
+    },
+    pagination:{
+        
+    }
    
 });
 
-const emit = defineEmits(['getAppointments' ,"updateAppointment"]);
+
+const emit = defineEmits(['getAppointments' ,"updateAppointment" ,'updateStatus']);
 const toastr = useToastr();
+
 
 const statuses = ref([]);
 const error = ref(null);
 const dropdownStates = ref({});
+const searchQuery = ref("");
+const isLoading = ref(false);
+const localAppointments = ref(props.appointments);
+const localPagination = ref(props.pagination);
+// const getAppointmentsStatus = async () => {
+//     try {
+//         const response = await axios.get(`/api/appointmentStatus`);
+//         statuses.value = response.data;
+//     } catch (err) {
+//         error.value = 'Failed to load appointment statuses';
+//         console.error('Error:', err);
+//     }
+// };
 
-const getAppointmentsStatus = async () => {
-    try {
-        const response = await axios.get(`/api/appointmentStatus`);
-        statuses.value = response.data;
-    } catch (err) {
-        error.value = 'Failed to load appointment statuses';
-        console.error('Error:', err);
-    }
-};
 
-onMounted(() => {
-    getAppointmentsStatus();
-});
 
 const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -82,6 +92,7 @@ const updateAppointmentStatus = async (appointmentId, newStatus) => {
         await axios.patch(`/api/appointment/${appointmentId}/status`, { status: newStatus });
         dropdownStates.value[appointmentId] = false;
         emit('updateAppointment');
+        emit('updateStatus');
         toastr.success('Appointment status updated successfully');
     } catch (err) {
         console.error('Error updating status:', err);
@@ -89,7 +100,24 @@ const updateAppointmentStatus = async (appointmentId, newStatus) => {
 };
     
  
+// Watch for props changes
+watch(() => props.appointments, (newVal) => {
+    localAppointments.value = newVal;
+}, { deep: true });
 
+watch(() => props.pagination, (newVal) => {
+    localPagination.value = newVal;
+}, { deep: true });
+
+const getAppointmentsStatus = async () => {
+    try {
+        const response = await axios.get(`/api/appointmentStatus`);
+        statuses.value = response.data;
+    } catch (err) {
+        error.value = 'Failed to load appointment statuses';
+        console.error('Error:', err);
+    }
+};
 
 const editAppointment = (appointment) => {
     console.log('Edit appointment:', appointment);
@@ -108,35 +136,92 @@ const deleteAppointment = async (id) => {
         console.error('Error deleting appointment:', err);
     }
 };
+const debouncedSearch = (() => {
+    let timeout;
+    return () => {
+        clearTimeout(timeout);
+        timeout = setTimeout(async () => {
+            try {
+                isLoading.value = true;
+                const response = await axios.get('/api/appointments/search', {
+                    params: {
+                        query: searchQuery.value,
+                        doctorId: props.doctorId,
+                    },
+                });
+                localAppointments.value = response.data.data;
+                localPagination.value = response.data.meta;
+                emit('getAppointments', response.data); // Emit the updated data
+            } catch (error) {
+                toastr.error('Failed to search appointments');
+                console.error('Error searching appointments:', error);
+            } finally {
+                isLoading.value = false;
+            }
+        }, 300);
+    };
+})();
+
+
+// Watch for search query changes
+watch(searchQuery, debouncedSearch);
+onMounted(() => {
+    getAppointmentsStatus();
+});
 </script>
 
 <template>
-    <div class=" shadow-sm">
+
+    <div class="shadow-sm">
         <div class="card-body">
+            <!-- Error Alert -->
             <div v-if="error" class="alert alert-danger" role="alert">
                 {{ error }}
             </div>
 
-            <div v-if="loading" class="text-center py-4">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden"></span>
+            <!-- Search Bar -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold mb-0"></h5>
+                <div class="input-group w-50">
+                    <input 
+                        type="text" 
+                        class="form-control rounded-start" 
+                        v-model="searchQuery"
+                        placeholder="Search by patient name or date of birth" 
+                        aria-label="Search" 
+                    />
+                    <button 
+                        class="btn btn-outline-primary" 
+                        type="button" 
+                        :disabled="isLoading"
+                    >
+                        <i class="fas" :class="{ 'fa-search': !isLoading, 'fa-spinner fa-spin': isLoading }"></i>
+                    </button>
                 </div>
             </div>
 
+            <!-- Loading Spinner -->
+            <div v-if="loading" class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+
+            <!-- Appointment Table -->
             <table v-else class="table table-hover text-center align-middle">
                 <thead>
                     <tr>
                         <th scope="col">#</th>
                         <th scope="col">Patient Name</th>
                         <th scope="col">Phone</th>
-                        <th scope="col">Doctor Name</th>
+                        <th scope="col">Date Of Birth</th>
                         <th scope="col">Date</th>
                         <th scope="col">Time</th>
                         <th scope="col">Status</th>
                         <th scope="col">Actions</th>
                     </tr>
                 </thead>
-                <tbody class="text-center">
+                <tbody>
                     <tr v-if="appointments.length === 0">
                         <td colspan="8" class="text-center">No appointments found</td>
                     </tr>
@@ -144,31 +229,31 @@ const deleteAppointment = async (id) => {
                         <td>{{ index + 1 }}</td>
                         <td>{{ getPatientFullName(appointment) }}</td>
                         <td>{{ appointment.phone }}</td>
-                        <td>{{ appointment.doctor_name }}</td>
+                        <td>{{ appointment.patient_Date_Of_Birth }}</td>
                         <td>{{ formatDate(appointment.appointment_date) }}</td>
                         <td>{{ formatTime(appointment.appointment_time) }}</td>
                         <td>
+                            <!-- Dropdown for Status -->
                             <div class="dropdown" :class="{ 'show': dropdownStates[appointment.id] }">
                                 <button class="btn dropdown-toggle status-button" type="button"
                                     @click="toggleDropdown(appointment.id)">
                                     <span class="status-indicator"
                                         :class="getStatusOption(appointment.status?.name).color"></span>
                                     <span :class="`text-${appointment.status.color}`">
-                                        <i :class="[`text-${appointment.status.color}`, appointment.status.icon ]" class="fa-lg ml-1"></i>
+                                        <i :class="[`text-${appointment.status.color}`, appointment.status.icon ]"
+                                            class="fa-lg ml-1"></i>
                                         {{ getStatusText(appointment.status) }}
                                     </span>
                                 </button>
-                                <ul class="dropdown-menu dropdown-menu-end " style="z-index: 100;"
+                                <ul class="dropdown-menu dropdown-menu-end" style="z-index: 100;"
                                     :class="{ 'show': dropdownStates[appointment.id] }">
                                     <li v-for="status in statuses" :key="status.name">
                                         <a class="dropdown-item d-flex align-items-center" href="#"
                                             @click.prevent="updateAppointmentStatus(appointment.id, status.value)">
                                             <span class="status-indicator" :class="status.color"></span>
                                             <i :class="[`text-${status.color}`, status.icon]"></i>
-                                            <span class="status-text  rounded-pill fw-bold" :class="[
-                                                `text-${status.color}`,
-                                                'fs-6'  // Bootstrap class for font size, adjust as needed
-                                            ]">
+                                            <span class="status-text rounded-pill fw-bold"
+                                                :class="[`text-${status.color}`, 'fs-6']">
                                                 {{ status.name }}
                                             </span>
                                         </a>
@@ -181,7 +266,8 @@ const deleteAppointment = async (id) => {
                                 <button @click="editAppointment(appointment)" class="btn btn-sm btn-outline-primary">
                                     <i class="fas fa-edit"></i>
                                 </button>
-                                <button @click="deleteAppointment(appointment.id)" class="btn btn-sm btn-outline-danger">
+                                <button @click="deleteAppointment(appointment.id)"
+                                    class="btn btn-sm btn-outline-danger">
                                     <i class="fas fa-trash-alt"></i>
                                 </button>
                             </div>
@@ -191,20 +277,10 @@ const deleteAppointment = async (id) => {
             </table>
 
             <!-- Pagination -->
-            <div v-if="!loading && totalPages > 1" class="d-flex justify-content-center mt-4">
-                <nav aria-label="Appointments pagination">
-                    <ul class="pagination">
-                        <li v-for="page in totalPages" :key="page"
-                            :class="['page-item', { active: page === currentPage }]">
-                            <a class="page-link" href="#" @click.prevent="emit('getAppointments', page)">
-                                {{ page }}
-                            </a>
-                        </li>
-                    </ul>
-                </nav>
-            </div>
+            <Bootstrap5Pagination :data="pagination" @pagination-change-page="appointments" />
         </div>
     </div>
+
 </template>
 
 

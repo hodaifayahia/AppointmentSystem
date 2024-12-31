@@ -1,8 +1,9 @@
 <script setup>
-import { ref, computed,onMounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import { debounce } from 'lodash';
 import axios from 'axios';
 import { useToastr } from '@/Components/toster';
+import PatientModel from '@/Components/PatientModel.vue';
 
 const props = defineProps({
   modelValue: String,
@@ -15,9 +16,14 @@ const toastr = useToastr();
 const patients = ref([]);
 const showDropdown = ref(false);
 const isLoading = ref(false);
+const isModalOpen = ref(false);
+const selectedPatient = ref(null);
+const searchQuery = ref('');
 
 const handleSearch = debounce(async (query) => {
-  if (query.length < 2) {
+  searchQuery.value = query;
+  
+  if (!query || query.length < 2) {
     patients.value = [];
     showDropdown.value = false;
     return;
@@ -30,7 +36,6 @@ const handleSearch = debounce(async (query) => {
       params: { query }
     });
     patients.value = response.data.data || [];
-    showDropdown.value = true;
   } catch (error) {
     console.error('Error searching patients:', error);
     toastr.error('Failed to search patients');
@@ -42,16 +47,41 @@ const handleSearch = debounce(async (query) => {
 
 const selectPatient = (patient) => {
   if (!patient) return;
+  selectedPatient.value = patient;
   emit('patientSelected', patient);
-  emit('update:modelValue', `${patient.firstname} ${patient.dateOfBirth} ${patient.Idnum} ${patient.lastname} ${patient.phone}`);
+  emit('update:modelValue', `${patient.firstname} ${patient.lastname} ${patient.dateOfBirth} ${patient.phone}`);
   showDropdown.value = false;
+  searchQuery.value = '';
 };
 
 const closeDropdown = () => {
   showDropdown.value = false;
 };
 
-// Mount click listener
+const openModal = () => {
+  isModalOpen.value = true;
+  selectedPatient.value = null;
+};
+
+const closeModal = () => {
+  isModalOpen.value = false;
+};
+
+// Modified to handle the newly added patient
+const handlePatientAdded = (newPatient) => {
+  closeModal();
+  selectPatient(newPatient); // Automatically select the new patient
+  toastr.success('Patient added successfully');
+};
+
+// Remove the getPatients function since we don't want to show all patients initially
+const refreshPatients = async () => {
+  // Only refresh if there's an active search
+  if (searchQuery.value && searchQuery.value.length >= 2) {
+    await handleSearch(searchQuery.value);
+  }
+};
+
 onMounted(() => {
   document.addEventListener('click', (e) => {
     const dropdown = document.querySelector('.patient-search-wrapper');
@@ -72,25 +102,24 @@ onMounted(() => {
           type="text"
           class="form-control form-control-lg rounded-lg mb-2"
           placeholder="Search patients by name or phone..."
-          @focus="showDropdown = true"
+          @focus="showDropdown = modelValue && modelValue.length >= 2"
         />
       </div>
       <div class="col-md-3">
         <button 
           type="button" 
           class="btn btn-primary rounded-pill"
-          @click="emit('update:modelValue', '')"
+          @click="openModal"
         >
           Add New Patient
         </button>
       </div>
     </div>
 
-    <div v-if="showDropdown && (isLoading || patients.length > 0 || modelValue?.length >= 2)"
-      >
+    <div v-if="showDropdown && (isLoading || (patients.length > 0 && searchQuery.length >= 2))">
       <div v-if="isLoading" class="loading-state">
         <div class="spinner-border text-primary spinner-border-sm me-2" role="status">
-          <span class="visually-hidden"></span>
+          <span class="visually-hidden">Loading...</span>
         </div>
         Searching
       </div>
@@ -102,33 +131,40 @@ onMounted(() => {
             :key="patient.id"
             class="patient-item"
             @click="selectPatient(patient)"
-            >
-          <div class="patient-info border-0">
-            <div class="patient-name">
-              <h6 class="fw-bold">{{ patient.firstname }} {{ patient.lastname }}</h6>
-              <span class="patient-details">
-                <strong>Date of Birth:</strong> {{ patient.dateOfBirth }} 
-                <strong>ID:</strong> {{ patient.Idnum }}
-              </span>
+          >
+            <div class="patient-info border-0">
+              <div class="patient-name">
+                <h6 class="fw-bold">{{ patient.firstname }} {{ patient.lastname }}</h6>
+                <span class="patient-details">
+                  <strong>Date of Birth:</strong> {{ patient.dateOfBirth }} 
+                  <strong>ID:</strong> {{ patient.Idnum }}
+                </span>
+              </div>
+              <div class="patient-contact">
+                <i class="fas fa-phone-alt text-danger mr-2"></i> 
+                <span class="patient-phone">{{ patient.phone }}</span>
+              </div>
             </div>
-            <div class="patient-contact">
-              <i class="fas fa-phone-alt text-danger mr-2"></i> 
-              <span class="patient-phone"> {{ patient.phone }}</span>
-            </div>
-          </div>
             <div class="select-icon">
               <i class="fas fa-chevron-right"></i>
             </div>
           </div>
         </div>
-        <div v-if="patients.length === 0 && modelValue?.length >= 2"
-          class="no-results">
+        <div v-if="patients.length === 0 && searchQuery.length >= 2" class="no-results">
           <div class="no-results-icon">🔍</div>
           <div class="no-results-text">No patients found</div>
         </div>
       </template>
     </div>
   </div>
+
+  <!-- Patient Modal -->
+  <PatientModel
+    :show-modal="isModalOpen"
+    :spec-data="selectedPatient"
+    @close="closeModal"
+    @specUpdate="handlePatientAdded"
+  />
 </template>
 <style scoped>
 

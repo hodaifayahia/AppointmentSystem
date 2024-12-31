@@ -45,15 +45,17 @@ Route::get('/api/schedules/{doctorid}', [ScheduleController::class, 'index']);
 
 // apis for appointments
 
-Route::get('api/appointments/checkAvailability', [AppointmentController::class, 'checkAvailability']);
-Route::get('/api/appointments', [AppointmentController::class, 'index'])->name('users.index');
+
+Route::get('/api/appointments/search', [AppointmentController::class, 'search']);
+Route::get('/api/appointments/checkAvailability', [AppointmentController::class, 'checkAvailability']);
+Route::get('/api/appointments/available', [AppointmentController::class, 'AvailableAppointments']);
+Route::get('/api/appointmentStatus', [AppointmentStatus::class, 'appointmentStatus']);
+Route::get('/api/appointments/ForceSlots', [AppointmentController::class, 'ForceAppointment']);
+Route::get('/api/appointments/{doctorid}', [AppointmentController::class, 'index']);
 Route::patch('/api/appointment/{appointmentId}/status', [AppointmentController::class, 'changeAppointmentStatus'])->name('users.index');
 Route::post('/api/appointments', [AppointmentController::class, 'store']);
 Route::put('/api/appointments/{appointmentid}', [AppointmentController::class, 'update'])->name('users.index');
 Route::delete('/api/appointments/{appointmentid}', [AppointmentController::class, 'destroy']);
-Route::get('/api/appointmentStatus', [AppointmentStatus::class, 'appointmentStatus']);
-Route::get('/api/appointments/time-slots', [AppointmentController::class, 'checkAvailability']);
-Route::get('/api/appointments/available', [AppointmentController::class, 'AiailableAppointments']);
 
 Route::get('/api/specializations', [specializationsController::class, 'index']);
 Route::post('/api/specializations', [specializationsController::class, 'store']);

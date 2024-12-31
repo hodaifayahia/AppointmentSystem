@@ -30,7 +30,9 @@ const fetchSlots = async () => {
       params: { date: formattedDate.value, doctor_id: props.doctorId ,include_slots: false
       }
     });
-
+    
+    console.log(response.data.data);
+    
     // Assuming that 'next_appointment' is part of the response data
     availableSlots.value = response.data.next_appointment ? { next_appointment: response.data.next_appointment } : [];
     emit('dateSelected', formattedDate.value); // Emit selected date to the parent

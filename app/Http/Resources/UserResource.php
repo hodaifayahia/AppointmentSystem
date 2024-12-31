@@ -20,10 +20,9 @@ class UserResource extends JsonResource
             'email' => $this->email,
             'phone' => $this->phone,
             'role' => $this->role,
-            // Format the date using Carbon
-            'created_at' => $this->created_at->format(config('app.date_formate')),
-            // Or use a specific format you prefer
-            'updated_at' => $this->updated_at->format(config('app.date_formate')), 
+            // Format the date if it exists, otherwise return an empty string or null
+          'created_at' => $this->created_at->format(config('app.date_format', 'Y-m-d H:i:s')),
+'updated_at' => $this->updated_at->format(config('app.date_format', 'Y-m-d H:i:s')),
         ];
     }
 }

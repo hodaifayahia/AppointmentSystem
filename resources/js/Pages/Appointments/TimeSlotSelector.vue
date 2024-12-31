@@ -22,6 +22,14 @@ const props = defineProps({
   range: {
     type: Number,
     default: 0
+  },
+  forceAppointment: {
+    type: Boolean,
+    default: false
+  },
+  days: {
+    type: Number,
+    default: 0
   }
 });
 
@@ -45,52 +53,77 @@ const fetchTimeSlots = async () => {
       available: true,
     }));
     loading.value = false;
-
     return;
   }
   
   try {
-    const response = await axios.get('/api/appointments/checkAvailability', {
-      params: {
-        date: props.date,
-        doctor_id: props.doctorid,
-        range: props.range,
-        include_slots: true,
-      }
-    });
-    console.log(response.data);
-    
-    
-    
+    let response;
+    if (props.forceAppointment) {
 
-    // Check if available_slots is an object (not an array)
-    if (typeof response.data.available_slots === 'object' && response.data.available_slots !== null) {
-      // Extract values from the object and create the slots array
-      const slotsArray = [];
-      if(response.data.available_slots.length === 0){
-        error.value = 'No available slots found within the specified range. Try increasing the range or selecting a different date.';
-      }
-      const timeSlots = Object.values(response.data.available_slots); // Get the time values as an array
-      for (let i = 0; i < timeSlots.length; i++) {
-        slotsArray.push({
-          time: timeSlots[i],
+      response = await axios.get('/api/appointments/ForceSlots', {
+        params: {
+          days: props.days,  // Assuming days is needed for this endpoint, adjust if not
+          doctor_id: props.doctorid
+        }
+      });
+      console.log(response.data);
+      
+      
+      // Handle response from /api/appointments/ForceSlots
+      if (response.data.gap_slots || response.data.additional_slots) {
+        slots.value = [
+          ...(response.data.gap_slots || []),
+          ...(response.data.additional_slots || [])
+        ].map(time => ({
+          time: time,
           available: true
-        });
-      }
-      slots.value = slotsArray;
-    } else {
-      error.value = 'Unexpected data format';
-    }
+        }));
 
-  }catch (err) {
-    if (err.response) {
-      err.value = 'No available slots found within the specified range. Try increasing the range or selecting a different date.';
+        // If you want to handle 'next_available_date' or other data, do so here
+        if (response.data.next_available_date) {
+          console.log('Next available date:', response.data.next_available_date);
+        }
+      } else {
+        error.value = 'No slots available for forced appointment.';
+      }
+
     } else {
-      err.value = 'An error occurred while fetching time slots.';
+      // Normal slot fetching
+      response = await axios.get('/api/appointments/checkAvailability', {
+        params: {
+          date: props.date,
+          doctor_id: props.doctorid,
+          range: props.range,
+          include_slots: true,
+        }
+      });
+      
+      // Check if available_slots is an object (not an array)
+      if (typeof response.data.available_slots === 'object' && response.data.available_slots !== null) {
+        const slotsArray = [];
+        if (Object.keys(response.data.available_slots).length === 0) {
+          error.value = 'No available slots found within the specified range. Try increasing the range or selecting a different date.';
+        } else {
+          const timeSlots = Object.values(response.data.available_slots); // Get the time values as an array
+          for (let i = 0; i < timeSlots.length; i++) {
+            slotsArray.push({
+              time: timeSlots[i],
+              available: true
+            });
+          }
+          slots.value = slotsArray;
+        }
+      } else {
+        error.value = 'Unexpected data format';
+      }
     }
     
+  } catch (err) {
+    if (err.response) {
+    } else {
+      error.value = 'An error occurred while fetching time slots.';
+    }
   } finally {
-    
     loading.value = false;
   }
 };
@@ -121,7 +154,7 @@ watch(() => props.modelValue, (newValue) => {
 });
 </script>
 <template>
-  {{  }}
+ 
 
   <div class="time-slots-container">
     <label class="text-muted mb-2 block">Available Time Slots</label>

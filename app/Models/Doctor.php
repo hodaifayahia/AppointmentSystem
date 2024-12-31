@@ -38,8 +38,6 @@ class Doctor extends Model
         'days' => 'array',
         'patients_based_on_time' => 'boolean',
         'specific_date' => 'date',
-        'start_time' => 'datetime',
-        'end_time' => 'datetime',
         'number_of_patients_per_day' => 'integer',
     ];
 

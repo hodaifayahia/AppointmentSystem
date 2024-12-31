@@ -15,6 +15,10 @@ const props = defineProps({
         default: () => ({}),
     },
 });
+// In your PatientModel.vue
+const emitUpdate = (newPatient) => {
+  emit('specUpdate', newPatient); // Pass the newly created patient data
+};
 
 const emit = defineEmits(['close', 'patientsUpdate']);
 const toastr = useToastr();
@@ -91,7 +95,8 @@ const submitForm = async (values) => {
             await axios.put(`/api/patients/${submissionData.id}`, submissionData);
             toastr.success('Patient updated successfully');
         } else {
-            await axios.post('/api/patients', submissionData);
+          const response=  await axios.post('/api/patients', submissionData);
+          emitUpdate(response.data.data); // Pass the new patient data
             toastr.success('Patient added successfully');
         }
 

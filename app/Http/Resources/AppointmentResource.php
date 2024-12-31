@@ -15,9 +15,11 @@ class AppointmentResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
+        'id' => $this->id,
         'patient_first_name' => $this->patient->Firstname ?? 'Unknown',
+        'patient_id' => $this->patient->id ?? 'Unknown',
         'patient_last_name' => $this->patient->Lastname ?? 'Unknown',
+        'patient_Date_Of_Birth' => $this->patient->dateOfBirth ?? 'Unknown',
         'phone' => $this->patient->phone ?? 'N/A',
         'doctor_name' => optional($this->doctor->user)->name ?? 'Unknown',
         'appointment_date' => $this->appointment_date,

@@ -26,10 +26,7 @@ const forceAppointment = () => {
   isForcingAppointment.value = true;
 };
 
-const handleDateTimeSelected = (dateTime) => {
-  emit('dateSelected', dateTime.date); // Emit date
-  emit('timeSelected', dateTime.time); // Emit time
-};
+
 // Function to check availability based on the `days` value
 const checkAvailability = async () => {
   if (!days.value) {
@@ -42,7 +39,6 @@ const checkAvailability = async () => {
 
   try {
    
-    // Fetch availability from the API
     const response = await axios.get('/api/appointments/checkAvailability', {
       params: { 
         days: days.value, 
@@ -52,9 +48,9 @@ const checkAvailability = async () => {
 
       }
     });
+    console.log(response.data.data);
     
     nextAppointmentDate.value = response.data.next_available_date;
-    console.log(nextAppointmentDate.value);
     period.value = response.data.period || [];
     emit('dateSelected', nextAppointmentDate.value); // Emit the selected date to parent
   } catch (err) {
@@ -68,9 +64,17 @@ const checkAvailability = async () => {
 
 
 // Handle the time slot selection
-const handleTimeSelected = (time) => {
-  emit('timeSelected', time); // Emit the selected time to parent
+const handleDateSelected = (date) => {
+  console.log(`Selected date: ${date}`);
+  
+  emit('dateSelected', date);; // Emit the selected time to parent
 };
+const handleTimeSelected = (time) => {
+  console.log(`Selected time: ${time}`);
+  emit('timeSelected', time); // Emit the selected time to parent
+
+};
+
 
 // Watch for changes in the `days` value and trigger the check
 watch(() => days.value, (newValue) => {
@@ -120,11 +124,15 @@ onMounted(() => {
       <p>{{ period }}</p>
     </div>
     
+    
     <div v-else-if="!nextAppointmentDate && days > 0" class="mt-2 text-center">
   <p class="text-danger">There are no slots available.</p>
   <button @click="forceAppointment" class="btn btn-outline-secondary mt-2 mb-2">Force Appointment</button>
   <div v-if="isForcingAppointment">
-    <SimpleCalendar @dateTimeSelected="handleDateTimeSelected" />
+    <SimpleCalendar :days="days" 
+     :doctorId="props.doctorId"
+     @timeSelected="handleTimeSelected"
+     @dateSelected="handleDateSelected" />
   </div>
 </div>
   </div>

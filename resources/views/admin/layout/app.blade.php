@@ -15,7 +15,7 @@
         <nav class="main-header navbar navbar-expand navbar-white navbar-light">
           <!-- Left navbar links -->
           <ul class="navbar-nav">
-            <li class="nav-item">
+            <li class="nav-item" id="sidebarToggleBtn" >
               <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
             </li>
             <li class="nav-item d-none d-sm-inline-block">
@@ -29,7 +29,7 @@
           <!-- Right navbar links -->
           <ul class="navbar-nav ml-auto">
             <!-- Navbar Search -->
-            <li class="nav-item">
+            <li class="nav-item" id="toggleMenu">
               <a class="nav-link" data-widget="navbar-search" href="#" role="button">
                 <i class="fas fa-search"></i>
               </a>
@@ -219,21 +219,22 @@
                     </router-link>
                 </li>
                 <li class="nav-item">
-                    <router-link to="/admin/settings" active-class="active" class="nav-link">
-                        <i class="nav-icon fas fa-cogs"></i>
-                        <p>
-                            Settings
-                        </p>
-                    </router-link>
-                </li>
-                {{-- <li class="nav-item">
-                    <router-link to="/admin/logout" active-class="active" class="nav-link">
-                        <i class="nav-icon fas fa-sign-out-alt"></i>
-                        <p>
-                            Logout
-                        </p>
-                    </router-link>
-                </li> --}}
+                  <a href="/admin/settings" class="nav-link">
+                      <i class="nav-icon fas fa-cogs"></i>
+                      <p>
+                          Settings
+                      </p>
+                  </a>
+              </li>
+              {{-- <li class="nav-item mr-2">
+                  <form action="{{ route('logout') }}" method="POST" style="display: contents; ">
+                      @csrf
+                      <a href="#" onclick="event.preventDefault(); this.closest('form').submit();" class="nav-link" style="padding: 2; text-decoration: none;">
+                          <i class="nav-icon fas fa-sign-out-alt" style="margin-right: 5px;"></i>
+                          <p style="display: inline; margin: 0;">Logout</p>
+                      </a>
+                  </form>
+              </li> --}}
             </ul>
             
             
@@ -250,6 +251,36 @@
           </router-view>
         </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const body = document.querySelector('body');
+    const sidebarToggle = document.querySelector('[data-widget="pushmenu"]');
+
+    // Load saved state on page load
+    const savedState = localStorage.getItem('sidebarState');
+    
+    if (savedState === 'collapsed') {
+        body.classList.add('sidebar-collapse');
+    }
+
+    // Handle sidebar toggle
+    if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Toggle the class
+            body.classList.toggle('sidebar-collapse');
+            
+            // Save the new state
+            const isCollapsed = body.classList.contains('sidebar-collapse');
+            localStorage.setItem('sidebarState', isCollapsed ? 'collapsed' : 'expanded');
+            
+        });
+    }
+});
+</script>
 </body>
 
 

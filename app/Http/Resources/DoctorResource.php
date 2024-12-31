@@ -21,8 +21,6 @@ class DoctorResource extends JsonResource
             'phone' => $this->user->phone,
             'specialization' => $this->specialization->name,
             'time_slots' => $this->time_slot,
-            // 'start_time' => $this->start_time->format(config('app.time_format')),
-            // 'end_time' => $this->end_time->format(config('app.time_format')),
             'frequency' => $this->frequency,
             // 'number_of_patients_per_day' => $this->number_of_patients_per_day, // Changed from number_of_patient
             'specific_date' => $this->specific_date,

@@ -1,3 +1,4 @@
+
 import Dashboard from "./Components/Dashboard.vue";
 import ListAppointment from "./Pages/Appointments/ListAppointment.vue";
 import DoctorListSchedule from "./Pages/Users/DoctorListSchedule.vue";
@@ -10,8 +11,14 @@ import settings from "./Pages/Setting/settings.vue";
 import DoctorListAppointment from "./Pages/Appointments/DoctorListAppointment.vue";
 import SpecializationListAppointment from "./Pages/Appointments/SpecializationListAppointment.vue";
 import AppointmentPage from "./Pages/Appointments/AppointmentPage.vue";
+import Login from "./auth/Login.vue";
 
 export default [
+    {
+        path: '/auth/Login',  // Corrected path
+        name: 'login',
+        component: Login,
+    },
     {
         path: '/admin/dashboard',  // Corrected path
         name: 'admin.dashboard',

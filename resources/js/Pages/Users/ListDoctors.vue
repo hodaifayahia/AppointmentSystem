@@ -7,7 +7,6 @@ import DoctorModel from '../../Components/DoctorModel.vue';
 import { Bootstrap5Pagination } from 'laravel-vue-pagination';
 
 const doctors = ref([]);
-const pagination = ref({});
 const selectedDoctor = ref({
   name: '',
   email: '',
@@ -29,11 +28,14 @@ const searchQuery = ref('');
 const isLoading = ref(false);
 const selectedDoctorBox = ref([]);
 const selectAll = ref(false);
+const pagination = ref({});
+
 
 const getDoctors = async (page = 1) => {
   try {
     const response = await axios.get(`/api/doctors?page=${page}`);
     doctors.value = response.data.data; // Immediately update the list
+    pagination.value = response.data.meta; // Store meta data for pagination
     console.log(doctors.value);
     
   } catch (error) {
@@ -240,7 +242,7 @@ onMounted(() => {
             </tbody>
           </table>
         </div>
-        <!-- <Bootstrap5Pagination :data="pagination" @pagination-change-page="getDoctors" /> -->
+        <Bootstrap5Pagination :data="pagination" @pagination-change-page="getDoctors" />
       </div>
     </div>
 

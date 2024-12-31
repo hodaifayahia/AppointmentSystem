@@ -254,10 +254,10 @@ class DoctorController extends Controller
     /**
      * Display the specified resource.
      */
-    public function specificDoctor(Request $request)
+    public function specificDoctor(Request $request,$doctorId)
     {
         // Retrieve the doctor using the `doctorid` parameter
-        $doctor = Doctor::find(8);
+        $doctor = Doctor::find($doctorId);
     
         if (!$doctor) {
             return response()->json(['error' => 'Doctor not found'], 404);

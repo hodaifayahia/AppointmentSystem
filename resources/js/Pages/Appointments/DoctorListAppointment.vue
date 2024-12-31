@@ -21,6 +21,10 @@ const getDoctors = async () => {
       params: { query: specializationId },
     });
     doctors.value = response.data.data;
+    // Fetch appointments for each doctor
+    doctors.value.forEach(doctor => {
+      fetchAvailableAppointments(doctor.id);
+    });
   } catch (error) {
     console.error('Error fetching doctors:', error);
   } finally {
@@ -65,16 +69,44 @@ const debouncedSearch = (() => {
 // Watch for search query changes
 watch(searchQuery, debouncedSearch);
 
-// Function to handle click on doctor card - assuming you have a route for doctor profiles
-const goToDoctorProfile = (doctorId) => {
-  // This is a placeholder. Replace with actual navigation logic
-  console.log('Navigating to doctor profile:', doctorId);
-  // Example with Vue Router:
-  // router.push(`/doctors/${doctorId}`);
+
+// Store appointments for each doctor
+const availableAppointments = ref({});
+
+// Function to fetch doctors
+
+
+const fetchAvailableAppointments = async (doctorId) => {
+  try {
+    const response = await axios.get('/api/appointments/available', {
+      params: { doctor_id: doctorId }
+    });
+    // Store appointments for this specific doctor
+    availableAppointments.value[doctorId] = {
+      canceled_appointments: response.data.canceled_appointments,
+      normal_appointments: response.data.normal_appointments
+    };
+  } catch (error) {
+    console.error(`Error fetching available appointments for doctor ${doctorId}:`, error);
+  }
+};
+const formatClosestCanceledAppointment = (appointments) => {
+  if (!appointments || appointments.length === 0) return 'No upcoming canceled appointments';
+
+  // Sort appointments by date, then by time for the closest one
+  const sortedAppointments = appointments.sort((a, b) => {
+    const dateA = new Date(a.date + 'T' + a.available_times[0] + ':00');
+    const dateB = new Date(b.date + 'T' + b.available_times[0] + ':00');
+    return dateA - dateB;
+  });
+
+  const closest = sortedAppointments[0];
+  return `${closest.date} at ${closest.available_times[0]}`;
 };
 
 onMounted(() => {
   getDoctors();
+  fetchAvailableAppointments();
 });
 </script>
 
@@ -142,19 +174,21 @@ onMounted(() => {
                 <p class="card-text mb-2 text-secondary">
                   <strong>Specialization:</strong> {{ doctor.specialization }}
                 </p>
-
-                <!-- Start and End Time -->
-                <p class="card-text mb-2 text-secondary">
-                  <strong>Start Time:</strong> {{ doctor.start_time }}
-                </p>
-                <p class="card-text mb-2 text-secondary">
-                  <strong>End Time:</strong> {{ doctor.end_time }}
-                </p>
-
+                <p  class="card-text text-primary fw-bold mb-0" v-if="availableAppointments[doctor.id]">
+                    <strong>Nest Appointment:</strong>
+                    {{ availableAppointments[doctor.id].normal_appointments &&availableAppointments[doctor.id].normal_appointments.date ? 
+                      availableAppointments[doctor.id].normal_appointments.date + ' at ' + 
+                      availableAppointments[doctor.id].normal_appointments.time : 
+                      'No upcoming appointments' 
+                    }}
+                  </p>
                 <!-- Soonest Appointment -->
-                <p class="card-text text-primary fw-bold mb-0">
-                  <strong>Next Appointment:</strong> 20/10/2024
-                </p>
+                <p class="card-text text-primary fw-bold mb-0" v-if="availableAppointments[doctor.id]">
+                    <strong>Soonest Appointment:</strong>
+                    {{ formatClosestCanceledAppointment(availableAppointments[doctor.id].canceled_appointments) }}
+
+                  </p>
+               
               </div>
             </div>
           </div>
