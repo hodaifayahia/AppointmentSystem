@@ -23,7 +23,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('api/users', [UserController::class, 'index'])->name('users.index');
 Route::post('api/users', [UserController::class, 'store'])->name('users.store');
-Route::put('/api/users/{userid}', [UserController::class, 'edit'])->name('users.edit');
+Route::put('/api/users/{userid}', [UserController::class, 'update']);
 Route::get('/api/users/search', [UserController::class, 'search'])->name('users.search');
 Route::patch('/api/users/{userid}/change-role', [UserController::class, 'ChangeRole'])->name('users.ChangeRole');
 Route::delete('/api/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
@@ -59,10 +59,8 @@ Route::delete('/api/appointments/{appointmentid}', [AppointmentController::class
 
 Route::get('/api/specializations', [specializationsController::class, 'index']);
 Route::post('/api/specializations', [specializationsController::class, 'store']);
-Route::put('/api/specializations/{specializationid}', [specializationsController::class, 'update']);
-Route::delete('/api/specializations/{specializationid}', [specializationsController::class, 'destroy']);
-
-
+Route::put('/api/specializations/{id}', [specializationsController::class, 'update']);
+Route::delete('/api/specializations/{id}', [specializationsController::class, 'destroy']);
 // for patient
 
 Route::get('/api/patients', [PatientController::class, 'index']);

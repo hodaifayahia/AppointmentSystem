@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use \Storage;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -37,60 +38,92 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'phone' => 'required|string',
+            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', // Max 2MB file size
+            'role' => 'required|string|in:admin,doctor,receptionist', 
             'password' => 'required|string|min:8',
         ]);
-    
-        // Create the user with role
-        $user = User::create([
-            'name' => $validatedData['name'],
-            'email' => $validatedData['email'],
-            'phone' => $validatedData['phone'],
-            'password' => bcrypt($validatedData['password']),
-            'created_by' => 2,
-        ]);
+        
+        try {
+            // Handle file upload
+            $avatarPath = null;
+            if ($request->hasFile('avatar')) {
+                $avatar = $request->file('avatar');
+                $fileName = $validatedData['name'] . '-' . time() . '.' . $avatar->getClientOriginalExtension();
+                $avatarPath = $avatar->storeAs('Users', $fileName, 'public');
+            }
+            
+            // Create the user
+            $user = User::create([
+                'name' => $validatedData['name'],
+                'email' => $validatedData['email'],
+                'phone' => $validatedData['phone'],
+                'role' => $validatedData['role'],
+                'password' => bcrypt($validatedData['password']),
+                'avatar' => $avatarPath,
+            ]);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'message' => 'An error occurred while creating the user',
+            ], 500);
+        }
+  
+        
     
         return new UserResource($user);
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
-
+    
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(Request $request, string $id)
+    public function update(Request $request, string $id)
     {
         $user = User::findOrFail($id);
     
+        // Validate input data, including avatar
         $validatedData = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email,' . $id,
-            'phone' => 'required|string',
+            'phone' => 'required|string|min:10|max:15',
             'password' => 'nullable|string|min:8',
+            'role' => 'required|string|in:admin,doctor,receptionist',
+            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', // Avatar validation
         ]);
     
+        // Prepare data for updating
         $updateData = [
             'name' => $validatedData['name'],
             'email' => $validatedData['email'],
             'phone' => $validatedData['phone'],
-            'role' => $validatedData['role'], // Add role to update data
+            'role' => $validatedData['role'],
         ];
     
+        // Handle avatar upload if present
+        if ($request->hasFile('avatar')) {
+            // Delete old avatar if exists
+            if ($user->avatar) {
+                Storage::delete($user->avatar);
+            }
+    
+            // Store new avatar and save its path
+            $updateData['avatar'] = $request->file('users')->store('users', 'public');
+        }
+    
+        // Handle password update if provided
         if ($request->filled('password')) {
             $updateData['password'] = bcrypt($request->input('password'));
         }
     
+        // Update user data
         $user->update($updateData);
     
+        // Respond with the updated user data
         return response()->json([
+            'success' => true,
             'user' => new UserResource($user),
         ]);
     }
+    
     public function ChangeRole($userId, Request $request)
     {
         $user = User::findOrFail($userId);
@@ -107,7 +140,14 @@ class UserController extends Controller
             "success" => true,
         ]);
     }
-
+    
+    /**
+     * Display the specified resource.
+     */
+    public function show(string $id)
+    {
+        //
+    }
 
     public function search(Request $request)
     {
@@ -131,13 +171,7 @@ class UserController extends Controller
 
     
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
+  
 
     /**
      * Remove the specified resource from storage.

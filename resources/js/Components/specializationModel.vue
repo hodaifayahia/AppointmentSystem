@@ -24,6 +24,7 @@ const specialization = ref({
   id: props.specData?.id || null,
   name: props.specData?.name || '',
   description: props.specData?.description || '',
+  photo: props.specData?.photo || null, // Add photo field
 });
 
 const isEditMode = computed(() => !!props.specData?.id);
@@ -35,6 +36,7 @@ watch(
       id: newValue?.id || null,
       name: newValue?.name || '',
       description: newValue?.description || '',
+      photo: newValue?.photo || null, // Update photo field
     };
   },
   { immediate: true, deep: true }
@@ -43,6 +45,12 @@ watch(
 const specializationSchema = computed(() => yup.object({
   name: yup.string().required('Name is required'),
   description: yup.string().nullable(),
+  photo: yup.mixed().nullable().test('fileSize', 'The file is too large', (value) => {
+    if (value) {
+      return value.size <= 2000000; // 2 MB size limit
+    }
+    return true;
+  })
 }));
 
 const closeModal = () => {
@@ -62,29 +70,63 @@ const handleBackendErrors = (error) => {
   }
 };
 
+const createFormData = (data) => {
+  const formData = new FormData();
+
+  // Iterate through each key in the provided data
+  Object.keys(data).forEach((key) => {
+    if (key === 'avatar' && data[key] instanceof File) {
+      // For avatar, check if it's a file before appending
+      formData.append(key, data[key], data[key].name);
+    } else if (data[key] !== null && data[key] !== undefined && data[key] !== '') {
+      // Append other non-null, non-undefined, and non-empty fields
+      formData.append(key, data[key]);
+    }
+  });
+
+  return formData;
+};
+
 const submitForm = async (values) => {
   try {
-    const submissionData = {
-      ...specialization.value,
-      ...values
+    // Ensure merging with `user.value` does not overwrite essential properties
+    const mergedValues = {
+      ...user.value,
+      ...values,
     };
 
+    // Add `_method` for method spoofing only if in edit mode
     if (isEditMode.value) {
-      await axios.put(`/api/specializations/${submissionData.id}`, submissionData);
-      toastr.success('Specialization updated successfully');
-    } else {
-      await axios.post('/api/specializations', submissionData);
-      toastr.success('Specialization added successfully');
+      mergedValues._method = 'PUT';
     }
 
-    emit('specUpdate');
+    const formData = createFormData(mergedValues);
+
+    // Determine the correct HTTP method and endpoint
+    if (isEditMode.value) {
+      await axios.post(`/api/users/${user.value.id}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      toaster.success('User updated successfully');
+    } else {
+      await axios.post('/api/users', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      toaster.success('User added successfully');
+    }
+
+    emit('userUpdated');
     closeModal();
   } catch (error) {
     handleBackendErrors(error);
   }
 };
-</script>
 
+</script>
 <template>
   <div class="modal fade" :class="{ show: showModal }" tabindex="-1" aria-labelledby="specializationModalLabel" aria-hidden="true" v-if="showModal">
     <div class="modal-dialog">
@@ -97,6 +139,7 @@ const submitForm = async (values) => {
         </div>
         <div class="modal-body">
           <Form v-slot="{ errors: validationErrors }" @submit="submitForm" :validation-schema="specializationSchema">
+            <!-- Existing fields -->
             <div class="mb-3">
               <label for="name" class="form-label">Name</label>
               <Field type="text" id="name" name="name" 
@@ -117,6 +160,17 @@ const submitForm = async (values) => {
                 {{ validationErrors.description || (errors.description && errors.description[0]) }}
               </span>
             </div>
+            <!-- New Photo Field -->
+            <div class="mb-3">
+              <label for="photo" class="form-label">Photo</label>
+              <Field type="file" id="photo" name="photo" 
+                :class="{ 'is-invalid': validationErrors.photo || errors.photo }" 
+                class="form-control" 
+                @change="(event) => specialization.value.photo = event.target.files[0]" />
+              <span class="text-sm invalid-feedback">
+                {{ validationErrors.photo || (errors.photo && errors.photo[0]) }}
+              </span>
+            </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-outline-secondary" @click="closeModal">Cancel</button>
               <button type="submit" class="btn btn-outline-primary">
@@ -129,7 +183,6 @@ const submitForm = async (values) => {
     </div>
   </div>
 </template>
-
 <style scoped>
 .modal.show {
   display: block;

@@ -4,7 +4,11 @@ import axios from 'axios';
 import { useToastr } from '../../Components/toster';
 import PatientModel  from "../../Components/PatientModel.vue";
 
+import { useRouter } from 'vue-router';
 
+
+
+const router = useRouter();
 const Patient = ref([])
 const loading = ref(false)
 const error = ref(null)
@@ -52,6 +56,11 @@ const deletePatient = async (id) => {
     handleBackendErrors(error);
   }
 };
+const goToPatientAppointmentsPage = (PatientId) => {
+  // Navigate using the router
+  router.push({ name: 'admin.patient.appointments', params: { id: PatientId } });
+};
+
 
 onMounted(() => {
   getPatient();
@@ -119,7 +128,8 @@ onMounted(() => {
                     <tr v-if="Patient.length === 0">
                       <td colspan="6" class="text-center">No Patient found</td>
                     </tr>
-                    <tr  v-for="(Patient, index) in Patient" :key="Patient.id">
+                    <tr   v-for="(Patient, index) in Patient" :key="Patient.id"
+                    @click="goToPatientAppointmentsPage(Patient.id)" >
                       <td>{{ index + 1 }}</td>
                       <td>{{ Patient.Firstname }}</td>
                       <td>{{ Patient.Lastname }}</td>

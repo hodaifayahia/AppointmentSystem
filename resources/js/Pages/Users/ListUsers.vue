@@ -181,6 +181,7 @@ onMounted(() => {
               <tr>
                 <th><input type="checkbox" v-model="selectAll" @change="selectAllUsers"></th>
                 <th>#</th>
+                <th>photo</th>
                 <th>Name</th>
                 <th>Email</th>
                 <th>Phone Number</th>

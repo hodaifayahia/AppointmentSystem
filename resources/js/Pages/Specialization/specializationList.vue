@@ -92,47 +92,59 @@ onMounted(() => {
 
             <!-- Specialization List -->
             <div class="card shadow-sm">
-              <div class="card-body">
-                <div v-if="error" class="alert alert-danger" role="alert">
-                  {{ error }}
-                </div>
+      <div class="card-body">
+        <div v-if="error" class="alert alert-danger" role="alert">
+          {{ error }}
+        </div>
 
-                <div v-if="loading" class="text-center py-4">
-                  <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                  </div>
-                </div>
+        <div v-if="loading" class="text-center py-4">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+        </div>
 
-                <table v-else class="table table-hover">
-                  <thead>
-                    <tr>
-                      <th scope="col">#</th>
-                      <th scope="col">Specialization</th>
-                      <th scope="col">Description</th>
-                      <th scope="col">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-if="specializations.length === 0">
-                      <td colspan="4" class="text-center">No specializations found</td>
-                    </tr>
-                    <tr v-else v-for="(specialization, index) in specializations" :key="specialization.id">
-                      <td>{{ index + 1 }}</td>
-                      <td>{{ specialization.name }}</td>
-                      <td>{{ specialization.description }}</td>
-                      <td>
-                        <button @click="openModal(specialization)" class="btn btn-sm btn-outline-primary me-2">
-                          <i class="fas fa-edit"></i>
-                        </button>
-                        <button @click="deleteSpecialization(specialization.id)" class="btn btn-sm btn-outline-danger ml-1">
-                          <i class="fas fa-trash-alt"></i>
-                        </button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+        <table v-else class="table table-hover">
+          <thead>
+            <tr>
+              <th scope="col">#</th>
+              <th scope="col">Specialization</th>
+              <th scope="col">Description</th>
+              <th scope="col">Photo</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="specializations.length === 0">
+              <td colspan="5" class="text-center">No specializations found</td>
+            </tr>
+            <tr v-else v-for="(specialization, index) in specializations" :key="specialization.id">
+              <td>{{ index + 1 }}</td>
+              <td>{{ specialization.name }}</td>
+              <td>{{ specialization.description }}</td>
+              <td>
+                <img 
+                v-if="specialization.photo" 
+                :src="`/storage/${specialization.photo}`" 
+                :alt="`Photo for ${specialization.name}`" 
+                class="img-thumbnail" 
+                style="max-width: 40px; max-height: 40px;"
+/>
+                <span v-else>No Photo</span>
+              </td>
+              <td>
+                <button @click="openModal(specialization)" class="btn btn-sm btn-outline-primary me-2">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button @click="deleteSpecialization(specialization.id)" class="btn btn-sm btn-outline-danger ml-1">
+                  <i class="fas fa-trash-alt"></i>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
           </div>
         </div>
       </div>

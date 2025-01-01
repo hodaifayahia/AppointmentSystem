@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Specialization;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+
 
 class specializationsController extends Controller
 {
@@ -23,35 +25,46 @@ class specializationsController extends Controller
         
 
     }
-
-    /**
-     * Store a newly created resource in storage.
-     */
+    
     public function store(Request $request)
     {
-        // Validate the input data
+        // Validate the input data including the new photo field
         $validatedData = $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => 'required|string|max:255|unique:specializations,name,NULL,id,deleted_at,NULL',
             'description' => 'nullable|string|max:1000',
+            'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', // Max 2MB file size
         ]);
     
         try {
-            // Check if the specialization already exists (soft deleted)
+            // Handle file upload
+            $photoPath = null;
+            if ($request->hasFile('photo')) {
+                $photo = $request->file('photo');
+                $fileName = Str::slug($validatedData['name']) . '-' . time() . '.' . $photo->getClientOriginalExtension();
+                $photoPath = $photo->storeAs('specializations', $fileName, 'public');
+                $validatedData['photo'] = $photoPath;
+            }
+    
+            // Check if the specialization already exists (including soft deleted)
             $existingSpecialization = Specialization::withTrashed()->where('name', $validatedData['name'])->first();
     
             if ($existingSpecialization) {
                 // If it exists and is soft deleted, restore it
                 $existingSpecialization->restore();
-                $existingSpecialization->update($validatedData);
+                
+                // Update existing specialization, include photo if new one was uploaded
+                $existingSpecialization->update(array_merge($validatedData, [
+                    'photo' => $photoPath ?? $existingSpecialization->photo
+                ]));
                 $specialization = $existingSpecialization;
             } else {
                 // Create a new specialization if it doesn't exist
                 $specialization = Specialization::create($validatedData);
             }
     
-            // Return the specialization
+            // Return the specialization with appropriate message
             return response()->json([
-                'message' => 'Specialization created or restored successfully',
+                'message' => $existingSpecialization ? 'Specialization restored and updated' : 'Specialization created successfully',
                 'data' => $specialization
             ], 201); // 201 Created HTTP status code
     
@@ -59,7 +72,12 @@ class specializationsController extends Controller
             // Log the error for debugging purposes
             \Log::error('Error creating or restoring specialization: ' . $e->getMessage());
     
-            // Return an error response
+            // If there was a file upload, delete it to clean up
+            if ($photoPath) {
+                Storage::disk('public')->delete($photoPath);
+            }
+    
+            // Return an error response with a more specific message
             return response()->json([
                 'message' => 'An error occurred while processing the specialization',
                 'error' => $e->getMessage()
@@ -76,22 +94,39 @@ class specializationsController extends Controller
         //
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
+ 
+   
     public function update(Request $request, $id)
     {
-        // First, find the specialization or fail if it doesn't exist
+        // Find the specialization or fail if it doesn't exist
         $specialization = Specialization::findOrFail($id);
     
-        // Validate the input data, but since 'name' must be unique, we exclude the current record
+        // Validate the input data, with special handling for the photo update
         $validatedData = $request->validate([
-            'name' => 'required|string|max:255|unique:specializations,name,'.$id,
+            'name' => 'required|string|max:255|unique:specializations,name,' . $id . ',id,deleted_at,NULL',
             'description' => 'nullable|string|max:1000',
+            'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', // Max 2MB file size
         ]);
     
         try {
-            // Update the specialization
+            // Handle file upload if a new photo is provided
+            if ($request->hasFile('photo')) {
+                // First, delete the old photo if it exists
+                if ($specialization->photo) {
+                    Storage::disk('public')->delete($specialization->photo);
+                }
+    
+                // Upload the new photo
+                $photo = $request->file('photo');
+                $fileName = Str::slug($validatedData['name']) . '-' . time() . '.' . $photo->getClientOriginalExtension();
+                $photoPath = $photo->storeAs('specializations', $fileName, 'public');
+                $validatedData['photo'] = $photoPath;
+            } else {
+                // If no photo is uploaded, keep the existing photo
+                $validatedData['photo'] = $specialization->photo;
+            }
+    
+            // Update the specialization with the new data
             $specialization->update($validatedData);
     
             // Return a success response
@@ -104,6 +139,11 @@ class specializationsController extends Controller
             // Log the error for debugging purposes
             \Log::error('Error updating specialization: ' . $e->getMessage());
     
+            // If a photo was uploaded but we encountered an error, delete the new photo to clean up
+            if ($request->hasFile('photo')) {
+                Storage::disk('public')->delete($photoPath ?? '');
+            }
+    
             // Return an error response
             return response()->json([
                 'message' => 'An error occurred while updating the specialization',
@@ -111,7 +151,6 @@ class specializationsController extends Controller
             ], 500); // 500 Internal Server Error
         }
     }
-
     /**
      * Update the specified resource in storage.
      */

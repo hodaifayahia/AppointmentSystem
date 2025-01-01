@@ -69,10 +69,10 @@ const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
 
 const formatDate = (dateString) => {
   const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', { 
-    year: 'numeric', 
-    month: 'short', 
-    day: 'numeric' 
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
   });
 };
 </script>
@@ -83,40 +83,32 @@ const formatDate = (dateString) => {
       <input type="checkbox" :checked="selectAll" @change="$emit('toggleSelection', props.user)">
     </td>
     <td>{{ index + 1 }}</td>
+    <td>
+      
+      <img v-if="user.avatar" :src="`${user.avatar}`"
+        :alt="`Photo for ${user.name}`" class="img-thumbnail" style="max-width: 40px; max-height: 40px;" />
+      <span v-else>No Photo</span>
+    </td>
+    
     <td class="user-name">{{ user.name }}</td>
     <td class="user-email">{{ user.email }}</td>
     <td class="user-phone">{{ user.phone || 'N/A' }}</td>
     <td class="user-role">
-      <select 
-        @change="ChangeRole(user, $event.target.value)" 
-        class="form-control form-select-sm"
-        :disabled="user.role === 'admin'"
-      >
-        <option 
-          v-for="role in roles" 
-          :key="role.value" 
-          :value="role.value" 
-          :selected="user.role === role.name"
-        >
+      <select @change="ChangeRole(user, $event.target.value)" class="form-control form-select-sm"
+        :disabled="user.role === 'admin'">
+        <option v-for="role in roles" :key="role.value" :value="role.value" :selected="user.role === role.name">
           {{ capitalize(role.name) }}
         </option>
       </select>
     </td>
+
     <td class="user-created-at">{{ formatDate(user.created_at) }}</td>
     <td class="user-actions">
       <div class="btn-group">
-        <button
-          class="btn btn-sm btn-outline-primary mx-1"
-          title="Edit"
-          @click="editUser"
-        >
+        <button class="btn btn-sm btn-outline-primary mx-1" title="Edit" @click="editUser">
           <i class="fas fa-edit"></i>
         </button>
-        <button
-          class="btn btn-sm btn-outline-danger"
-          title="Delete"
-          @click="openDeleteModal"
-        >
+        <button class="btn btn-sm btn-outline-danger" title="Delete" @click="openDeleteModal">
           <i class="fas fa-trash-alt"></i>
         </button>
       </div>
@@ -125,20 +117,11 @@ const formatDate = (dateString) => {
 
   <!-- Modals -->
   <Teleport to="body">
-    <AddUserComponent
-      :show-modal="isModalOpen"
-      :user-data="selectedUser"
-      @close="closeModal"
-      @user-updated="handleUserUpdate"
-    />
+    <AddUserComponent :show-modal="isModalOpen" :user-data="selectedUser" @close="closeModal"
+      @user-updated="handleUserUpdate" />
 
-    <DeleteUserModel
-      v-if="showDeleteModel"
-      :show-modal="showDeleteModel"
-      :user-data="selectedUser"
-      @close="closeModal"
-      @user-deleted="handleUserUpdate"
-    />
+    <DeleteUserModel v-if="showDeleteModel" :show-modal="showDeleteModel" :user-data="selectedUser" @close="closeModal"
+      @user-deleted="handleUserUpdate" />
   </Teleport>
 </template>
 
@@ -157,7 +140,11 @@ const formatDate = (dateString) => {
   width: 5%;
 }
 
-.user-name, .user-email, .user-phone, .user-role, .user-created-at {
+.user-name,
+.user-email,
+.user-phone,
+.user-role,
+.user-created-at {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -167,7 +154,8 @@ const formatDate = (dateString) => {
   max-width: 150px;
 }
 
-.user-email, .user-phone {
+.user-email,
+.user-phone {
   max-width: 180px;
 }
 

@@ -50,6 +50,11 @@ export default [
         component: PatientList,
     },
     {
+        path: '/admin/patient/appointments',  // Corrected path
+        name: 'admin.patient.appointments',
+        component: PatientList,
+    },
+    {
         path: '/admin/users',  // Corrected path
         name: 'admin.users',
         component: ListUsers,

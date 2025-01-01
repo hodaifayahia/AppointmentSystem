@@ -512,16 +512,24 @@ private function findNextAvailableAppointment($startDate, $doctorId)
         ]);
     
         $doctorId = $validated['doctor_id'];
+        $now = Carbon::now();
     
-        // Get canceled appointments grouped by date
+        // Get canceled appointments grouped by date, excluding past appointments
         $canceledAppointments = Appointment::where('doctor_id', $doctorId)
             ->where('status', AppointmentSatatusEnum::CANCELED->value)
+            ->where(function ($query) use ($now) {
+                $query->where('appointment_date', '>', $now->format('Y-m-d'))
+                    ->orWhere(function ($query) use ($now) {
+                        $query->where('appointment_date', '=', $now->format('Y-m-d'))
+                            ->where('appointment_time', '>', $now->format('H:i'));
+                    });
+            })
             ->with(['patient', 'doctor:id,user_id', 'doctor.user:id,name'])
             ->get();
     
         // Group canceled appointments by date
         $groupedCanceledAppointments = $canceledAppointments->groupBy(function ($appointment) {
-            return Carbon::parse($appointment->appointment_date)->format('Y-m-d'); // Group by date only
+            return Carbon::parse($appointment->appointment_date)->format('Y-m-d');
         });
     
         // Prepare result for canceled appointments
@@ -529,14 +537,23 @@ private function findNextAvailableAppointment($startDate, $doctorId)
         foreach ($groupedCanceledAppointments as $date => $appointments) {
             // Create a list of available time slots for the given date
             $timeSlots = $appointments->map(function ($appointment) {
-                return Carbon::parse($appointment->appointment_time)->format('H:i'); // Extract appointment time
-            })->unique(); // Get unique time slots
+                return Carbon::parse($appointment->appointment_time)->format('H:i');
+            })->unique();
     
-            // Add the date with available time slots to the result
-            $canceledAppointmentsResult[] = [
-                'date' => $date,
-                'available_times' => $timeSlots
-            ];
+            // For today, filter out past times
+            if ($date === $now->format('Y-m-d')) {
+                $timeSlots = $timeSlots->filter(function ($time) use ($now) {
+                    return Carbon::parse($time)->format('H:i') > $now->format('H:i');
+                });
+            }
+    
+            // Only add dates that have available time slots
+            if ($timeSlots->isNotEmpty()) {
+                $canceledAppointmentsResult[] = [
+                    'date' => $date,
+                    'available_times' => $timeSlots->values()->all()
+                ];
+            }
         }
     
         // Find the closest available non-canceled appointment
@@ -548,7 +565,6 @@ private function findNextAvailableAppointment($startDate, $doctorId)
             'time' => $closestAvailableAppointment['time']
         ] : null;
     
-        // Return the combined result with both canceled and normal available appointments
         return response()->json([
             'canceled_appointments' => $canceledAppointmentsResult,
             'normal_appointments' => $normalAppointmentsResult
@@ -558,10 +574,17 @@ private function findNextAvailableAppointment($startDate, $doctorId)
     private function findClosestAvailableAppointment($doctorId)
     {
         $currentDate = Carbon::now();
+        $currentTime = $currentDate->format('H:i');
     
         // Check today's working hours
         $workingHours = $this->getDoctorWorkingHours($doctorId, $currentDate->format('Y-m-d'));
-        foreach ($workingHours as $time) {
+        
+        // Filter out past hours for today
+        $todayWorkingHours = collect($workingHours)->filter(function ($time) use ($currentTime) {
+            return $time > $currentTime;
+        });
+    
+        foreach ($todayWorkingHours as $time) {
             $appointmentExists = Appointment::where('doctor_id', $doctorId)
                 ->where('appointment_date', $currentDate->format('Y-m-d'))
                 ->where('appointment_time', $time)
@@ -599,7 +622,6 @@ private function findNextAvailableAppointment($startDate, $doctorId)
     
         return null; // No available appointment found within the range
     }
-    
     
 
     public function changeAppointmentStatus(Request $request, $id)

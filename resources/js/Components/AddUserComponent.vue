@@ -25,9 +25,10 @@ const user = ref({
   name: props.userData?.name || '',
   email: props.userData?.email || '',
   phone: props.userData?.phone || '',
-  password: ''
+  avatar: props.userData?.avatar || null,
+  password: '',
+  role: props.userData?.role || 'receptionist',
 });
-
 const isEditMode = computed(() => !!props.userData?.id);
 const showPassword = ref(false);
 
@@ -39,40 +40,42 @@ watch(
       name: newValue?.name || '',
       email: newValue?.email || '',
       phone: newValue?.phone || '',
-      password: ''
+      avatar: newValue?.avatar || null,
+      password: '',
+      role: newValue?.role || 'receptionist',
     };
   },
   { immediate: true, deep: true }
 );
 
-const getUserSchema = (isEditMode) => {
-  const baseSchema = {
+const userSchema = computed(() =>
+  yup.object({
     name: yup.string().required('Name is required'),
     email: yup.string().email('Invalid email format').required('Email is required'),
     phone: yup
       .string()
       .matches(/^[0-9]{10,15}$/, 'Phone number must be between 10 and 15 digits')
       .required('Phone number is required'),
-  };
-
-  // Only add password validation if not in edit mode or if password is provided
-  if (!isEditMode) {
-    // For new users, password is required
-    baseSchema.password = yup.string()
-      .required('Password is required')
-      .min(8, 'Password must be at least 8 characters');
-  } else {
-    // For edit mode, only validate password if it's provided
-    baseSchema.password = yup.string()
-      .transform(value => value === '' ? undefined : value)
-      .optional()
-      .min(8, 'Password must be at least 8 characters');
-  }
-
-  return yup.object(baseSchema);
-};
-
-const userSchema = computed(() => getUserSchema(isEditMode.value));
+    role: yup.string().oneOf(['admin', 'receptionist', 'doctor'], 'Invalid role').required('Role is required'),
+    avatar: yup
+      .mixed()
+      .nullable()
+      .test('fileSize', 'The file is too large', (value) => {
+        if (value instanceof File) {
+          return value.size <= 2000000; // 2 MB size limit
+        }
+        return true;
+      }),
+    password: isEditMode.value
+      ? yup.string()
+          .transform(value => value === '' ? undefined : value)
+          .nullable()
+          .min(8, 'Password must be at least 8 characters')
+      : yup.string()
+          .required('Password is required')
+          .min(8, 'Password must be at least 8 characters'),
+  })
+);
 
 const togglePasswordVisibility = () => {
   showPassword.value = !showPassword.value;
@@ -85,7 +88,6 @@ const closeModal = () => {
 
 const handleBackendErrors = (error) => {
   if (error.response?.data?.errors) {
-    // Check and handle validation errors for email and phone only
     const fieldErrors = ['email', 'phone'];
 
     fieldErrors.forEach((field) => {
@@ -94,35 +96,68 @@ const handleBackendErrors = (error) => {
       }
     });
   } else if (error.response?.data?.message) {
-    // Handle single error message
     toaster.error(error.response.data.message);
   } else {
-    // Handle generic error
     toaster.error('An unexpected error occurred');
   }
 };
 
 
+const createFormData = (values) => {
+  const formData = new FormData();
+  
+  // Add ID if in edit mode
+  if (isEditMode.value && user.value.id) {
+    formData.append('id', user.value.id);
+  }
+
+  // Add method spoofing for PUT requests
+  if (isEditMode.value) {
+    formData.append('_method', 'PUT');
+  }
+
+  // Handle other fields
+  Object.keys(values).forEach((key) => {
+    // Skip empty password in edit mode
+    if (key === 'password' && isEditMode.value && !values[key]) {
+      return;
+    }
+    // Handle avatar file
+    if (key === 'avatar' && values[key] instanceof File) {
+      formData.append(key, values[key], values[key].name);
+    } 
+    // Handle other fields
+    else if (values[key] !== null && values[key] !== undefined && values[key] !== '') {
+      formData.append(key, values[key]);
+    }
+  });
+
+  return formData;
+};
+
 const submitForm = async (values) => {
   try {
-    const submissionData = { 
-      ...user.value, 
-      ...values 
-    };
-    
-    // Only include password in submission if it's not empty
-    if (!submissionData.password || submissionData.password.trim() === '') {
-      delete submissionData.password;
-    }
+    const formData = createFormData({
+      ...user.value,
+      ...values
+    });
 
     if (isEditMode.value) {
-      await axios.put(`/api/users/${submissionData.id}`, submissionData);
+      await axios.post(`/api/users/${user.value.id}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
       toaster.success('User updated successfully');
     } else {
-      await axios.post('/api/users', submissionData);
+      await axios.post('/api/users', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
       toaster.success('User added successfully');
     }
-    
+
     emit('userUpdated');
     closeModal();
   } catch (error) {
@@ -130,6 +165,7 @@ const submitForm = async (values) => {
   }
 };
 </script>
+
 
 <template>
   <div class="modal fade" :class="{ show: showModal }" tabindex="-1" aria-labelledby="userModalLabel" aria-hidden="true"
@@ -144,7 +180,7 @@ const submitForm = async (values) => {
         </div>
         <div class="modal-body">
           <Form v-slot="{ errors: validationErrors }" @submit="submitForm"
-            :validation-schema="userSchema">
+            :validation-schema="userSchema" :initial-values="user">
             <div class="mb-3">
               <label for="name" class="form-label">Name</label>
               <Field type="text" id="name" name="name" 
@@ -166,6 +202,16 @@ const submitForm = async (values) => {
               </span>
             </div>
             <div class="mb-3">
+              <label for="photo" class="form-label">Photo</label>
+              <Field type="file" id="photo" name="photo" 
+                :class="{ 'is-invalid': validationErrors.avatar || errors.avatar }" 
+                class="form-control" 
+                @change="(event) => user.avatar = event.target.files[0]" />
+              <span class="text-sm invalid-feedback">
+                {{ validationErrors.avatar || (errors.photo && errors.avatar[0]) }}
+              </span>
+            </div>
+            <div class="mb-3">
               <label for="phone" class="form-label">Phone</label>
               <Field type="tel" id="phone" name="phone" 
                 :class="{ 'is-invalid': validationErrors.phone || errors.phone }" 
@@ -173,6 +219,20 @@ const submitForm = async (values) => {
                 class="form-control" />
               <span class="text-sm invalid-feedback">
                 {{ validationErrors.phone || (errors.phone && errors.phone[0]) }}
+              </span>
+            </div>
+            <div class="mb-3">
+              <label for="role" class="form-label">Role</label>
+              <Field as="select" id="role" name="role" 
+                :class="{ 'is-invalid': validationErrors.role || errors.role }" 
+                v-model="user.role"
+                class="form-control">
+                <option value="admin">Admin</option>
+                <option value="receptionist">Receptionist</option>
+                <option value="doctor">Doctor</option>
+              </Field>
+              <span class="text-sm invalid-feedback">
+                {{ validationErrors.role || (errors.role && errors.role[0]) }}
               </span>
             </div>
             <div class="mb-3">
