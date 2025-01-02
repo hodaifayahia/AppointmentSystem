@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\PatientResource;
+use App\Http\Resources\AppointmentResource;
+use App\Models\Appointment;
 use App\Models\Patient;
 use Illuminate\Http\Request;
 
@@ -96,9 +98,34 @@ public function search(Request $request)
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(string $id)
+    public function PatientAppointments($PatientId)
     {
-        //
+        // Use eager loading to reduce the number of queries, enhancing performance with large datasets
+        $appointments = Appointment::with(['patient', 'doctor.user'])
+            ->where('patient_id', $PatientId)
+            ->orderBy('appointment_date', 'desc') // Sort by appointment date, most recent first
+            ->paginate(15); // Paginate with 15 items per page, adjust as needed
+    
+        // Add custom data or perform additional operations here if required
+        $totalAppointments = $appointments->total(); // Total count of appointments
+    
+        // If you need to pass additional metadata to the frontend:
+        $metaData = [
+            'total' => $totalAppointments,
+            'page' => $appointments->currentPage(),
+            'per_page' => $appointments->perPage(),
+            'last_page' => $appointments->lastPage(),
+            'from' => $appointments->firstItem(),
+            'to' => $appointments->lastItem(),
+        ];
+    
+        // Use a custom resource collection which includes the metadata
+        return  AppointmentResource::collection($appointments, $metaData);
+    }
+    public function SpecificPatient( $patientid)
+    {
+        $patient = Patient::find($patientid);
+        return new PatientResource($patient);
     }
 
     /**

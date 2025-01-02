@@ -214,7 +214,9 @@ onMounted(() => {
             <thead class="table-primary">
               <tr>
                 <th><input type="checkbox" v-model="selectAll" @change="selectAllDoctors"></th>
+                <th></th>
                 <th>#</th>
+                <th>Photo</th>
                 <th>Name</th>
                 <th>Email</th>
                 <th>Phone</th>

@@ -5,6 +5,7 @@ import DoctorListSchedule from "./Pages/Users/DoctorListSchedule.vue";
 import ListUsers from "./Pages/Users/ListUsers.vue";
 import ListDoctors from "./Pages/Users/ListDoctors.vue";
 import PatientList from "./Pages/Patient/PatientList.vue";
+import PatientAppointmentList from "./Pages/Patient/PatientAppointmentList.vue";
 import Profile from "./Pages/Profile/Profile.vue";
 import specializationList from "./Pages/Specialization/specializationList.vue";
 import settings from "./Pages/Setting/settings.vue";
@@ -45,14 +46,19 @@ export default [
         component: AppointmentPage,
     },
     {
+        path: '/admin/appointments/edit/:id/:appointmentId',  // Corrected path
+        name: 'admin.appointments.edit',
+        component: AppointmentPage,
+    },
+    {
         path: '/admin/patient',  // Corrected path
         name: 'admin.patient',
         component: PatientList,
     },
     {
-        path: '/admin/patient/appointments',  // Corrected path
+        path: '/admin/patient/appointments/:id',  // Corrected path
         name: 'admin.patient.appointments',
-        component: PatientList,
+        component: PatientAppointmentList,
     },
     {
         path: '/admin/users',  // Corrected path

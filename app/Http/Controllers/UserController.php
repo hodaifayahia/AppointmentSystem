@@ -43,7 +43,7 @@ class UserController extends Controller
             'password' => 'required|string|min:8',
         ]);
         
-        try {
+        
             // Handle file upload
             $avatarPath = null;
             if ($request->hasFile('avatar')) {
@@ -61,11 +61,8 @@ class UserController extends Controller
                 'password' => bcrypt($validatedData['password']),
                 'avatar' => $avatarPath,
             ]);
-        } catch (\Throwable $th) {
-            return response()->json([
-                'message' => 'An error occurred while creating the user',
-            ], 500);
-        }
+       
+        
   
         
     

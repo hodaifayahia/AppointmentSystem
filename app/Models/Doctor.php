@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Schedule;
 use App\Models\Specialization;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
@@ -21,10 +22,12 @@ class Doctor extends Model
         'specialization_id',
         'frequency',
         'specific_date',
-        'notes',
         'patients_based_on_time',
+        'notes',
+        'avatar',
         'appointment_booking_window',
         'time_slot',
+        
         'created_by',
         'user_id',
     ];
@@ -58,9 +61,8 @@ class Doctor extends Model
      */
     public function schedules()
     {
-        return $this->hasMany(Schedule::class, 'doctor_id');
+        return $this->hasMany(Schedule::class);
     }
-
     /**
      * Check if doctor is available on a specific day.
      *

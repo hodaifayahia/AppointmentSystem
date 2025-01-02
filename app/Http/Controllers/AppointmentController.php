@@ -77,100 +77,68 @@ class AppointmentController extends Controller
   
       return AppointmentResource::collection($appointments);
   }
-    private function getDoctorWorkingHours($doctorId, $date)
-    {
-        $dayOfWeek = DayOfWeekEnum::cases()[Carbon::parse($date)->dayOfWeek]->value;
-        
-        // Get all schedules for the doctor on the specific day
-        $schedules = Schedule::where('doctor_id', $doctorId)
-            ->where('is_active', true)
-            ->where('day_of_week', $dayOfWeek)
-            ->get();
-            
-        $doctor = Doctor::find($doctorId, ['patients_based_on_time', 'time_slot']);
-        
-        if (!$doctor || $schedules->isEmpty()) {
-            return [];
-        }
+  private function getDoctorWorkingHours($doctorId, $date)
+{
+    $dayOfWeek = DayOfWeekEnum::cases()[Carbon::parse($date)->dayOfWeek]->value;
     
-        $workingHours = [];
-        
-        // Process morning shift
-        $morningSchedule = $schedules->firstWhere('shift_period', 'morning');
-        if ($morningSchedule) {
-            try {
-                $startTime = Carbon::parse($date . ' ' . $morningSchedule->start_time);
-                $endTime = Carbon::parse($date . ' ' . $morningSchedule->end_time);
-                
-                if ($doctor->time_slot) {
-                    // Convert time_slot to integer and validate
-                    $timeSlotMinutes = (int) $doctor->time_slot;
-                    if ($timeSlotMinutes > 0) {
-                        $currentTime = clone $startTime;
-                        while ($currentTime < $endTime) {
-                            $workingHours[] = $currentTime->format('H:i');
-                            $currentTime->addMinutes($timeSlotMinutes);
-                        }
-                    }
-                } else {
-                    // Calculate based on number of patients for morning
-                    $totalMinutes = $endTime->diffInMinutes($startTime);
-                    $patientsPerDay = max(1, (int) $morningSchedule->number_of_patients_per_day);
-                    $slotDuration = floor($totalMinutes / $patientsPerDay);
-                    
-                    if ($slotDuration > 0) {
-                        $currentTime = clone $startTime;
-                        while ($currentTime < $endTime) {
-                            $workingHours[] = $currentTime->format('H:i');
-                            $currentTime->addMinutes($slotDuration);
-                        }
-                    }
-                }
-            } catch (\Exception $e) {
-                // Log error and continue
-                Log::error('Error processing morning schedule: ' . $e->getMessage());
-            }
-        }
-       
-        // Process afternoon shift
-        $afternoonSchedule = $schedules->firstWhere('shift_period', 'afternoon');
-        if ($afternoonSchedule) {
-            try {
-                $startTime = Carbon::parse($date . ' ' . $afternoonSchedule->start_time);
-                $endTime = Carbon::parse($date . ' ' . $afternoonSchedule->end_time);
-                
-                if ($doctor->time_slot) {
-                    // Convert time_slot to integer and validate
-                    $timeSlotMinutes = (int) $doctor->time_slot;
-                    if ($timeSlotMinutes > 0) {
-                        $currentTime = clone $startTime;
-                        while ($currentTime < $endTime) {
-                            $workingHours[] = $currentTime->format('H:i');
-                            $currentTime->addMinutes($timeSlotMinutes);
-                        }
-                    }
-                } else {
-                    // Calculate based on number of patients for afternoon
-                    $totalMinutes = $endTime->diffInMinutes($startTime);
-                    $patientsPerDay = max(1, (int) $afternoonSchedule->number_of_patients_per_day);
-                    $slotDuration = floor($totalMinutes / $patientsPerDay);
-                    
-                    if ($slotDuration > 0) {
-                        $currentTime = clone $startTime;
-                        while ($currentTime < $endTime) {
-                            $workingHours[] = $currentTime->format('H:i');
-                            $currentTime->addMinutes($slotDuration);
-                        }
-                    }
-                }
-            } catch (\Exception $e) {
-                // Log error and continue
-                Log::error('Error processing afternoon schedule: ' . $e->getMessage());
-            }
-        }
+    $schedules = Schedule::where('doctor_id', $doctorId)
+        ->where('is_active', true)
+        ->where('day_of_week', $dayOfWeek)
+        ->get();
     
-        return array_unique($workingHours);
+    $doctor = Doctor::find($doctorId, ['patients_based_on_time', 'time_slot']);
+    
+    if (!$doctor || $schedules->isEmpty()) {
+        return [];
     }
+    
+    $workingHours = [];
+    
+    foreach (['morning', 'afternoon'] as $shift) {
+        $schedule = $schedules->firstWhere('shift_period', $shift);
+        if ($schedule) {
+            try {
+                $startTime = Carbon::parse($date . ' ' . $schedule->start_time);
+                $endTime = Carbon::parse($date . ' ' . $schedule->end_time);
+                
+                if ($doctor->time_slot !== null) {
+                    // Time slot based calculation
+                    $timeSlotMinutes = (int) $doctor->time_slot;
+                    if ($timeSlotMinutes > 0) {
+                        $currentTime = clone $startTime;
+                        while ($currentTime < $endTime) {
+                            $workingHours[] = $currentTime->format('H:i');
+                            $currentTime->addMinutes($timeSlotMinutes);
+                        }
+                    }
+                } else {
+                    // Patient count based calculation
+                    $totalMinutes = $endTime->diffInMinutes($startTime);
+                    $patientsPerShift = (int) $schedule->number_of_patients_per_day;
+                    // Ensure we have valid numbers to work with
+                    if (abs($totalMinutes) > 0 && abs($patientsPerShift) > 0) {
+                        // Calculate minutes per patient
+                       $slotDuration = (int) ceil($totalMinutes / $patientsPerShift);
+                        
+                        $currentTime = clone $startTime;
+                        // Generate time slots until we either reach the end time or have created slots for all patients
+                        $slotsCreated = 0;
+                        while ($currentTime < $endTime && $slotsCreated < $patientsPerShift) {
+                            $workingHours[] = $currentTime->format('H:i');
+                            $currentTime->addMinutes(abs($slotDuration));
+                            $slotsCreated++;
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::error("Error processing {$shift} schedule: " . $e->getMessage());
+            }
+        }
+    }
+
+    
+    return array_unique($workingHours);
+}
 
     private function getBookedSlots($doctorId, $date)
 {
@@ -262,7 +230,31 @@ public function ForceAppointment(Request $request)
         'next_available_date' => $date,
     ]);
 }
+ /**
+     * Retrieve a specific appointment for a doctor.
+     *
+     * @param  int  $doctorId
+     * @param  int  $appointmentId
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getAppointment($doctorId, $appointmentId)
+    {
+        $appointment = Appointment::where('doctor_id', $doctorId)
+            ->where('id', $appointmentId)
+            ->first();
 
+        if (!$appointment) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Appointment not found.'
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => new AppointmentResource($appointment)
+        ]);
+    }
 
 public function checkAvailability(Request $request)
 {
@@ -461,7 +453,6 @@ private function findNextAvailableAppointment($startDate, $doctorId)
             'appointment_date' => 'required|date_format:Y-m-d',
             'appointment_time' => 'required|date_format:H:i',
             'description' => 'nullable|string|max:1000',
-            'status' => 'required|integer' // Assuming status is required and an integer
         ]);
         // Check if slot is already booked
         $excludedStatuses = [
@@ -510,7 +501,7 @@ private function findNextAvailableAppointment($startDate, $doctorId)
         $validated = $request->validate([
             'doctor_id' => 'required|exists:doctors,id',
         ]);
-    
+        
         $doctorId = $validated['doctor_id'];
         $now = Carbon::now();
     

@@ -17,6 +17,7 @@ return new class extends Migration
             $table->enum('shift_period', array_column(ShiftPeriodEnum::cases(), 'value'));
             $table->time('start_time');
             $table->time('end_time');
+            $table->date('date')->nullable();
             $table->integer('number_of_patients_per_day')->default(0);
             $table->boolean('is_active')->default(true);
             $table->integer('break_duration')->nullable()->comment('Break duration in minutes');

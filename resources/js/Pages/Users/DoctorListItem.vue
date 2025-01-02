@@ -93,10 +93,16 @@ const goToDoctorSchdulePage = (doctorId) => {
       <input 
         type="checkbox" 
         :checked="selectAll" 
-        @change="() => emit('toggle-selection', doctor)"
+        @change.prevent.stop="() => emit('toggle-selection', doctor)"
       >
     </td>
     <td>{{ index + 1 }}</td>
+    <td>
+      <img v-if="doctor.avatar" :src="`${doctor.avatar}`"
+        :alt="`Photo for ${doctor.name}`" class="img-thumbnail rounded-pill" style="max-width: 40px; max-height: 40px;" />
+      <span v-else>No Photo</span>
+    </td>
+    <td class="doctor-name">{{ doctor.name }}</td>
     <td class="doctor-name">{{ doctor.name }}</td>
     <td class="doctor-email">{{ doctor.email }}</td>
     <td class="doctor-phone">{{ doctor.phone }}</td>

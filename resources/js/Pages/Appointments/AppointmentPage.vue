@@ -1,13 +1,17 @@
 <script setup>
 import AppointmentForm from './AppointmentForm.vue';
 import { useRoute } from 'vue-router';
-import { computed } from 'vue';
+import { computed, ref, onMounted } from 'vue';
+import axios from 'axios';
 
 const route = useRoute();
-
 const doctorId = route.params.id;
-
 const editMode = computed(() => route.name === 'admin.appointments.edit');
+const appointmentId = ref(route.params.appointmentId);
+
+const appointmentData = ref(null);
+
+
 </script>
 
 <template>
@@ -39,7 +43,7 @@ const editMode = computed(() => route.name === 'admin.appointments.edit');
           <div class="col-md-10">
             <div class="card">
               <div class="card-body">
-                <AppointmentForm :doctorId="doctorId" :edit-mode="editMode" />
+                <AppointmentForm :doctorId="doctorId" :appointmentId="appointmentId" :edit-mode="editMode" />
               </div>
             </div>
           </div>

@@ -17,6 +17,7 @@ class ScheduleResource extends JsonResource
     return [
         'id' => $this->id,
         'day_of_week' => $this->day_of_week,
+        'date' => $this->date,
         'number_of_patients_per_day' => $this->number_of_patients_per_day,
         'start_time' => $this->start_time,
         'end_time' => $this->end_time,

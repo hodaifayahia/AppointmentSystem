@@ -10,6 +10,7 @@ class Schedule extends Model
     protected $fillable = [
         'doctor_id',
         'day_of_week',
+        'date',
         'number_of_patients_per_day',
         'start_time',
         'end_time',

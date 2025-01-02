@@ -21,8 +21,9 @@ const getDoctors = async () => {
       params: { query: specializationId },
     });
     doctors.value = response.data.data;
+    
     // Fetch appointments for each doctor
-    doctors.value.forEach(doctor => {
+    doctors.value.forEach(doctor => {      
       fetchAvailableAppointments(doctor.id);
     });
   } catch (error) {
@@ -106,7 +107,6 @@ const formatClosestCanceledAppointment = (appointments) => {
 
 onMounted(() => {
   getDoctors();
-  fetchAvailableAppointments();
 });
 </script>
 
@@ -161,7 +161,9 @@ onMounted(() => {
               <div class="p-3">
                 <div class="rounded-circle mx-auto border border-primary shadow"
                   style="width: 120px; height: 120px; overflow: hidden;">
-                  <img src="/doctor.png" alt="Doctor image" class="w-100 h-100" style="object-fit: cover;" />
+                  <img  :src="`${doctor.avatar}`" :alt="`Photo for ${doctor.name}`"
+                    class="img-thumbnail rounded-pill" />
+                 
                 </div>
               </div>
 
@@ -174,21 +176,22 @@ onMounted(() => {
                 <p class="card-text mb-2 text-secondary">
                   <strong>Specialization:</strong> {{ doctor.specialization }}
                 </p>
-                <p  class="card-text text-primary fw-bold mb-0" v-if="availableAppointments[doctor.id]">
-                    <strong>Nest Appointment:</strong>
-                    {{ availableAppointments[doctor.id].normal_appointments &&availableAppointments[doctor.id].normal_appointments.date ? 
-                      availableAppointments[doctor.id].normal_appointments.date + ' at ' + 
-                      availableAppointments[doctor.id].normal_appointments.time : 
-                      'No upcoming appointments' 
-                    }}
-                  </p>
+                <p class="card-text text-primary fw-bold mb-0" v-if="availableAppointments[doctor.id]">
+                  <strong>Nest Appointment:</strong>
+                  {{ availableAppointments[doctor.id].normal_appointments
+                  &&availableAppointments[doctor.id].normal_appointments.date ?
+                  availableAppointments[doctor.id].normal_appointments.date + ' at ' +
+                  availableAppointments[doctor.id].normal_appointments.time :
+                  'No upcoming appointments'
+                  }}
+                </p>
                 <!-- Soonest Appointment -->
                 <p class="card-text text-primary fw-bold mb-0" v-if="availableAppointments[doctor.id]">
-                    <strong>Soonest Appointment:</strong>
-                    {{ formatClosestCanceledAppointment(availableAppointments[doctor.id].canceled_appointments) }}
+                  <strong>Soonest Appointment:</strong>
+                  {{ formatClosestCanceledAppointment(availableAppointments[doctor.id].canceled_appointments) }}
 
-                  </p>
-               
+                </p>
+
               </div>
             </div>
           </div>

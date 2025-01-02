@@ -9,36 +9,69 @@ import NextAppointmentDate from './NextAppointmentDate.vue';
 import AppointmentCalendar from './AppointmentCalendar.vue';
 
 const route = useRoute();
-const router = useRouter(); // Import the router for navigation
+const router = useRouter();
 const nextAppointmentDate = ref('');
 const searchQuery = ref('');
 
-// Props passed from the parent component
 const props = defineProps({
   editMode: { type: Boolean, default: false },
-  doctorId: { type: Number, default: null }
+  doctorId: { type: Number, default: null },
+  appointmentId: { type: Number, default: null }
 });
 
 // Reactive form data
 const form = reactive({
+  id: null,
   first_name: '',
+  patient_id: null,
   last_name: '',
-  days: '',
-  description: '',
+  patient_Date_Of_Birth: '',
   phone: '',
-  doctor_id: props.doctorId || 0,
+  doctor_id: props.doctorId ,
+  appointment_date: '',
   appointment_time: '',
-  status: 0,
-  selectionMethod: 'days', // Default to 'By Days'
-  appointment_date: '', // Store the selected date from the calendar
+  description: '',
+  status: {},
 });
+// Fetch appointment data when in edit mode
+const fetchAppointmentData = async () => {
+  if (props.editMode && props.appointmentId) {
+    try {
+      const response = await axios.get(`/api/appointments/${props.doctorId}/${props.appointmentId}`);
+      if (response.data.success) {
+        const appointment = response.data.data;
+        // Populate form with appointment data
+        form.id = appointment.id;
+        form.first_name = appointment.first_name;
+        form.patient_id = appointment.patient_id; // This will trigger patient selection in PatientSearch
+        form.last_name = appointment.last_name;
+        form.patient_Date_Of_Birth = appointment.patient_Date_Of_Birth;
+        form.phone = appointment.phone;
+        form.doctor_id = props.doctorId; // Note: This might not need changing if it's always the current doctor
+        form.appointment_date = appointment.appointment_date;
+        form.appointment_time = appointment.appointment_time;
+        form.status = appointment.status;
+        form.description = appointment.description;
+
+        // Set the search query to potentially match the patient's name
+        searchQuery.value = `${appointment.first_name} ${appointment.last_name} ${appointment.patient_Date_Of_Birth} ${appointment.phone}`;
+      }
+    } catch (error) {
+      console.error('Failed to fetch appointment data:', error);
+    }
+  }
+};
 
 // Handle patient selection
 const handlePatientSelect = (patient) => {
+  
   form.first_name = patient.firstname;
   form.last_name = patient.lastname;
+  form.patient_Date_Of_Birth = patient.dateOfBirth;
   form.phone = patient.phone;
+  form.patient_id = patient.id;
 };
+
 
 // Handle days change from "By Days"
 const handleDaysChange = (days) => {
@@ -51,25 +84,35 @@ const handleDateSelected = (date) => {
   form.appointment_date = date; // Store selected date in `appointment_date`
   nextAppointmentDate.value = date; // Optionally display it
 };
+if (props.editMode && props.appointmentId) {
+  // Assuming you've fetched appointment data and form.patient_id is set
+  searchQuery.value = `${form.first_name} ${form.last_name} ${form.patient_Date_Of_Birth} ${form.phone}`;
+}
 
 // Handle time selection from TimeSlotSelector
 const handleTimeSelected = (time) => {
   form.appointment_time = time;  // Store selected time in `appointment_time`
 };
 
-// Handle form submission
-const handleSubmit = async () => {
+const handleSubmit = async (values, { setErrors }) => {
   try {
-    const response = await axios.post('/api/appointments', form);
-    console.log('Appointment created:', response.data);
+    const method = props.editMode ? 'put' : 'post';
+    const url = props.editMode 
+      ? `/api/appointments/${props.appointmentId}` 
+      : '/api/appointments';
     
+    const response = await axios[method](url, form);
+    console.log(`${props.editMode ? 'Appointment updated:' : 'Appointment created:'}`, response.data);
+
     // Redirect to the appointment list for the doctor
     router.push({ name: 'admin.appointments', params: { doctorId: form.doctor_id } });
-    toastr.success('Appointment created successfully');
+    toastr.success(`${props.editMode ? 'Appointment updated' : 'Appointment created'} successfully`);
   } catch (error) {
-    console.error('Error creating appointment:', error);
+    console.error(`${props.editMode ? 'Error updating appointment:' : 'Error creating appointment:'}`, error);
+    setErrors({ form: 'An error occurred while processing your request' });
   }
 };
+
 
 // Reset selection when method changes or after submission
 const resetSelection = () => {
@@ -86,17 +129,17 @@ watch(() => form.selectionMethod, resetSelection);
 
 // Load existing appointment data in edit mode
 onMounted(async () => {
-  if (props.editMode) {
-    const { data } = await axios.get(`/api/appointments/${route.params.id}/edit`);
-    Object.assign(form, data);
-  }
+ 
+  fetchAppointmentData();
+
 });
 </script>
 
 <template>
   <Form @submit="handleSubmit" v-slot="{ errors }">
     <!-- Patient Search Component -->
-    <PatientSearch v-model="searchQuery" @patientSelected="handlePatientSelect" />
+    <PatientSearch v-model="searchQuery" :patientId="form.patient_id" 
+    @patientSelected="handlePatientSelect" />
 
     <!-- Available Appointments Component -->
     <AvailableAppointments :doctorId="props.doctorId"   @dateSelected="handleDateSelected"
@@ -134,16 +177,15 @@ onMounted(async () => {
       @dateSelected="handleDateSelected"
     />
     <div class="form-group mb-4">
-      <label for="description" class="form-label">Description</label>
-      <textarea 
-        id="description" 
-        v-model="form.description" 
-        class="form-control" 
-        rows="3"
-        placeholder="Enter appointment details..."
-      ></textarea>
-    </div>
-  
+  <label for="description" class="form-label">Description</label>
+  <textarea 
+    id="description" 
+    v-model="form.description" 
+    class="form-control" 
+    rows="3"
+    placeholder="Enter appointment details..."
+  ></textarea>
+</div>
     <!-- Submit Button -->
     <div class="form-group">
       <button type="submit" class="btn btn-primary rounded-pill">

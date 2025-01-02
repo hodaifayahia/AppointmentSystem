@@ -226,7 +226,7 @@
                       </p>
                   </a>
               </li>
-              {{-- <li class="nav-item mr-2">
+              <li class="nav-item mr-2">
                   <form action="{{ route('logout') }}" method="POST" style="display: contents; ">
                       @csrf
                       <a href="#" onclick="event.preventDefault(); this.closest('form').submit();" class="nav-link" style="padding: 2; text-decoration: none;">
@@ -234,7 +234,7 @@
                           <p style="display: inline; margin: 0;">Logout</p>
                       </a>
                   </form>
-              </li> --}}
+              </li>
             </ul>
             
             

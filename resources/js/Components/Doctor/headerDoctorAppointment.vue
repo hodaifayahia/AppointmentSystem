@@ -42,6 +42,19 @@ const fetchAvailableAppointments = async () => {
     console.error('Error fetching available appointments:', error);
   }
 };
+const formatClosestCanceledAppointment = (appointments) => {
+  if (!appointments || appointments.length === 0) return 'No upcoming canceled appointments';
+
+  // Sort appointments by date, then by time for the closest one
+  const sortedAppointments = appointments.sort((a, b) => {
+    const dateA = new Date(a.date + 'T' + a.available_times[0] + ':00');
+    const dateB = new Date(b.date + 'T' + b.available_times[0] + ':00');
+    return dateA - dateB;
+  });
+
+  const closest = sortedAppointments[0];
+  return `${closest.date} at ${closest.available_times[0]}`;
+};
 
 onMounted(() => {
     getDoctorsInFo();
@@ -85,7 +98,8 @@ onMounted(() => {
       <div>
         <p class="mb-1 small text-white-50">Closest Appointments:</p>
         <p class="h6 font-weight-bold text-white mb-2">
-          {{  availableAppointments.canceled_appointments && availableAppointments.canceled_appointments.time  ? availableAppointments.canceled_appointments.date + ' at ' + availableAppointments.canceled_appointments.time : 'No Cloest appointments avialbe' }}
+          {{ formatClosestCanceledAppointment(availableAppointments.canceled_appointments) }}
+
         </p>
         <button v-if="lastAppointment" class="btn btn-sm btn-light rounded-pill shadow-sm">
           <i class="fas fa-file-medical-alt"></i> View Report

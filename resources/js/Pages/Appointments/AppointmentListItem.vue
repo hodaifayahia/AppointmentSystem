@@ -2,7 +2,7 @@
 import { defineProps, defineEmits, ref, onMounted, watch } from 'vue';
 import axios from 'axios';
 import { useToastr } from '../../Components/toster';
-
+import { useRouter } from 'vue-router';
 
 const props = defineProps({
     appointments: {
@@ -23,7 +23,7 @@ const props = defineProps({
     },
     doctorId: {
         type: String,
-        required: true
+        required: false
     },
     pagination:{
         
@@ -34,7 +34,7 @@ const props = defineProps({
 
 const emit = defineEmits(['getAppointments' ,"updateAppointment" ,'updateStatus']);
 const toastr = useToastr();
-
+const router = useRouter();
 
 const statuses = ref([]);
 const error = ref(null);
@@ -43,16 +43,6 @@ const searchQuery = ref("");
 const isLoading = ref(false);
 const localAppointments = ref(props.appointments);
 const localPagination = ref(props.pagination);
-// const getAppointmentsStatus = async () => {
-//     try {
-//         const response = await axios.get(`/api/appointmentStatus`);
-//         statuses.value = response.data;
-//     } catch (err) {
-//         error.value = 'Failed to load appointment statuses';
-//         console.error('Error:', err);
-//     }
-// };
-
 
 
 const formatDate = (dateString) => {
@@ -63,6 +53,8 @@ const formatDate = (dateString) => {
         day: 'numeric'
     });
 };
+
+
 
 const formatTime = (time) => {
     const [, timePart] = time.split('T');
@@ -119,8 +111,11 @@ const getAppointmentsStatus = async () => {
     }
 };
 
-const editAppointment = (appointment) => {
-    console.log('Edit appointment:', appointment);
+const goToEditAppointmentPage = (appointment) => {
+  router.push({
+    name: 'admin.appointments.edit',
+    params: { doctorId: props.doctorId, appointmentId: appointment.id }
+  });
 };
 const getStatusOption = (statusName) => {
     return statuses.value.find(option => option.name === statusName) ||
@@ -128,10 +123,11 @@ const getStatusOption = (statusName) => {
 };
 
 const deleteAppointment = async (id) => {
+    
     if (!confirm('Are you sure you want to delete this appointment?')) return;
     try {
-        await axios.delete(`/api/appointment/${id}`);
-        emit('getAppointments', props.currentPage);
+        await axios.delete(`/api/appointments/${id}`);
+        emit('updateAppointment');
     } catch (err) {
         console.error('Error deleting appointment:', err);
     }
@@ -203,7 +199,7 @@ onMounted(() => {
             <!-- Loading Spinner -->
             <div v-if="loading" class="text-center py-4">
                 <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
+                    <span class="visually-hidden"></span>
                 </div>
             </div>
 
@@ -263,7 +259,7 @@ onMounted(() => {
                         </td>
                         <td>
                             <div class="d-flex gap-2">
-                                <button @click="editAppointment(appointment)" class="btn btn-sm btn-outline-primary">
+                                <button @click="goToEditAppointmentPage(appointment)" class="btn btn-sm btn-outline-primary">
                                     <i class="fas fa-edit"></i>
                                 </button>
                                 <button @click="deleteAppointment(appointment.id)"

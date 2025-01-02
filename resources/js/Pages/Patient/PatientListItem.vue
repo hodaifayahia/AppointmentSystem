@@ -113,7 +113,7 @@ onMounted(() => {
                 </div>
 
                 <table v-else class="table table-hover ">
-                  <thead>
+                  <thead class="table-primary">
                     <tr>
                       <th scope="col">#</th>
                       <th scope="col">First Name</th>
@@ -129,7 +129,8 @@ onMounted(() => {
                       <td colspan="6" class="text-center">No Patient found</td>
                     </tr>
                     <tr   v-for="(Patient, index) in Patient" :key="Patient.id"
-                    @click="goToPatientAppointmentsPage(Patient.id)" >
+                    @click="goToPatientAppointmentsPage(Patient.id)"
+                    style="cursor: pointer;" >
                       <td>{{ index + 1 }}</td>
                       <td>{{ Patient.Firstname }}</td>
                       <td>{{ Patient.Lastname }}</td>

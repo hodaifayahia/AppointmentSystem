@@ -86,7 +86,7 @@ const formatDate = (dateString) => {
     <td>
       
       <img v-if="user.avatar" :src="`${user.avatar}`"
-        :alt="`Photo for ${user.name}`" class="img-thumbnail" style="max-width: 40px; max-height: 40px;" />
+        :alt="`Photo for ${user.name}`" class="img-thumbnail rounded-pill" style="max-width: 40px; max-height: 40px;" />
       <span v-else>No Photo</span>
     </td>
     

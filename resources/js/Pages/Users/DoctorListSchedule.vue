@@ -21,17 +21,21 @@ const fetchSchedules = async () => {
     schedules.value = response.data.schedules;
     doctorName.value = response.data.doctor_name;
     
-    
     // Process the schedules into the desired format
     let formattedSchedules = [];
     const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
     // Loop through each day and format morning and afternoon schedules
     days.forEach(day => {
-      const morning = schedules.value.find(s => s.day_of_week === day && s.shift_period === 'morning');
-      const afternoon = schedules.value.find(s => s.day_of_week === day && s.shift_period === 'afternoon');
+      const schedulesOfDay = schedules.value.filter(s => s.day_of_week === day);
+      const morning = schedulesOfDay.find(s => s.shift_period === 'morning');
+      const afternoon = schedulesOfDay.find(s => s.shift_period === 'afternoon');
+
+      // Find a date for this day, if any schedule has it
+      const date = schedulesOfDay.find(s => s.date)?.date || null;
 
       formattedSchedules.push({
+        date: date,
         day_of_week: day.charAt(0).toUpperCase() + day.slice(1),
         morning_start_time: morning?.start_time.slice(0, -3) || '-',
         morning_end_time: morning?.end_time.slice(0, -3) || '-',
@@ -45,11 +49,19 @@ const fetchSchedules = async () => {
     schedules.value = formattedSchedules;
     loading.value = false;
   } catch (e) {
-   
+    // Handle error
+    console.error("Error fetching schedules:", e);
     loading.value = false;
   }
 };
-
+const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+    });
+};
 
 onMounted(fetchSchedules);
 </script>
@@ -78,7 +90,7 @@ onMounted(fetchSchedules);
         <table v-if="schedules.length > 0" class="table table-custom">
           <thead class="thead-custom">
             <tr>
-              <th scope="col">Day of Week</th>
+              <th scope="col">Day of Week </th>
               <th scope="col">Morning Start</th>
               <th scope="col">Morning End</th>
               <th scope="col">Afternoon Start</th>
@@ -88,7 +100,10 @@ onMounted(fetchSchedules);
           </thead>
           <transition-group name="list" tag="tbody">
             <tr v-for="schedule in schedules" :key="schedule.day_of_week" class="schedule-row">
-              <td>{{ schedule.day_of_week }}</td>
+              <td>
+                {{ schedule.day_of_week }} <br>
+                {{ schedule.date ? formatDate(schedule.date) : "" }}
+              </td>
               <td>{{ schedule.morning_start_time || '-' }}</td>
               <td>{{ schedule.morning_end_time || '-' }}</td>
               <td>{{ schedule.afternoon_start_time || '-' }}</td>

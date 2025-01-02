@@ -107,8 +107,8 @@ const createFormData = (values) => {
   const formData = new FormData();
   
   // Add ID if in edit mode
-  if (isEditMode.value && user.value.id) {
-    formData.append('id', user.value.id);
+  if (isEditMode.value && doctor.value.id) {
+    formData.append('id', doctor.value.id);
   }
 
   // Add method spoofing for PUT requests
@@ -125,6 +125,9 @@ const createFormData = (values) => {
     // Handle avatar file
     if (key === 'avatar' && values[key] instanceof File) {
       formData.append(key, values[key], values[key].name);
+    } else if (key === 'avatar' && typeof values[key] === 'string') {
+      // If avatar is a string (URL or something else), append it directly
+      formData.append(key, values[key]);
     } 
     // Handle other fields
     else if (values[key] !== null && values[key] !== undefined && values[key] !== '') {

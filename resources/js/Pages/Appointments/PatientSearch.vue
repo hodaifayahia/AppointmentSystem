@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { debounce } from 'lodash';
 import axios from 'axios';
 import { useToastr } from '@/Components/toster';
@@ -7,6 +7,7 @@ import PatientModel from '@/Components/PatientModel.vue';
 
 const props = defineProps({
   modelValue: String,
+  patientId: Number,
   onSelectPatient: Function
 });
 
@@ -20,9 +21,17 @@ const isModalOpen = ref(false);
 const selectedPatient = ref(null);
 const searchQuery = ref('');
 
+// Watch for modelValue changes to update the input
+watch(() => props.modelValue, (newValue) => {
+  if (newValue && !searchQuery.value) {
+    searchQuery.value = newValue;
+  }
+}, { immediate: true });
+
 const handleSearch = debounce(async (query) => {
   searchQuery.value = query;
-  
+  emit('update:modelValue', query);
+
   if (!query || query.length < 2) {
     patients.value = [];
     showDropdown.value = false;
@@ -36,6 +45,14 @@ const handleSearch = debounce(async (query) => {
       params: { query }
     });
     patients.value = response.data.data || [];
+    
+    // Auto-select if there's an exact match
+    const exactMatch = patients.value.find(p => 
+      `${p.firstname} ${p.lastname} ${p.dateOfBirth} ${p.phone}` === query
+    );
+    if (exactMatch) {
+      selectPatient(exactMatch);
+    }
   } catch (error) {
     console.error('Error searching patients:', error);
     toastr.error('Failed to search patients');
@@ -45,71 +62,61 @@ const handleSearch = debounce(async (query) => {
   }
 }, 300);
 
-const selectPatient = (patient) => {
-  if (!patient) return;
-  selectedPatient.value = patient;
-  emit('patientSelected', patient);
-  emit('update:modelValue', `${patient.firstname} ${patient.lastname} ${patient.dateOfBirth} ${patient.phone}`);
-  showDropdown.value = false;
-  searchQuery.value = '';
-};
+// Watch for changes in patientId to fetch and select patient
+watch(() => props.patientId, async (newId) => {
+  if (newId) {
+    await fetchPatientById(newId);
+  }
+}, { immediate: true });
 
-const closeDropdown = () => {
-  showDropdown.value = false;
-};
-
-const openModal = () => {
-  isModalOpen.value = true;
-  selectedPatient.value = null;
-};
-
-const closeModal = () => {
-  isModalOpen.value = false;
-};
-
-// Modified to handle the newly added patient
-const handlePatientAdded = (newPatient) => {
-  closeModal();
-  selectPatient(newPatient); // Automatically select the new patient
-  toastr.success('Patient added successfully');
-};
-
-// Remove the getPatients function since we don't want to show all patients initially
-const refreshPatients = async () => {
-  // Only refresh if there's an active search
-  if (searchQuery.value && searchQuery.value.length >= 2) {
-    await handleSearch(searchQuery.value);
+const fetchPatientById = async (id) => {
+  try {
+    const response = await axios.get(`/api/patients/${id}`);
+    if (response.data.data) {
+      const patient = response.data.data;
+      selectedPatient.value = patient;
+      searchQuery.value = `${patient.firstname} ${patient.lastname} ${patient.dateOfBirth} ${patient.phone}`;
+      emit('patientSelected', patient);
+    } else {
+      console.error('Patient not found:', response.data.message);
+    }
+  } catch (error) {
+    console.error('Error fetching patient by ID:', error);
+    toastr.error('Could not find patient by ID');
   }
 };
 
-onMounted(() => {
-  document.addEventListener('click', (e) => {
-    const dropdown = document.querySelector('.patient-search-wrapper');
-    if (dropdown && !dropdown.contains(e.target)) {
-      closeDropdown();
-    }
-  });
-});
-</script>
+const selectPatient = (patient) => {
+  selectedPatient.value = patient;
+  emit('patientSelected', patient);
+  const patientString = `${patient.firstname} ${patient.lastname} ${patient.dateOfBirth} ${patient.phone}`;
+  emit('update:modelValue', patientString);
+  searchQuery.value = patientString;
+  showDropdown.value = false; // Close the dropdown
+};
 
+
+// Rest of the component remains the same...
+</script>
 <template>
   <div class="patient-search-wrapper">
     <div class="row">
       <div class="col-md-9">
         <input 
-          :value="modelValue"
-          @input="e => { emit('update:modelValue', e.target.value); handleSearch(e.target.value); }"
+          :value="searchQuery"
+          @input="e => handleSearch(e.target.value)"
           type="text"
           class="form-control form-control-lg rounded-lg mb-2"
           placeholder="Search patients by name or phone..."
-          @focus="showDropdown = modelValue && modelValue.length >= 2"
+          @focus="showDropdown = searchQuery && searchQuery.length >= 2"
         />
       </div>
+
       <div class="col-md-3">
         <button 
           type="button" 
           class="btn btn-primary rounded-pill"
-          @click="openModal"
+          @click="openModal()"
         >
           Add New Patient
         </button>
@@ -119,7 +126,7 @@ onMounted(() => {
     <div v-if="showDropdown && (isLoading || (patients.length > 0 && searchQuery.length >= 2))">
       <div v-if="isLoading" class="loading-state">
         <div class="spinner-border text-primary spinner-border-sm me-2" role="status">
-          <span class="visually-hidden">Loading...</span>
+          <span class="visually-hidden"></span>
         </div>
         Searching
       </div>
@@ -127,28 +134,27 @@ onMounted(() => {
       <template v-else>
         <div class="dropdown-header">Search Results</div>
         <div class="patient-list">
-          <div v-for="patient in patients" 
-            :key="patient.id"
-            class="patient-item"
-            @click="selectPatient(patient)"
-          >
-            <div class="patient-info border-0">
-              <div class="patient-name">
-                <h6 class="fw-bold">{{ patient.firstname }} {{ patient.lastname }}</h6>
-                <span class="patient-details">
-                  <strong>Date of Birth:</strong> {{ patient.dateOfBirth }} 
-                  <strong>ID:</strong> {{ patient.Idnum }}
-                </span>
-              </div>
-              <div class="patient-contact">
-                <i class="fas fa-phone-alt text-danger mr-2"></i> 
-                <span class="patient-phone">{{ patient.phone }}</span>
-              </div>
-            </div>
-            <div class="select-icon">
-              <i class="fas fa-chevron-right"></i>
-            </div>
-          </div>
+          <div 
+  v-for="patient in patients" 
+  :key="patient.id"
+  class="patient-item"
+  @click="selectPatient(patient)"
+>
+  <div class="patient-info border-0">
+    <div class="patient-name">
+      <h6 class="fw-bold">{{ patient.firstname }} {{ patient.lastname }}</h6>
+      <span class="patient-details">
+        <strong>Date of Birth:</strong> {{ patient.dateOfBirth }} 
+        <strong>ID:</strong> {{ patient.Idnum }}
+      </span>
+    </div>
+    <div class="patient-contact">
+      <i class="fas fa-phone-alt text-danger mr-2"></i> 
+      <span class="patient-phone">{{ patient.phone }}</span>
+    </div>
+  </div>
+</div>
+
         </div>
         <div v-if="patients.length === 0 && searchQuery.length >= 2" class="no-results">
           <div class="no-results-icon">🔍</div>
@@ -166,6 +172,7 @@ onMounted(() => {
     @specUpdate="handlePatientAdded"
   />
 </template>
+
 <style scoped>
 
 .search-wrapper {
