@@ -26,10 +26,18 @@ const props = defineProps({
   },
   existingSchedules: {
     type: Array,
-    default: null
+    default: () => []
   }
 });
 
+// Format time to H:i format
+const formatTime = (time) => {
+  if (!time) return '';
+  const [hours, minutes] = time.split(':');
+  return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+};
+
+// Initialize schedules with reactive
 const schedules = reactive(
   daysOfWeek.reduce((acc, day) => ({
     ...acc,
@@ -40,9 +48,9 @@ const schedules = reactive(
   }), {})
 );
 
-// Helper function to reset schedules
+// Improved reset function
 const resetSchedules = () => {
-  daysOfWeek.forEach(day => {
+  Object.keys(schedules).forEach(day => {
     schedules[day] = {
       morning: { isActive: false, startTime: '08:00', endTime: '12:00' },
       afternoon: { isActive: false, startTime: '13:00', endTime: '17:00' }
@@ -50,27 +58,38 @@ const resetSchedules = () => {
   });
 };
 
-// Helper function to populate schedules from existing data
-const populateSchedules = (newSchedules) => {
-  newSchedules.forEach(schedule => {
+// Improved populate function
+const populateSchedules = (existingSchedules) => {
+  if (!Array.isArray(existingSchedules) || existingSchedules.length === 0) return;
+
+  resetSchedules();
+
+  existingSchedules.forEach(schedule => {
     const day = schedule.day_of_week.charAt(0).toUpperCase() + schedule.day_of_week.slice(1);
-    if (schedules[day]) {
-      schedules[day][schedule.shift_period] = {
-        isActive: schedule.is_active,
-        startTime: schedule.start_time,
-        endTime: schedule.end_time
-      };
+    
+    if (schedules[day] && schedule.is_active) {
+      const shift = schedule.shift_period.toLowerCase();
+      if (schedules[day][shift]) {
+        schedules[day][shift] = {
+          isActive: true,
+          startTime: formatTime(schedule.start_time),
+          endTime: formatTime(schedule.end_time)
+        };
+      }
     }
   });
 };
 
-// Watch for changes in props.existingSchedules
-watch(() => props.existingSchedules, (newSchedules) => {
-  if (newSchedules?.length) {
-    resetSchedules();
-    populateSchedules(newSchedules);
-  }
-}, { immediate: true, deep: true });
+// Watch for existingSchedules changes
+watch(
+  () => props.existingSchedules,
+  (newSchedules) => {
+    if (newSchedules && Array.isArray(newSchedules)) {
+      populateSchedules(newSchedules);
+    }
+  },
+  { immediate: true, deep: true }
+);
 
 // Form validation setup
 const { values, errors } = useForm({
@@ -85,7 +104,7 @@ const { values, errors } = useForm({
   }),
 });
 
-// Helper function to calculate patients per shift
+// Calculate patients per shift
 const calculatePatientsPerDay = (startTime, endTime, slot) => {
   if (!startTime || !endTime || !slot) return 0;
   const start = new Date(`1970-01-01T${startTime}`);
@@ -94,7 +113,7 @@ const calculatePatientsPerDay = (startTime, endTime, slot) => {
   return Math.floor(totalMinutes / slot);
 };
 
-// Ensure this calculation is triggered when any schedule changes
+// Watch for schedule changes and emit updates with formatted times
 watch(
   schedules,
   (newSchedules) => {
@@ -105,8 +124,8 @@ watch(
           records.push({
             day_of_week: day.toLowerCase(),
             shift_period: 'morning',
-            start_time: shifts.morning.startTime,
-            end_time: shifts.morning.endTime,
+            start_time: formatTime(shifts.morning.startTime),
+            end_time: formatTime(shifts.morning.endTime),
             is_active: true,
             number_of_patients_per_day: props.patients_based_on_time
               ? calculatePatientsPerDay(shifts.morning.startTime, shifts.morning.endTime, props.time_slot)
@@ -117,8 +136,8 @@ watch(
           records.push({
             day_of_week: day.toLowerCase(),
             shift_period: 'afternoon',
-            start_time: shifts.afternoon.startTime,
-            end_time: shifts.afternoon.endTime,
+            start_time: formatTime(shifts.afternoon.startTime),
+            end_time: formatTime(shifts.afternoon.endTime),
             is_active: true,
             number_of_patients_per_day: props.patients_based_on_time
               ? calculatePatientsPerDay(shifts.afternoon.startTime, shifts.afternoon.endTime, props.time_slot)
@@ -134,10 +153,17 @@ watch(
   },
   { deep: true }
 );
+
+// Handle time input changes
+const handleTimeChange = (day, shift, type, event) => {
+  const time = formatTime(event.target.value);
+  schedules[day][shift][type] = time;
+};
 </script>
 
-
 <template>
+  <!-- Previous template code remains the same until the time inputs -->
+  
   <div class="card">
     <div class="card-header">
       <h2 class="card-title">
@@ -174,7 +200,8 @@ watch(
               <input
                 type="time"
                 class="form-control"
-                v-model="schedules[day].morning.startTime"
+                :value="schedules[day].morning.startTime"
+                @input="(e) => handleTimeChange(day, 'morning', 'startTime', e)"
               />
             </div>
             <div class="col-md-6 mb-3">
@@ -182,7 +209,8 @@ watch(
               <input
                 type="time"
                 class="form-control"
-                v-model="schedules[day].morning.endTime"
+                :value="schedules[day].morning.endTime"
+                @input="(e) => handleTimeChange(day, 'morning', 'endTime', e)"
               />
             </div>
           </div>
@@ -208,7 +236,8 @@ watch(
               <input
                 type="time"
                 class="form-control"
-                v-model="schedules[day].afternoon.startTime"
+                :value="schedules[day].afternoon.startTime"
+                @input="(e) => handleTimeChange(day, 'afternoon', 'startTime', e)"
               />
             </div>
             <div class="col-md-6 mb-3">
@@ -216,7 +245,8 @@ watch(
               <input
                 type="time"
                 class="form-control"
-                v-model="schedules[day].afternoon.endTime"
+                :value="schedules[day].afternoon.endTime"
+                @input="(e) => handleTimeChange(day, 'afternoon', 'endTime', e)"
               />
             </div>
           </div>

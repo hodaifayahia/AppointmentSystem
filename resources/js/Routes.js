@@ -13,6 +13,7 @@ import DoctorListAppointment from "./Pages/Appointments/DoctorListAppointment.vu
 import SpecializationListAppointment from "./Pages/Appointments/SpecializationListAppointment.vue";
 import AppointmentPage from "./Pages/Appointments/AppointmentPage.vue";
 import Login from "./auth/Login.vue";
+import AppointmentsLIst from "./Pages/Appointments/AppointmentsLIst.vue";
 
 export default [
     {
@@ -39,6 +40,11 @@ export default [
         path: '/admin/appointments/:id',  // Corrected path
         name: 'admin.appointments',
         component: ListAppointment,
+    },
+    {
+        path: '/admin/appointments',  // Corrected path
+        name: 'admin.appointments.ist',
+        component: AppointmentsLIst,
     },
     {
         path: '/admin/appointments/create/:id',  // Corrected path

@@ -7,12 +7,13 @@ import PatientSearch from './PatientSearch.vue';
 import AvailableAppointments from './AvailableAppointments.vue';
 import NextAppointmentDate from './NextAppointmentDate.vue';
 import AppointmentCalendar from './AppointmentCalendar.vue';
+import { useToastr } from '../../Components/toster';
 
 const route = useRoute();
 const router = useRouter();
 const nextAppointmentDate = ref('');
 const searchQuery = ref('');
-
+const toastr = useToastr();
 const props = defineProps({
   editMode: { type: Boolean, default: false },
   doctorId: { type: Number, default: null },

@@ -54,13 +54,13 @@ const getSpecializations = async (page = 1) => {
 };
 const isEditMode = computed(() => !!props.doctorData?.id);
 
-const handlePatientSelectionChange = () => {
-  if (patients_based_on_time.value) {
-    number_of_patients_per_day.value = 0;
-  } else {
-    time_slot.value = '';
-  }
-};
+// const handlePatientSelectionChange = () => {
+//   if (patients_based_on_time.value) {
+//     number_of_patients_per_day.value = 0;
+//   } else {
+//     time_slot.value = '';
+//   }
+// };
 
 const handleFrequencySelectionChange = () => {
   if (doctor.frequency !== 'monthly') {
@@ -198,6 +198,13 @@ const handleImageChange = (e) => {
     URL.revokeObjectURL(previewURL);
   };
 };
+const handlePatientSelectionChange = () => {
+  if (doctor.value.patients_based_on_time) {
+    doctor.value.number_of_patients_per_day = 0;
+  } else {
+    doctor.value.time_slot = '';
+  }
+};
 
 // Clean up function for component unmount
 onUnmounted(() => {
@@ -326,25 +333,35 @@ onUnmounted(() => {
 
             <!-- Patient Selection Row -->
             <div class="row">
-              <div class="col-md-6 mb-4">
-                <label for="patients_based_on_time" class="form-label fs-5">Patients Based on Time</label>
-                <Field as="select" name="patients_based_on_time" v-model="doctor.patients_based_on_time"
-                  class="form-control form-control-md" @change="handlePatientSelectionChange">
-                  <option :value="false">Fixed Number of Patients</option>
-                  <option :value="true">Based on Time</option>
-                </Field>
-              </div>
-              <div v-if="!patients_based_on_time" class="col-md-6 mb-4">
-                <label for="number_of_patients_per_day" class="form-label fs-5">Number of Patients Per Day</label>
-                <Field type="number" name="number_of_patients_per_day" v-model="number_of_patients_per_day"
-                  class="form-control form-control-md" min="0" />
-              </div>
-              <div v-if="patients_based_on_time" class="col-md-6 mb-4">
-                <label for="time_slot" class="form-label fs-5">Time Slot for Patients</label>
-                <Field name="time_slot" v-model="time_slot" class="form-control form-control-md"
-                  placeholder="Select time slot" />
-              </div>
-            </div>
+    <div class="col-md-6 mb-4">
+      <label for="patients_based_on_time" class="form-label fs-5">Patients Based on Time</label>
+      <select 
+        v-model="patients_based_on_time"
+        class="form-control form-control-md" 
+        @change="handlePatientSelectionChange"
+      >
+        <option :value="false">Fixed Number of Patients</option>
+        <option :value="true">Based on Time</option>
+      </select>
+    </div>
+    <div v-if="!patients_based_on_time" class="col-md-6 mb-4">
+      <label for="number_of_patients_per_day" class="form-label fs-5">Number of Patients Per Day</label>
+      <input 
+        type="number" 
+        v-model="number_of_patients_per_day"
+        class="form-control form-control-md" 
+        min="0" 
+      />
+    </div>
+    <div v-if="patients_based_on_time" class="col-md-6 mb-4">
+      <label for="time_slot" class="form-label fs-5">Time Slot for Patients</label>
+      <input 
+        v-model="time_slot"
+        class="form-control form-control-md"
+        placeholder="Select time slot" 
+      />
+    </div>
+  </div>
 
             <!-- Frequency and Start Time -->
             <div class="row">

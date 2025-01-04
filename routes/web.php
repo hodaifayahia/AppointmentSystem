@@ -3,25 +3,33 @@ use App\Http\Controllers\ApplicationController;
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\AppointmentStatus;
 use App\Http\Controllers\DoctorController;
+use App\Http\Controllers\ExportController;
+use App\Http\Controllers\ImportController;
 use App\Http\Controllers\PatientController;
 use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\SettingController;
 use App\Http\Controllers\specializationsController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
+
+
+
 
 
 // Routes for all authenticated users
 Route::middleware(['auth'])->group(function () {
 
     // User Routes
-    Route::get('api/users', [UserController::class, 'index'])->name('users.index');
+    Route::get('api/users', [UserController::class, 'index']);
     Route::post('api/users', [UserController::class, 'store']);
-    Route::put('/api/users/{userid}', [UserController::class, 'update']);
-    Route::get('/api/users/search', [UserController::class, 'search'])->name('users.search');
-    Route::patch('/api/users/{userid}/change-role', [UserController::class, 'ChangeRole'])->name('users.ChangeRole');
-    Route::delete('/api/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
     Route::delete('/api/users', [UserController::class, 'bulkDelete'])->name('users.bulkDelete');
+    Route::get('/api/users/search', [UserController::class, 'search'])->name('users.search');
+    Route::put('/api/users/{userid}', [UserController::class, 'update']);
+    Route::delete('/api/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+    Route::patch('/api/users/{userid}/change-role', [UserController::class, 'ChangeRole'])->name('users.ChangeRole');
     
+
+
     // Doctor Routes
     Route::get('/api/doctors', [DoctorController::class, 'index']);
     Route::post('/api/doctors', [DoctorController::class, 'store'])->name('users.store');
@@ -60,6 +68,23 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/api/appointments/patient/{patientId}', [PatientController::class, 'PatientAppointments']);
     Route::get('/api/patients/search', [PatientController::class, 'search']);
     Route::get('/api/patients/{parentid}', [PatientController::class, 'SpecificPatient']);
+    
+    
+    Route::get('/api/setting/user', [SettingController::class, 'index']);
+    Route::put('/api/setting/user', [SettingController::class, 'update']);
+    Route::put('/api/setting/password', [SettingController::class, 'updatePassword']);
+
+
+    
+    // Logout Route for Importing and Exporting Data to Excel 
+    Route::post('/api/import/users', [ImportController::class, 'ImportUsers']);
+    Route::get('/api/export/users', [ExportController::class, 'ExportUsers']);
+
+    Route::post('/api/import/Patients', [ImportController::class, 'ImportPatients']);
+    Route::get('/api/export/Patients', [ExportController::class, 'ExportPatients']);
+
+    Route::post('/api/import/appointment', [ImportController::class, 'ImportAppointment']);
+    Route::get('/api/export/appointment', [ExportController::class, 'ExportAppointment']);
 });
 
 // Catch-all route for views

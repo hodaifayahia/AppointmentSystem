@@ -136,9 +136,6 @@ onMounted(() => {
 
                         <div class="card shadow-sm">
                             <div class="card-body">
-                                <div v-if="error" class="alert alert-danger" role="alert">
-                                    {{ error }}
-                                </div>
 
                                 <div v-if="loading" class="text-center py-4">
                                     <div class="spinner-border text-primary" role="status">

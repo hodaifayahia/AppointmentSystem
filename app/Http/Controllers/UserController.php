@@ -6,6 +6,7 @@ use \Storage;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
@@ -58,7 +59,7 @@ class UserController extends Controller
                 'email' => $validatedData['email'],
                 'phone' => $validatedData['phone'],
                 'role' => $validatedData['role'],
-                'password' => bcrypt($validatedData['password']),
+                'password' => Hash::make($validatedData['password']),
                 'avatar' => $avatarPath,
             ]);
        
@@ -108,7 +109,7 @@ class UserController extends Controller
     
         // Handle password update if provided
         if ($request->filled('password')) {
-            $updateData['password'] = bcrypt($request->input('password'));
+            $updateData['password'] = Hash::make($request->input('password'));
         }
     
         // Update user data

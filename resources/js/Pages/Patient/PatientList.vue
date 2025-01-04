@@ -10,6 +10,21 @@ const loading = ref(false);
 const error = ref(null);
 const toaster = useToastr();
 
+
+const users = ref([]);
+const pagination = ref({});
+const selectedUser = ref({ name: '', email: '', phone: '', password: '' });
+// const isModalOpen = ref(false);
+const searchQuery = ref('');
+const isLoading = ref(false);
+// const selectedUserBox = ref([]);
+// const loading = ref(false);
+const file = ref(null);
+const errorMessage = ref('');
+const successMessage = ref('');
+const fileInput = ref(null);
+
+
 const getPatients = async (page = 1) => {
   try {
     loading.value = true;
@@ -64,8 +79,11 @@ onMounted(() => {
     <!-- Main Content -->
     <div class="content">
       <div class="container-fluid">
+        
         <div class="row">
+          
           <div class="col-lg-12">
+            
             <PatientListItem
               :patients="patients"
               :loading="loading"

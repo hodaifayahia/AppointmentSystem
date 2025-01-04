@@ -15,7 +15,6 @@ const router = useRouter();
 const doctorId = route.params.id;
 const pagination = ref({});
 
-console.log(doctorId);
 
 
 

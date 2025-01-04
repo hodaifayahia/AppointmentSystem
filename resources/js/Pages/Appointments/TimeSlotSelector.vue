@@ -16,9 +16,9 @@ const props = defineProps({
     required: true
   },
   deletedslots: {
-    type: Boolean,
-    default:false
-  } ,
+    type: Array,
+    default: () => []
+  },
   range: {
     type: Number,
     default: 0
@@ -33,129 +33,93 @@ const props = defineProps({
   }
 });
 
-
-
-const emit = defineEmits(['update:modelValue' , 'timeSelected']);
+const emit = defineEmits(['update:modelValue', 'timeSelected']);
 
 const slots = ref([]);
 const loading = ref(false);
 const error = ref(null);
 const selectedTime = ref(props.modelValue);
-// Fetch time slots from backend
+
 const fetchTimeSlots = async () => {
   loading.value = true;
   error.value = null;
 
-  if (props.deletedslots) {
-    // If deletedslots are provided, use them directly
-    slots.value = Object.keys(props.deletedslots).map((key) => ({
-      time: props.deletedslots[key],
-      available: true,
-    }));
-    loading.value = false;
-    return;
-  }
-  
   try {
-    let response;
-    if (props.forceAppointment) {
+    if (props.deletedslots.length > 0) {
+      slots.value = props.deletedslots.map(time => ({
+        time,
+        available: true,
+        isDeleted: true
+      }));
+      loading.value = false;
+      return;
+    }
 
-      response = await axios.get('/api/appointments/ForceSlots', {
+    if (props.forceAppointment) {
+      const response = await axios.get('/api/appointments/ForceSlots', {
         params: {
-          days: props.days,  // Assuming days is needed for this endpoint, adjust if not
+          days: props.days,
           doctor_id: props.doctorid
         }
       });
-      console.log(response.data);
       
-      
-      // Handle response from /api/appointments/ForceSlots
       if (response.data.gap_slots || response.data.additional_slots) {
-        slots.value = [
-          ...(response.data.gap_slots || []),
-          ...(response.data.additional_slots || [])
-        ].map(time => ({
-          time: time,
-          available: true
-        }));
-
-        // If you want to handle 'next_available_date' or other data, do so here
-        if (response.data.next_available_date) {
-          console.log('Next available date:', response.data.next_available_date);
-        }
+        slots.value = [...(response.data.gap_slots || []), ...(response.data.additional_slots || [])]
+          .map(time => ({
+            time,
+            available: true,
+            isDeleted: false
+          }));
       } else {
         error.value = 'No slots available for forced appointment.';
       }
+      return;
+    }
 
-    } else {
-      // Normal slot fetching
-      response = await axios.get('/api/appointments/checkAvailability', {
-        params: {
-          date: props.date,
-          doctor_id: props.doctorid,
-          range: props.range,
-          include_slots: true,
-        }
-      });
-      
-      // Check if available_slots is an object (not an array)
-      if (typeof response.data.available_slots === 'object' && response.data.available_slots !== null) {
-        const slotsArray = [];
-        if (Object.keys(response.data.available_slots).length === 0) {
-          error.value = 'No available slots found within the specified range. Try increasing the range or selecting a different date.';
-        } else {
-          const timeSlots = Object.values(response.data.available_slots); // Get the time values as an array
-          for (let i = 0; i < timeSlots.length; i++) {
-            slotsArray.push({
-              time: timeSlots[i],
-              available: true
-            });
-          }
-          slots.value = slotsArray;
-        }
-      } else {
-        error.value = 'Unexpected data format';
+    const response = await axios.get('/api/appointments/checkAvailability', {
+      params: {
+        date: props.date,
+        doctor_id: props.doctorid,
+        range: props.range,
+        include_slots: true,
       }
-    }
-    
-  } catch (err) {
-    if (err.response) {
+    });
+
+    if (response.data.available_slots) {
+      const availableSlots = Array.isArray(response.data.available_slots) 
+        ? response.data.available_slots 
+        : Object.values(response.data.available_slots);
+
+      slots.value = availableSlots.map(time => ({
+        time,
+        available: true,
+        isDeleted: false
+      }));
     } else {
-      error.value = 'An error occurred while fetching time slots.';
+      error.value = 'No available slots found';
     }
+  } catch (err) {
+    console.error('Error fetching time slots:', err);
+    error.value = err.message || 'An error occurred while fetching time slots.';
   } finally {
     loading.value = false;
   }
 };
 
-
 const selectTimeSlot = (time) => {
   selectedTime.value = time;
-  emit('update:modelValue', time); // Update v-model binding
-  emit('timeSelected', time);     // Emit the custom event to the parent
+  emit('update:modelValue', time);
+  emit('timeSelected', time);
 };
 
-
-// Fetch slots when component mounts
-onMounted(() => {
-  fetchTimeSlots();
-});
-
-// Watch for changes in props that affect slot fetching
-watch([() => (props.date,props.range), () => props.doctorid], () => {
-  fetchTimeSlots();
-});
-
-// Watch for external modelValue changes
+onMounted(fetchTimeSlots);
+watch([() => props.date, () => props.range, () => props.doctorid, () => props.forceAppointment, () => props.days], fetchTimeSlots);
 watch(() => props.modelValue, (newValue) => {
   selectedTime.value = newValue;
-  console.log('Selected time:', newValue);
-  
 });
 </script>
-<template>
- 
 
+<template>
   <div class="time-slots-container">
     <label class="text-muted mb-2 block">Available Time Slots</label>
     
@@ -168,9 +132,9 @@ watch(() => props.modelValue, (newValue) => {
       {{ error }}
     </div>
     
-    <div v-else-if="(slots.length === 0 )" class="py-4">
-  No time slots available for this day.
-</div>
+    <div v-else-if="slots.length === 0" class="py-4">
+      No time slots available for this day.
+    </div>
     
     <div v-else class="grid grid-cols-4 gap-2">
       <button
@@ -180,7 +144,8 @@ watch(() => props.modelValue, (newValue) => {
         class="btn"
         :class="{
           'btn-primary': selectedTime === slot.time,
-          'btn-outline-secondary': selectedTime !== slot.time
+          'btn-outline-secondary': selectedTime !== slot.time,
+          'btn-outline-danger': slot.isDeleted
         }"
         @click="selectTimeSlot(slot.time)"
       >
@@ -224,6 +189,12 @@ watch(() => props.modelValue, (newValue) => {
   background-color: white;
   color: #6c757d;
   border-color: #6c757d;
+}
+
+.btn-outline-danger {
+  background-color: white;
+  color: #dc3545;
+  border-color: #dc3545;
 }
 
 .grid {

@@ -86,6 +86,43 @@ const fetchPatientById = async (id) => {
   }
 };
 
+const closeDropdown = () => {
+  showDropdown.value = false;
+};
+
+const openModal = () => {
+  isModalOpen.value = true;
+  selectedPatient.value = null;
+};
+
+const closeModal = () => {
+  isModalOpen.value = false;
+};
+
+// Modified to handle the newly added patient
+const handlePatientAdded = (newPatient) => {
+  closeModal();
+  selectPatient(newPatient); // Automatically select the new patient
+  toastr.success('Patient added successfully');
+};
+
+// Remove the getPatients function since we don't want to show all patients initially
+const refreshPatients = async () => {
+  // Only refresh if there's an active search
+  if (searchQuery.value && searchQuery.value.length >= 2) {
+    await handleSearch(searchQuery.value);
+  }
+};
+
+onMounted(() => {
+  document.addEventListener('click', (e) => {
+    const dropdown = document.querySelector('.patient-search-wrapper');
+    if (dropdown && !dropdown.contains(e.target)) {
+      closeDropdown();
+    }
+  });
+});
+
 const selectPatient = (patient) => {
   selectedPatient.value = patient;
   emit('patientSelected', patient);

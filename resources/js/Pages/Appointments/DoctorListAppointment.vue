@@ -11,6 +11,7 @@ const route = useRoute();
 const router = useRouter();
 const specializationId = route.params.id; // Access specialization ID
 
+
 // Watch for route changes to fetch doctors
 
 // Function to fetch doctors
@@ -35,6 +36,8 @@ const getDoctors = async () => {
 
 
 const goToAppointmentPage = (doctor) => {
+  console.log();
+  
   router.push({
     name: 'admin.appointments',
     params: { id: doctor.id }, // Pass d ID

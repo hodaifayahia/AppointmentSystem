@@ -69,11 +69,11 @@ class DoctorController extends Controller
             'schedules.*.start_time' => 'required|date_format:H:i',
             'schedules.*.end_time' => 'required|date_format:H:i|after:schedules.*.start_time',
             'schedules.*.number_of_patients_per_day' => 'required|integer|min:1',
-            'customDates.*.date' => 'required|date|after_or_equal:today',
+            // 'customDates.*.date' => 'required|date|after_or_equal:today',
             'customDates.*.morningStartTime' => 'nullable|required_with:customDates.*.morningEndTime|date_format:H:i',
-            'customDates.*.morningEndTime' => 'nullable|required_with:customDates.*.morningStartTime|date_format:H:i|after:customDates.*.morningStartTime',
+            'customDates.*.morningEndTime' => 'nullable|required_with:customDates.*.morningStartTime|date_format:H:i',
             'customDates.*.afternoonStartTime' => 'nullable|required_with:customDates.*.afternoonEndTime|date_format:H:i',
-            'customDates.*.afternoonEndTime' => 'nullable|required_with:customDates.*.afternoonStartTime|date_format:H:i|after:customDates.*.afternoonStartTime',
+            'customDates.*.afternoonEndTime' => 'nullable|required_with:customDates.*.afternoonStartTime|date_format:H:i',
             'customDates.*.morningPatients' => 'nullable|required_with:customDates.*.morningStartTime|integer|min:1',
             'customDates.*.afternoonPatients' => 'nullable|required_with:customDates.*.afternoonStartTime|integer|min:1',
             'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
@@ -237,11 +237,11 @@ class DoctorController extends Controller
     }
 
     // Make sure your DoctorResource handles JSON days properly
-    public function update(Request $request, Doctor $doctor)
+    public function update(Request $request,  $doctor)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . $doctor->user->id,
+            'email' => 'required|email',
             'phone' => 'required|string',
             'password' => 'nullable|min:8',
             'specialization' => 'required|exists:specializations,id',
@@ -268,8 +268,14 @@ class DoctorController extends Controller
     
         try {
             return DB::transaction(function () use ($request, $doctor) {
+                // Check if the doctor has an associated user
+                $doctor = Doctor::find($doctor);
+                if (!$doctor->user) {
+                    throw new \Exception('Doctor user not found');
+                }
+    
                 // Handle avatar update
-                $avatarPath = $doctor->user->avatar;
+                $avatarPath = $doctor->user->avatar ?? null;
                 if ($request->hasFile('avatar')) {
                     // Delete old avatar if exists
                     if ($avatarPath && Storage::disk('public')->exists($avatarPath)) {
@@ -315,13 +321,18 @@ class DoctorController extends Controller
                     $this->createRegularSchedules($request, $doctor);
                 }
     
+                // Load fresh data with relationships
+                $doctor->load(['user', 'schedules', 'specialization']);
+    
                 return response()->json([
                     'message' => 'Doctor and schedules updated successfully!',
-                    'doctor' => new DoctorResource($doctor->fresh(['user', 'schedules', 'specialization']))
+                    'doctor' => new DoctorResource($doctor)
                 ]);
             });
     
         } catch (\Exception $e) {
+            \Log::error('Error updating doctor: ' . $e->getMessage());
+            
             return response()->json([
                 'message' => 'Error updating doctor',
                 'error' => $e->getMessage()

@@ -28,12 +28,14 @@ const availableAppointments = ref({
   normal_appointments: null
 });
 
+console.log(props.doctorId);
 
 const fetchAvailableAppointments = async () => {
   try {
     const response = await axios.get('/api/appointments/available', {
       params: { doctor_id: props.doctorId }
     });
+    
     availableAppointments.value = {
       canceled_appointments: response.data.canceled_appointments,
       normal_appointments: response.data.normal_appointments

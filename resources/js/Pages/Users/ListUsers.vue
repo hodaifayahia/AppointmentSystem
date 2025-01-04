@@ -14,6 +14,16 @@ const toaster = useToastr();
 const searchQuery = ref('');
 const isLoading = ref(false);
 const selectedUserBox = ref([]);
+const loading = ref(false);
+const file = ref(null);
+const errorMessage = ref('');
+const successMessage = ref('');
+const fileInput = ref(null);
+
+// Handle file upload
+
+
+
 
 // Fetch users from the server
 const getUsers = async (page = 1) => {
@@ -21,7 +31,7 @@ const getUsers = async (page = 1) => {
     const response = await axios.get(`/api/users?page=${page}`);
     users.value = response.data.data;
     pagination.value = response.data.meta; // Store meta data for pagination
-    selectAll.value =false;
+    selectAll.value = false;
     selectAllUsers.value = [];
   } catch (error) {
     toaster.error('Failed to fetch users');
@@ -29,6 +39,82 @@ const getUsers = async (page = 1) => {
   }
 };
 
+
+
+const exportUsers = async () => {
+  try {
+    // Make the API call to export users
+    const response = await axios.get('/api/export/users', {
+      responseType: 'blob', // Ensure the response is treated as a binary file
+    });
+
+    // Create a Blob from the response
+    const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const downloadUrl = window.URL.createObjectURL(blob);
+
+    // Create a temporary link element
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = 'users.xlsx'; // The name of the file
+    document.body.appendChild(link);
+    link.click();
+    link.remove(); // Clean up
+  } catch (error) {
+    console.error('Failed to export users:', error);
+  }
+};
+const handleFileChange = (event) => {
+  file.value = event.target.files[0];
+  errorMessage.value = '';
+  successMessage.value = '';
+};
+const uploadFile = async () => {
+  if (!file.value) {
+    errorMessage.value = 'Please select a file.';
+    return;
+  }
+
+  // Validate file type
+  const allowedTypes = ['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+  if (!allowedTypes.includes(file.value.type)) {
+    errorMessage.value = 'Please upload a CSV or XLSX file.';
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('file', file.value);
+
+  try {
+    loading.value = true; // Add loading state
+    const response = await axios.post('/api/import/users', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+      },
+    });
+
+    if (response.data.success) {
+      successMessage.value = response.data.message;
+      refreshUsers();
+      toastr.success('Users imported successfully!');
+      errorMessage.value = '';
+      // Optionally refresh your data or emit an event
+    } else {
+      errorMessage.value = response.data.message;
+      successMessage.value = '';
+    }
+  } catch (error) {
+    console.error('Import error:', error);
+    errorMessage.value = error.response?.data?.message || 'An error occurred during the file import.';
+    successMessage.value = '';
+  } finally {
+    loading.value = false;
+    // Reset file input
+    if (fileInput.value) {
+      fileInput.value.value = '';
+    }
+  }
+};
 // Open modal for adding a new user
 const openModal = () => {
   selectedUser.value = { name: '', email: '', phone: '' }; // Clear form for new user
@@ -86,8 +172,8 @@ const bulkDelete = async () => {
       params: { ids: selectedUserBox.value },
     });
     toaster.success('Users deleted successfully!');
-    selectedUserBox.value =[];
-    selectAll.value =false;
+    selectedUserBox.value = [];
+    selectAll.value = false;
     getUsers();
   } catch (error) {
     toaster.error('Failed to delete users');
@@ -136,39 +222,69 @@ onMounted(() => {
       <div class="container">
         <h2 class="text-center mb-4">User Management</h2>
         <div class="text-right mb-4">
-          <div class="d-flex justify-content-between align-items mb-3">
-            
-          
-            <!-- Add User Button -->
-            <div class="row mb-3">
-              <div class="col-12 d-flex flex-wrap justify-content-end gap-2">
-                <!-- Add User Button -->
-                <button class="btn btn-primary btn-sm d-flex align-items-center gap-1 px-3 py-2" title="Add User"
-                  @click="openModal">
-                  <i class="fas fa-plus-circle"></i>
-                  <span>Add User</span>
-                </button>
+          <div class="d-flex justify-content-between align-items-center mb-3">
 
-                <!-- Delete Users Button -->
-                 <div v-if="selectedUserBox.length > 0" class="row ml-2">
-                   <button  @click="bulkDelete"
-                     class="btn btn-danger btn-sm d-flex align-items-center gap-1 px-3 py-2 ml-1" title="Delete Users">
-                     <i class="fas fa-trash-alt mr-1"></i>
-                     <span >Delete Users</span>
-                   </button>
-                   <span class="ml-2 mt-1"> selected ({{ selectedUserBox.length }}) users</span>
-                 </div>
+            <!-- Actions -->
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+              <!-- Add User Button -->
+              <button class="btn btn-primary btn-sm d-flex align-items-center gap-1 px-3 mb-4 py-2" title="Add User"
+                @click="openModal">
+                <i class="fas fa-plus-circle"></i>
+                <span>Add User</span>
+              </button>
+
+              <!-- Delete Users Button -->
+              <div v-if="selectedUserBox.length > 0">
+                <button @click="bulkDelete" class="btn btn-danger btn-sm d-flex align-items-center gap-1 px-3 ml-2 py-2"
+                  title="Delete Users">
+                  <i class="fas fa-trash-alt mr-1"></i>
+                  <span>Delete Users</span>
+                </button>
+                <span class="ml-2 mt-1 small-text">{{ selectedUserBox.length }} selected</span>
               </div>
             </div>
+
+            <!-- Search and Import -->
+            <div class="d-flex flex-column align-items-end">
               <!-- Search Bar -->
-              <div class="mb-1">
-              <input type="text" class="form-control" v-model="searchQuery" placeholder="Search users" />
+              <div class="mb-2">
+                <input type="text" class="form-control" v-model="searchQuery" placeholder="Search users" />
+              </div>
+
+              <!-- File Upload -->
+              <div class="d-flex flex-column align-items-center">
+
+                <div v-if="loading" class="loading-indicator text-center mb-3">
+                  <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden"></span>
+                  </div>
+                  <span class="ml-2">Importing users...</span>
+                </div>
+
+                <div class="custom-file mb-3 " style="width: 200px; margin-left: 160px;">
+                  <label for="fileUpload" class="btn btn-primary w-100 premium-file-button">
+                    <i class="fas fa-file-upload mr-2"></i> Choose File
+                  </label>
+                  <input ref="fileInput" type="file" accept=".csv,.xlsx" @change="handleFileChange"
+                    class="custom-file-input d-none" id="fileUpload">
+                </div>
+                <div class="d-flex justify-content-between align-items-center ml-5 pl-5 ">
+                  <button @click="uploadFile" :disabled="loading || !file" class="btn btn-success mr-2 ml-5">
+                    Import Users
+                  </button>
+                  <button @click="exportUsers" class="btn btn-primary">
+                    Export File
+                  </button>
+                </div>
+
+
+              </div>
             </div>
 
             <!-- Loading Indicator -->
             <div v-if="isLoading" class="text-center">
               <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden"></span>
+                <span class="visually-hidden">Loading...</span>
               </div>
             </div>
 
@@ -224,5 +340,44 @@ onMounted(() => {
 
 .btn-sm {
   padding: 0.25rem 0.5rem;
+}
+
+.custom-file-label::after {
+  content: "Browse";
+}
+
+.premium-file-button {
+  display: inline-block;
+  font-weight: 600;
+  text-align: center;
+  vertical-align: middle;
+  user-select: none;
+  border: 1px solid transparent;
+  padding: 0.375rem 0.75rem;
+  font-size: 1rem;
+  line-height: 1.5;
+  border-radius: 0.25rem;
+  transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  color: #fff;
+  background-color: #007bff;
+  border-color: #007bff;
+}
+
+.premium-file-button:hover {
+  color: #fff;
+  background-color: #0069d9;
+  border-color: #0062cc;
+}
+
+.custom-file-input.d-none {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 </style>
