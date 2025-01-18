@@ -15,8 +15,9 @@ class UserController extends Controller
      */
     public function index()
     {
-        // Fetch all users from the database
-        $users = User::paginate(2);
+        // Fetch all users that are not soft-deleted
+        $users = User::where('deleted_at',null)
+        ->paginate(2);
     
         // Return the collection wrapped in a resource
         return UserResource::collection($users);  // Wrap collection with resource transformation

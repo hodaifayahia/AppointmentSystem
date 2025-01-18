@@ -30,13 +30,6 @@ const props = defineProps({
   }
 });
 
-// Format time to H:i format
-const formatTime = (time) => {
-  if (!time) return '';
-  const [hours, minutes] = time.split(':');
-  return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
-};
-
 // Initialize schedules with reactive
 const schedules = reactive(
   daysOfWeek.reduce((acc, day) => ({
@@ -58,29 +51,34 @@ const resetSchedules = () => {
   });
 };
 
-// Improved populate function
+// Enhanced populate function with better data handling
 const populateSchedules = (existingSchedules) => {
-  if (!Array.isArray(existingSchedules) || existingSchedules.length === 0) return;
+  if (!Array.isArray(existingSchedules) || existingSchedules.length === 0) {
+    resetSchedules();
+    return;
+  }
 
+  // First reset all schedules to ensure clean state
   resetSchedules();
 
+  // Then populate with existing data
   existingSchedules.forEach(schedule => {
-    const day = schedule.day_of_week.charAt(0).toUpperCase() + schedule.day_of_week.slice(1);
+    if (!schedule.day_of_week) return;
     
-    if (schedules[day] && schedule.is_active) {
-      const shift = schedule.shift_period.toLowerCase();
-      if (schedules[day][shift]) {
-        schedules[day][shift] = {
-          isActive: true,
-          startTime: formatTime(schedule.start_time),
-          endTime: formatTime(schedule.end_time)
-        };
-      }
+    const day = schedule.day_of_week.charAt(0).toUpperCase() + schedule.day_of_week.slice(1).toLowerCase();
+    const shift = schedule.shift_period.toLowerCase();
+    
+    if (schedules[day] && (shift === 'morning' || shift === 'afternoon')) {
+      schedules[day][shift] = {
+        isActive: true,
+        startTime: schedule.start_time ? schedule.start_time.slice(0, 5) : schedules[day][shift].startTime,
+        endTime: schedule.end_time ? schedule.end_time.slice(0, 5) : schedules[day][shift].endTime,
+      };
     }
   });
 };
 
-// Watch for existingSchedules changes
+// Watch for existingSchedules changes with immediate effect
 watch(
   () => props.existingSchedules,
   (newSchedules) => {
@@ -91,19 +89,6 @@ watch(
   { immediate: true, deep: true }
 );
 
-// Form validation setup
-const { values, errors } = useForm({
-  initialValues: schedules,
-  validationSchema: yup.object().shape({
-    schedules: yup.array().min(1, "At least one schedule is required"),
-    patients_based_on_time: yup.boolean().required(),
-    time_slot: yup.number().when('patients_based_on_time', {
-      is: true,
-      then: yup.number().required('Time slot is required when scheduling by time'),
-    }),
-  }),
-});
-
 // Calculate patients per shift
 const calculatePatientsPerDay = (startTime, endTime, slot) => {
   if (!startTime || !endTime || !slot) return 0;
@@ -113,57 +98,59 @@ const calculatePatientsPerDay = (startTime, endTime, slot) => {
   return Math.floor(totalMinutes / slot);
 };
 
-// Watch for schedule changes and emit updates with formatted times
+const emitScheduleUpdates = () => {
+  const schedulesData = Object.entries(schedules)
+    .flatMap(([day, shifts]) => {
+      const records = [];
+      if (shifts.morning.isActive) {
+        records.push({
+          day_of_week: day.toLowerCase(),
+          shift_period: 'morning',
+          start_time: shifts.morning.startTime,
+          end_time: shifts.morning.endTime,
+          is_active: true,
+          number_of_patients_per_day: props.patients_based_on_time
+            ? calculatePatientsPerDay(shifts.morning.startTime, shifts.morning.endTime, props.time_slot || 30)
+            : props.number_of_patients_per_day,
+        });
+      }
+      if (shifts.afternoon.isActive) {
+        records.push({
+          day_of_week: day.toLowerCase(),
+          shift_period: 'afternoon',
+          start_time: shifts.afternoon.startTime,
+          end_time: shifts.afternoon.endTime,
+          is_active: true,
+          number_of_patients_per_day: props.patients_based_on_time
+            ? calculatePatientsPerDay(shifts.afternoon.startTime, shifts.afternoon.endTime, props.time_slot || 30)
+            : props.number_of_patients_per_day,
+        });
+      }
+      return records;
+    })
+    .filter(record => record !== null);
+
+  emit('schedulesUpdated', schedulesData);
+  emit('update:modelValue', { schedules: schedulesData });
+};
+
+// Watch schedules for changes
 watch(
   schedules,
-  (newSchedules) => {
-    const schedulesData = Object.entries(newSchedules)
-      .flatMap(([day, shifts]) => {
-        const records = [];
-        if (shifts.morning.isActive) {
-          records.push({
-            day_of_week: day.toLowerCase(),
-            shift_period: 'morning',
-            start_time: formatTime(shifts.morning.startTime),
-            end_time: formatTime(shifts.morning.endTime),
-            is_active: true,
-            number_of_patients_per_day: props.patients_based_on_time
-              ? calculatePatientsPerDay(shifts.morning.startTime, shifts.morning.endTime, props.time_slot)
-              : props.number_of_patients_per_day,
-          });
-        }
-        if (shifts.afternoon.isActive) {
-          records.push({
-            day_of_week: day.toLowerCase(),
-            shift_period: 'afternoon',
-            start_time: formatTime(shifts.afternoon.startTime),
-            end_time: formatTime(shifts.afternoon.endTime),
-            is_active: true,
-            number_of_patients_per_day: props.patients_based_on_time
-              ? calculatePatientsPerDay(shifts.afternoon.startTime, shifts.afternoon.endTime, props.time_slot)
-              : props.number_of_patients_per_day,
-          });
-        }
-        return records;
-      })
-      .filter(record => record !== null);
-
-    emit('schedulesUpdated', schedulesData);
-    emit('update:modelValue', { schedules: schedulesData });
+  () => {
+    emitScheduleUpdates();
   },
   { deep: true }
 );
 
 // Handle time input changes
 const handleTimeChange = (day, shift, type, event) => {
-  const time = formatTime(event.target.value);
+  const time = event.target.value;
   schedules[day][shift][type] = time;
+  emitScheduleUpdates();
 };
 </script>
-
 <template>
-  <!-- Previous template code remains the same until the time inputs -->
-  
   <div class="card">
     <div class="card-header">
       <h2 class="card-title">
@@ -173,10 +160,6 @@ const handleTimeChange = (day, shift, type, event) => {
     </div>
     
     <div class="card-body">
-      <div v-if="errors.schedules" class="alert alert-danger">
-        {{ errors.schedules }}
-      </div>
-      
       <div v-for="day in daysOfWeek" :key="day" class="mb-4 p-3 border rounded">
         <h3 class="mb-3">{{ day }}</h3>
         
@@ -257,23 +240,20 @@ const handleTimeChange = (day, shift, type, event) => {
 </template>
 
 <style scoped>
-.modal.show {
-  display: block;
-  background-color: rgba(0, 0, 0, 0.5);
+.card-title {
+  font-size: 1.25rem;
+  margin-bottom: 0;
 }
 
-.input-group {
-  display: flex;
-  align-items: center;
+.form-check-input {
+  margin-right: 0.5rem;
 }
 
-.invalid-feedback {
-  display: block;
-  color: red;
-  font-size: 0.875rem;
+.border {
+  border-color: #dee2e6;
 }
 
-.modal-dialog {
-  max-width: 800px;
+.form-control {
+  height: calc(1.5em + 0.75rem + 2px);
 }
 </style>

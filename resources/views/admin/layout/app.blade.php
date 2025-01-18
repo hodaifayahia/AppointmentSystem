@@ -148,6 +148,13 @@
                         </p>
                     </router-link>
                 </li>
+                {{-- <li class="nav-item">
+                    <router-link to="/admin/specializations" active-class="active" class="nav-link">
+                      <i class="nav-icon fas fa-briefcase"></i>                        <p>
+                          Execloaded
+                        </p>
+                    </router-link>
+                </li> --}}
                 <li class="nav-item">
                   <router-link to="/admin/settings" active-class="active" class="nav-link">
                       <i class="nav-icon fas fa-cogs"></i>

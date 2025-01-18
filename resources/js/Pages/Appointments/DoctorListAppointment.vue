@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue';
-import { useRoute ,useRouter} from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 import axios from 'axios';
 
@@ -22,9 +22,9 @@ const getDoctors = async () => {
       params: { query: specializationId },
     });
     doctors.value = response.data.data;
-    
+
     // Fetch appointments for each doctor
-    doctors.value.forEach(doctor => {      
+    doctors.value.forEach(doctor => {
       fetchAvailableAppointments(doctor.id);
     });
   } catch (error) {
@@ -37,7 +37,7 @@ const getDoctors = async () => {
 
 const goToAppointmentPage = (doctor) => {
   console.log();
-  
+
   router.push({
     name: 'admin.appointments',
     params: { id: doctor.id }, // Pass d ID
@@ -59,7 +59,7 @@ const debouncedSearch = (() => {
           params: { query: searchQuery.value },
         });
         doctors.value = response.data.data;
-      
+
       } catch (error) {
         toaster.error('Failed to search doctors');
         console.error('Error searching doctors:', error);
@@ -162,14 +162,12 @@ onMounted(() => {
               @click="goToAppointmentPage(doctor)">
               <!-- Doctor Image -->
               <div class="p-3">
-                <div class="rounded-circle mx-auto border border-primary shadow"
+                <div class="rounded-circle mx-auto border border-primary shadow bg-cover"
                   style="width: 120px; height: 120px; overflow: hidden;">
-                  <img  :src="`${doctor.avatar}`" :alt="`Photo for ${doctor.name}`"
-                    class="img-thumbnail rounded-pill" />
-                 
+                  <img :src="`${doctor.avatar}`" :alt="`Photo for ${doctor.name}`"
+                    style="width: 100%; height: 100%; object-fit: cover; object-position: center;" />
                 </div>
               </div>
-
               <!-- Card Body -->
               <div class="card-body bg-light">
                 <!-- Doctor Name -->
@@ -182,10 +180,10 @@ onMounted(() => {
                 <p class="card-text text-primary fw-bold mb-0" v-if="availableAppointments[doctor.id]">
                   <strong>Nest Appointment:</strong>
                   {{ availableAppointments[doctor.id].normal_appointments
-                  &&availableAppointments[doctor.id].normal_appointments.date ?
-                  availableAppointments[doctor.id].normal_appointments.date + ' at ' +
-                  availableAppointments[doctor.id].normal_appointments.time :
-                  'No upcoming appointments'
+                    && availableAppointments[doctor.id].normal_appointments.date ?
+                    availableAppointments[doctor.id].normal_appointments.date + ' at ' +
+                    availableAppointments[doctor.id].normal_appointments.time :
+                    'No upcoming appointments'
                   }}
                 </p>
                 <!-- Soonest Appointment -->
@@ -222,7 +220,7 @@ onMounted(() => {
 
 .card-title {
   font-size: 1rem;
- 
+
 }
 
 .card-text {

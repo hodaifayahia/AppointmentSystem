@@ -51,14 +51,24 @@ const getAppointments = async (status = null) => {
 // Fetch appointment statuses
 const getAppointmentsStatus = async () => {
   try {
-    const response = await axios.get('/api/appointmentStatus');
+    loading.value = true; // Set loading state
+    error.value = null; // Clear any previous errors
+
+    // Debugging: Verify doctorId
+    console.log('Sending doctorId:', doctorId);
+
+    // Only include doctorId in the URL path
+    const response = await axios.get(`/api/appointmentStatus/${doctorId}`);
+
     statuses.value = [
-      { name: 'ALL', value: null, color: 'secondary', icon: 'fas fa-list' },
-      ...response.data
+      { name: 'ALL', value: null, color: 'secondary', icon: 'fas fa-list' }, // Default "ALL" option
+      ...response.data // Spread the response data into the array
     ];
   } catch (err) {
     console.error('Error fetching appointment statuses:', err);
-    error.value = 'Failed to load status filters';
+    error.value = 'Failed to load status filters. Please try again later.'; // User-friendly error message
+  } finally {
+    loading.value = false; // Reset loading state
   }
 };
 
@@ -85,7 +95,7 @@ watch(
 );
 
 onMounted(() => {
-  getAppointmentsStatus();
+  getAppointmentsStatus(doctorId);
   getAppointments();
 });
 </script>

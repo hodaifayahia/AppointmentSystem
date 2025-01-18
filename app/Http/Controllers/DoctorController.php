@@ -37,7 +37,92 @@ class DoctorController extends Controller
         return DoctorResource::collection($doctors);
     }
     
+  
+public function WorkingDates(Request $request)
+{
+    $id = $request->query('id'); // Get the id parameter (optional)
+    $month = $request->query('month'); // Get the month parameter (e.g., '2023-10')
 
+    // Base query to fetch doctors
+    $doctorsQuery = Doctor::whereHas('user', function ($query) {
+        $query->where('role', 'doctor');
+    })
+    ->with(['user', 'specialization', 'schedules' => function ($query) use ($month) {
+        if ($month) {
+            // Filter schedules for the provided month
+            $query->whereYear('date', '=', substr($month, 0, 4))
+                  ->whereMonth('date', '=', substr($month, 5, 2));
+        }
+    }]);
+
+    // Apply id filter if provided
+    if ($id) {
+        $doctorsQuery->where('id', $id);
+    }
+
+    // Fetch the doctors
+    $doctors = $doctorsQuery->get();
+
+    // Transform the results
+    $transformedDoctors = $doctors->map(function ($doctor) use ($month) {
+        return $this->transformDoctor($doctor, $month);
+    });
+
+    return response()->json([
+        'data' => $transformedDoctors,
+    ]);
+}
+
+private function transformDoctor($doctor, $month)
+{
+    $workingDates = [];
+
+    // Fetch schedules directly from the Schedule model
+    $schedules = Schedule::where('doctor_id', $doctor->id)->get();
+
+    // Debugging: Check fetched schedules
+
+    // If schedules exist, extract the dates
+    if ($schedules->isNotEmpty()) {
+        $workingDates = $this->getWorkingDatesForMonth($schedules, $month);
+    }
+
+    return [
+        'id' => $doctor->id,
+        'name' => $doctor->user->name,
+        'specialization' => $doctor->specialization->name,
+        'working_dates' => $workingDates,
+    ];
+}
+private function getWorkingDatesForMonth($schedules, $month): array
+{
+    $workingDates = [];
+
+    // Parse the month into year and month
+    $year = substr($month, 0, 4);
+    $monthNumber = substr($month, 5, 2);
+
+    foreach ($schedules as $schedule) {
+        if (!empty($schedule->date)) {
+            // If a specific date is provided, use it as a working date
+            $workingDates[] = $schedule->date;
+        } else {
+            // If no specific date is provided, generate dates based on the day_of_week
+            $dayOfWeek = $schedule->day_of_week;
+            $currentMonth = Carbon::create($year, $monthNumber, 1)->startOfMonth();
+            $endOfMonth = Carbon::create($year, $monthNumber, 1)->endOfMonth();
+
+            while ($currentMonth->lte($endOfMonth)) {
+                if ($currentMonth->isDayOfWeek($dayOfWeek)) {
+                    $workingDates[] = $currentMonth->toDateString();
+                }
+                $currentMonth->addDay();
+            }
+        }
+    }
+
+    return $workingDates;
+}
 
     /**
      * Show the form for creating a new resource.
@@ -52,6 +137,7 @@ class DoctorController extends Controller
      */
     public function store(Request $request)
     {
+        
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
@@ -66,10 +152,10 @@ class DoctorController extends Controller
             'customDates' => 'array|required_without:schedules',
             'schedules.*.day_of_week' => 'required|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
             'schedules.*.shift_period' => 'required|in:morning,afternoon',
-            'schedules.*.start_time' => 'required|date_format:H:i',
-            'schedules.*.end_time' => 'required|date_format:H:i|after:schedules.*.start_time',
+            'schedules.*.start_time' => 'required',
+            'schedules.*.end_time' => 'required|after:schedules.*.start_time',
             'schedules.*.number_of_patients_per_day' => 'required|integer|min:1',
-            // 'customDates.*.date' => 'required|date|after_or_equal:today',
+            'customDates.*.date' => 'required|date|after_or_equal:today',
             'customDates.*.morningStartTime' => 'nullable|required_with:customDates.*.morningEndTime|date_format:H:i',
             'customDates.*.morningEndTime' => 'nullable|required_with:customDates.*.morningStartTime|date_format:H:i',
             'customDates.*.afternoonStartTime' => 'nullable|required_with:customDates.*.afternoonEndTime|date_format:H:i',
@@ -128,44 +214,35 @@ class DoctorController extends Controller
     }
     
     private function createCustomSchedules(Request $request, Doctor $doctor)
-    {
-        $customSchedules = [];
-        
-        foreach ($request->customDates as $dateInfo) {
-            $date = Carbon::parse($dateInfo['date']);
-            $dayOfWeek = DayOfWeekEnum::from(strtolower($date->englishDayOfWeek))->value;
-    
-            if (!empty($dateInfo['morningStartTime'])) {
-                $customSchedules[] = $this->prepareScheduleData(
-                    $doctor,
-                    $date,
-                    'morning',
-                    $dateInfo['morningStartTime'],
-                    $dateInfo['morningEndTime'],
-                    $dayOfWeek,
-                    $dateInfo['morningPatients'] ?? null,
-                    $request
-                );
-            }
-    
-            if (!empty($dateInfo['afternoonStartTime'])) {
-                $customSchedules[] = $this->prepareScheduleData(
-                    $doctor,
-                    $date,
-                    'afternoon',
-                    $dateInfo['afternoonStartTime'],
-                    $dateInfo['afternoonEndTime'],
-                    $dayOfWeek,
-                    $dateInfo['afternoonPatients'] ?? null,
-                    $request
-                );
-            }
-        }
-    
-        if (!empty($customSchedules)) {
-            Schedule::insert($customSchedules);
-        }
+{
+    $customSchedules = [];
+
+    // Loop through each custom date in the request
+    foreach ($request->customDates as $dateInfo) {
+        // Parse the date
+        $date = Carbon::parse($dateInfo['date']);
+
+        // Determine the day of the week
+        $dayOfWeek = DayOfWeekEnum::from(strtolower($dateInfo['day_of_week']))->value;
+
+        // Prepare schedule data based on the shift period
+        $customSchedules[] = $this->prepareScheduleData(
+            $doctor,
+            $date,
+            $dateInfo['shift_period'], // 'morning' or 'afternoon'
+            $dateInfo['start_time'],   // Start time
+            $dateInfo['end_time'],     // End time
+            $dayOfWeek,                // Day of the week
+            $dateInfo['number_of_patients_per_day'], // Number of patients
+            $request
+        );
     }
+
+    // Insert all custom schedules into the database
+    if (!empty($customSchedules)) {
+        Schedule::insert($customSchedules);
+    }
+}
     
     private function createRegularSchedules(Request $request, Doctor $doctor)
     {
@@ -253,10 +330,10 @@ class DoctorController extends Controller
             'customDates' => 'array|required_without:schedules',
             'schedules.*.day_of_week' => 'required|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
             'schedules.*.shift_period' => 'required|in:morning,afternoon',
-            'schedules.*.start_time' => 'required|date_format:H:i',
-            'schedules.*.end_time' => 'required|date_format:H:i|after:schedules.*.start_time',
+            'schedules.*.start_time' => 'required',
+            'schedules.*.end_time' => 'required|after:schedules.*.start_time',
             'schedules.*.number_of_patients_per_day' => 'required|integer|min:1',
-            'customDates.*.date' => 'required|date|after_or_equal:today',
+            // 'customDates.*.date' => 'required|date|after_or_equal:today',
             'customDates.*.morningStartTime' => 'nullable|required_with:customDates.*.morningEndTime|date_format:H:i',
             'customDates.*.morningEndTime' => 'nullable|required_with:customDates.*.morningStartTime|date_format:H:i|after:customDates.*.morningStartTime',
             'customDates.*.afternoonStartTime' => 'nullable|required_with:customDates.*.afternoonEndTime|date_format:H:i',
@@ -315,6 +392,7 @@ class DoctorController extends Controller
                 $doctor->schedules()->delete();
     
                 // Create new schedules
+
                 if ($request->has('customDates')) {
                     $this->createCustomSchedules($request, $doctor);
                 } elseif ($request->has('schedules')) {
@@ -391,7 +469,6 @@ class DoctorController extends Controller
     public function storeSchedules($id, Request $request)
     {
 
-        dd($request->all());
         // Validate the request
         $validatedData = $request->validate([
             'schedules' => 'required|array',
@@ -446,9 +523,21 @@ class DoctorController extends Controller
     public function destroy(Request $request)
     {
         try {
-            // Fetch the user by ID from the request
-            $user = User::find($request->id);
-            
+            // Fetch the doctor by ID from the request
+            $doctor = Doctor::find($request->id);
+    
+            if (!$doctor) {
+                return response()->json(['error' => 'Doctor not found'], 404);
+            }
+    
+            // Get the user_id associated with the doctor
+            $userId = $doctor->user_id;
+    
+            // Delete the doctor
+            $doctor->delete();
+            // Fetch the user by user_id
+            $user = User::find($userId);
+    
             if (!$user) {
                 return response()->json(['error' => 'User not found'], 404);
             }
@@ -456,34 +545,30 @@ class DoctorController extends Controller
             // Delete the user
             $user->delete();
     
-            // Fetch the doctor associated with the user
-            $doctor = Doctor::where('user_id', $request->id)->first();
-    
-            // Delete the doctor if it exists
-            if ($doctor) {
-                $doctor->delete();
-            }
-    
             // Return no content response to signify successful operation
             return response()->noContent();
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
-    
     public function bulkDelete(Request $request)
     {
         try {
-            // Delete users
-            User::whereIn('id', $request->ids)->delete();
+            // Fetch the user_ids associated with the doctor IDs
+            $userIds = Doctor::whereIn('id', $request->ids)->pluck('user_id');
     
-            // Delete doctors associated with the users in one query
-            $doctorsDeleted = Doctor::whereIn('user_id', $request->ids)->delete();
+            // Delete doctors
+            $doctorsDeleted = Doctor::whereIn('id', $request->ids)->delete();
     
-            // Return response with the count of deleted doctors
-            return response()->json(['message' => "$doctorsDeleted doctors deleted successfully"]);
+            // Delete users associated with the doctors
+            $usersDeleted = User::whereIn('id', $userIds)->delete();
+    
+            // Return response with the count of deleted doctors and users
+            return response()->json([
+                'message' => "$doctorsDeleted doctors and $usersDeleted users deleted successfully"
+            ]);
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Error deleting doctors'], 500);
+            return response()->json(['message' => 'Error deleting doctors and users'], 500);
         }
     }
 

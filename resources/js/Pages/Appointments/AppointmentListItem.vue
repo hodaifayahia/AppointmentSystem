@@ -25,14 +25,14 @@ const props = defineProps({
         type: String,
         required: false
     },
-    pagination:{
-        
+    pagination: {
+
     }
-   
+
 });
 
 
-const emit = defineEmits(['getAppointments' ,"updateAppointment" ,'updateStatus']);
+const emit = defineEmits(['getAppointments', "updateAppointment", 'updateStatus']);
 const toastr = useToastr();
 const router = useRouter();
 
@@ -43,6 +43,7 @@ const searchQuery = ref("");
 const isLoading = ref(false);
 const localAppointments = ref(props.appointments);
 const localPagination = ref(props.pagination);
+const selectedDate = ref('');
 
 
 const formatDate = (dateString) => {
@@ -90,8 +91,8 @@ const updateAppointmentStatus = async (appointmentId, newStatus) => {
         console.error('Error updating status:', err);
     }
 };
-    
- 
+
+
 // Watch for props changes
 watch(() => props.appointments, (newVal) => {
     localAppointments.value = newVal;
@@ -103,7 +104,7 @@ watch(() => props.pagination, (newVal) => {
 
 const getAppointmentsStatus = async () => {
     try {
-        const response = await axios.get(`/api/appointmentStatus`);
+        const response = await axios.get(`/api/appointmentStatus/${props.doctorId}`);
         statuses.value = response.data;
     } catch (err) {
         error.value = 'Failed to load appointment statuses';
@@ -112,10 +113,10 @@ const getAppointmentsStatus = async () => {
 };
 
 const goToEditAppointmentPage = (appointment) => {
-  router.push({
-    name: 'admin.appointments.edit',
-    params: { doctorId: props.doctorId, appointmentId: appointment.id }
-  });
+    router.push({
+        name: 'admin.appointments.edit',
+        params: { doctorId: props.doctorId, appointmentId: appointment.id }
+    });
 };
 const getStatusOption = (statusName) => {
     return statuses.value.find(option => option.name === statusName) ||
@@ -123,13 +124,29 @@ const getStatusOption = (statusName) => {
 };
 
 const deleteAppointment = async (id) => {
-    
+
     if (!confirm('Are you sure you want to delete this appointment?')) return;
     try {
         await axios.delete(`/api/appointments/${id}`);
         emit('updateAppointment');
     } catch (err) {
         console.error('Error deleting appointment:', err);
+    }
+};
+const applyDateFilter = async () => {
+    if (selectedDate.value) {
+        isLoading.value = true;
+        try {
+            // Emit the selected date to the parent component
+            emit('filterByDate', selectedDate.value);
+        } catch (err) {
+            error.value = 'Failed to filter appointments by date.';
+        } finally {
+            isLoading.value = false;
+        }
+    } else {
+        // If no date is selected, emit null to reset the filter
+        emit('filterByDate', null);
     }
 };
 const debouncedSearch = (() => {
@@ -177,20 +194,21 @@ onMounted(() => {
 
             <!-- Search Bar -->
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="fw-bold mb-0"></h5>
+                <!-- Date Filter -->
+                <div class="input-group w-25 me-2">
+                    <input type="date" class="form-control rounded-start" v-model="selectedDate"
+                        aria-label="Filter by date" />
+                    <button class="btn btn-outline-primary" type="button" @click="applyDateFilter"
+                        :disabled="isLoading">
+                        <i class="fas fa-filter"></i>
+                    </button>
+                </div>
+
+                <!-- Search Bar -->
                 <div class="input-group w-50">
-                    <input 
-                        type="text" 
-                        class="form-control rounded-start" 
-                        v-model="searchQuery"
-                        placeholder="Search by patient name or date of birth" 
-                        aria-label="Search" 
-                    />
-                    <button 
-                        class="btn btn-outline-primary" 
-                        type="button" 
-                        :disabled="isLoading"
-                    >
+                    <input type="text" class="form-control rounded-start" v-model="searchQuery"
+                        placeholder="Search by patient name or date of birth" aria-label="Search" />
+                    <button class="btn btn-outline-primary" type="button" :disabled="isLoading">
                         <i class="fas" :class="{ 'fa-search': !isLoading, 'fa-spinner fa-spin': isLoading }"></i>
                     </button>
                 </div>
@@ -236,7 +254,7 @@ onMounted(() => {
                                     <span class="status-indicator"
                                         :class="getStatusOption(appointment.status?.name).color"></span>
                                     <span :class="`text-${appointment.status.color}`">
-                                        <i :class="[`text-${appointment.status.color}`, appointment.status.icon ]"
+                                        <i :class="[`text-${appointment.status.color}`, appointment.status.icon]"
                                             class="fa-lg ml-1"></i>
                                         {{ getStatusText(appointment.status) }}
                                     </span>
@@ -259,7 +277,8 @@ onMounted(() => {
                         </td>
                         <td>
                             <div class="d-flex gap-2">
-                                <button @click="goToEditAppointmentPage(appointment)" class="btn btn-sm btn-outline-primary">
+                                <button @click="goToEditAppointmentPage(appointment)"
+                                    class="btn btn-sm btn-outline-primary">
                                     <i class="fas fa-edit"></i>
                                 </button>
                                 <button @click="deleteAppointment(appointment.id)"
@@ -282,10 +301,14 @@ onMounted(() => {
 
 <style scoped>
 .dropdown-item:hover {
-    background-color: #0080f0; /* Light blue background */
-    color: #000; /* Text color */
-    transition: background-color 0.2s ease; /* Smooth transition */
+    background-color: #0080f0;
+    /* Light blue background */
+    color: #000;
+    /* Text color */
+    transition: background-color 0.2s ease;
+    /* Smooth transition */
 }
+
 .status-indicator {
     width: 12px;
     height: 12px;

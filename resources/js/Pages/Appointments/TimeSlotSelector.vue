@@ -33,7 +33,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['update:modelValue', 'timeSelected']);
+const emit = defineEmits(['update:modelValue', 'timeSelected', 'availabilityChecked']);
 
 const slots = ref([]);
 const loading = ref(false);
@@ -84,6 +84,12 @@ const fetchTimeSlots = async () => {
         include_slots: true,
       }
     });
+    
+    // Emit the availability check result to parent
+    emit('availabilityChecked', {
+      hasSlots: !!response.data.available_slots,
+      nextAvailableDate: response.data.next_available_date
+    });
 
     if (response.data.available_slots) {
       const availableSlots = Array.isArray(response.data.available_slots) 
@@ -96,11 +102,13 @@ const fetchTimeSlots = async () => {
         isDeleted: false
       }));
     } else {
-      error.value = 'No available slots found';
+      error.value = 'No available slots for this date';
+      slots.value = [];
     }
   } catch (err) {
     console.error('Error fetching time slots:', err);
     error.value = err.message || 'An error occurred while fetching time slots.';
+    slots.value = [];
   } finally {
     loading.value = false;
   }
@@ -133,7 +141,7 @@ watch(() => props.modelValue, (newValue) => {
     </div>
     
     <div v-else-if="slots.length === 0" class="py-4">
-      No time slots available for this day.
+      No time slots available for this date.
     </div>
     
     <div v-else class="grid grid-cols-4 gap-2">

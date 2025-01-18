@@ -22,6 +22,7 @@ class AppointmentResource extends JsonResource
         'patient_Date_Of_Birth' => $this->patient->dateOfBirth ?? 'Unknown',
         'phone' => $this->patient->phone ?? 'N/A',
         'doctor_name' => optional($this->doctor->user)->name ?? 'Unknown',
+        'doctor_id' => $this->doctor->id ?? 'Unknown',
         'appointment_date' => $this->appointment_date,
         'appointment_time' => $this->appointment_time,
         'description' => $this->notes,

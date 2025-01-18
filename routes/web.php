@@ -37,7 +37,7 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/api/doctors/{doctorid}', [DoctorController::class, 'destroy'])->name('users.destroy');
     Route::delete('/api/doctors', [DoctorController::class, 'bulkDelete'])->name('users.bulkDelete');
     Route::get('/api/doctors/search', [DoctorController::class, 'search'])->name('users.search');
-    Route::get('/api/doctors/{doctorid}', [DoctorController::class, 'specificDoctor']);
+    Route::get('/api/doctors/WorkingDates', [DoctorController::class, 'WorkingDates']);
     
     // Specializations Routes
     Route::get('/api/specializations', [specializationsController::class, 'index']);
@@ -49,11 +49,14 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/api/appointments/search', [AppointmentController::class, 'search']);
     Route::get('/api/appointments/checkAvailability', [AppointmentController::class, 'checkAvailability']);
     Route::get('/api/appointments/available', [AppointmentController::class, 'AvailableAppointments']);
-    Route::get('/api/appointmentStatus', [AppointmentStatus::class, 'appointmentStatus']);
+    Route::get('/api/appointmentStatus/{doctorid}', [AppointmentStatus::class, 'appointmentStatus']);
+    Route::get('/api/todaysAppointments/{doctorid}', [AppointmentStatus::class, 'todaysAppointments']);
     Route::get('/api/appointments/ForceSlots', [AppointmentController::class, 'ForceAppointment']);
     Route::get('/api/appointments/{doctorid}', [AppointmentController::class, 'index']);
+    Route::get('/api/appointments/{doctorId}/filter-by-date', [AppointmentController::class, 'filterByDate']);
     Route::patch('/api/appointment/{appointmentId}/status', [AppointmentController::class, 'changeAppointmentStatus']);
     Route::post('/api/appointments', [AppointmentController::class, 'store']);
+    Route::get('/api/appointments', [AppointmentController::class, 'GetAllAppointments']);
     Route::put('/api/appointments/{appointmentid}', [AppointmentController::class, 'update']);
     Route::get('/api/appointments/{doctorId}/{appointmentId}', [AppointmentController::class, 'getAppointment']);
     Route::delete('/api/appointments/{appointmentid}', [AppointmentController::class, 'destroy']);

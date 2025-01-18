@@ -171,6 +171,7 @@ const emitUpdate = () => {
     // Morning shift
     if (dateInfo.morningStartTime && dateInfo.morningEndTime) {
       records.push({
+        date:dateInfo.date,
         day_of_week: dayName,
         shift_period: 'morning',
         start_time: dateInfo.morningStartTime,
@@ -183,6 +184,7 @@ const emitUpdate = () => {
     // Afternoon shift
     if (dateInfo.afternoonStartTime && dateInfo.afternoonEndTime) {
       records.push({
+        date:dateInfo.date,
         day_of_week: dayName,
         shift_period: 'afternoon',
         start_time: dateInfo.afternoonStartTime,
@@ -257,11 +259,7 @@ watch(
                   class="form-control form-control-md"
                 />
               </div>
-              <div class="col-12">
-                <small class="text-muted">
-                  Patients: {{ dateInfo.morningPatients }}
-                </small>
-              </div>
+             
             </div>
           </div>
         </div>

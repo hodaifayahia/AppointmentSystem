@@ -14,13 +14,10 @@ const route = useRoute();
 const router = useRouter();
 const doctorId = route.params.id;
 const pagination = ref({});
-
-console.log(doctorId);
-
-
+const todaysAppointmentsCount = ref(0); // New ref for today's appointments count
 
 // Fetch appointments with filters
-const getAppointments = async (status = null) => {
+const getAppointments = async (status = null, filter = null, date = null) => {
   try {
     loading.value = true;
     error.value = null;
@@ -28,12 +25,15 @@ const getAppointments = async (status = null) => {
     currentFilter.value = status || 'ALL';
 
     const params = {
-      status: status === 'ALL' ? null : status
+      status: status === 'ALL' ? null : status,
+      filter: filter, // Pass the filter parameter
+      date: date, // Pass the date parameter
     };
 
     const response = await axios.get(`/api/appointments/${doctorId}`, { params });
     pagination.value = response.data.meta; // Store meta data for pagination
-
+    console.log(response.data.data);
+    
     if (response.data.success) {
       appointments.value = response.data.data;
     } else {
@@ -47,26 +47,69 @@ const getAppointments = async (status = null) => {
     loading.value = false;
   }
 };
+const handleFilterByDate = (date) => {  
+  if (date) {
+    // Fetch appointments with the selected date
+    getAppointments(currentFilter.value, null, date);
+  } else {
+    // If no date is selected, reset the filter
+    getAppointments(currentFilter.value);
+  }
+};
+const handleGetAppointments = (data) => {
+  appointments.value = data.data; // Update the appointments list
+};
+// Fetch today's appointments
+const getTodaysAppointments = async () => {
+  try {
+    loading.value = true; // Set loading state
+    error.value = null; // Clear any previous errors
 
+    const response = await axios.get(`/api/appointments/${doctorId}`, {
+      params: { filter: 'today' } // Pass filter=today to fetch today's appointments
+    });
+
+    if (response.data.success) {
+      appointments.value = response.data.data;
+      todaysAppointmentsCount.value = response.data.data.length; // Store today's appointments count
+    } else {
+      throw new Error(response.data.message);
+    }
+  } catch (err) {
+    console.error('Error fetching today\'s appointments:', err);
+    error.value = 'Failed to load today\'s appointments. Please try again later.'; // User-friendly error message
+  } finally {
+    loading.value = false; // Reset loading state
+  }
+};
 
 // Fetch appointment statuses
 const getAppointmentsStatus = async () => {
   try {
-    const response = await axios.get('/api/appointmentStatus');
+    loading.value = true; // Set loading state
+    error.value = null; // Clear any previous errors
+
+    const response = await axios.get(`/api/appointmentStatus/${doctorId}`);
+
     statuses.value = [
-      { name: 'ALL', value: null, color: 'secondary', icon: 'fas fa-list' },
-      ...response.data
+      { name: 'ALL', value: null, color: 'secondary', icon: 'fas fa-list' }, // Default "ALL" option
+      ...response.data // Spread the response data into the array
     ];
   } catch (err) {
     console.error('Error fetching appointment statuses:', err);
-    error.value = 'Failed to load status filters';
+    error.value = 'Failed to load status filters. Please try again later.'; // User-friendly error message
+  } finally {
+    loading.value = false; // Reset loading state
   }
 };
+
+
 
 const handleSearchResults = (searchData) => {
   appointments.value = searchData.data;
   pagination.value = searchData.meta;
 };
+
 // Navigate to create appointment page
 const goToAddAppointmentPage = () => {
   router.push({
@@ -88,6 +131,7 @@ watch(
 onMounted(() => {
   getAppointmentsStatus();
   getAppointments();
+  getTodaysAppointments(); // Fetch today's appointments on mount
 });
 </script>
 
@@ -97,7 +141,7 @@ onMounted(() => {
     <div class="p-2">
       <headerDoctorAppointment :doctorId="doctorId" />
     </div>
-    <!--     page-header -->
+    <!-- Content -->
     <div class="content">
       <div class="container-fluid">
         <div class="row">
@@ -111,11 +155,34 @@ onMounted(() => {
 
               <!-- Status Filters -->
               <div class="btn-group" role="group" aria-label="Appointment status filters">
-                <button v-for="status in statuses" :key="status.name" @click="getAppointments(status.value)" :class="[
-                  'btn',
-                  currentFilter === status.name ? `btn-${status.color}` : `btn-outline-${status.color}`,
-                  'btn-sm m-1 rounded'
-                ]">
+                <!-- Today's Appointments Tab -->
+                <button 
+                  @click="getTodaysAppointments" 
+                  :class="[
+                    'btn',
+                    currentFilter === 'TODAY' ? 'btn-info' : 'btn-outline-info',
+                    'btn-sm m-1 rounded'
+                  ]"
+                >
+                  <i class="fas fa-calendar-day"></i>
+                  Today's Appointments
+                  <span class="badge rounded-pill ms-1"
+                    :class="currentFilter === 'TODAY' ? 'bg-light text-dark' : 'bg-info'">
+                    {{ todaysAppointmentsCount }}
+                  </span>
+                </button>
+
+                <!-- Existing Status Filters -->
+                <button 
+                  v-for="status in statuses" 
+                  :key="status.name" 
+                  @click="getAppointments(status.value)" 
+                  :class="[
+                    'btn',
+                    currentFilter === status.name ? `btn-${status.color}` : `btn-outline-${status.color}`,
+                    'btn-sm m-1 rounded'
+                  ]"
+                >
                   <i :class="status.icon"></i>
                   {{ status.name }}
                   <span class="badge rounded-pill ms-1"
@@ -129,7 +196,7 @@ onMounted(() => {
             <!-- Appointments list -->
             <AppointmentListItem :appointments="appointments" :loading="loading" :error="error" :doctor-id="doctorId"
               @update-appointment="getAppointments(currentFilter)" @update-status="getAppointmentsStatus"
-              @get-appointments="handleSearchResults" />
+              @get-appointments="handleSearchResults"  @filterByDate="handleFilterByDate" />
           </div>
         </div>
       </div>

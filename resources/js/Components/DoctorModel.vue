@@ -28,17 +28,17 @@ const showPassword = ref(false);
 const patients_based_on_time = ref(false);
 const number_of_patients_per_day = ref(false);
 const time_slot = ref('');
-
 const doctor = ref({
   id: props.doctorData?.id || null,
   name: props.doctorData?.name || '',
   email: props.doctorData?.email || '',
   phone: props.doctorData?.phone || '',
-  patients_based_on_time: props.doctorData?.patients_based_on_time || '',
-  specialization: props.doctorData?.specialization || 0,  // Changed from 0 to ''
+  patients_based_on_time: props.doctorData?.patients_based_on_time || false,
+  specialization: props.doctorData?.specialization || '',
   frequency: props.doctorData?.frequency || '',
   avatar: props.doctorData?.avatar || null,
-  customDates: [''],// Start with at least one date input
+  customDates: props.doctorData?.customDates || [],
+  schedules: props.doctorData?.schedules || [], // Initialize as empty array
   appointmentBookingWindow: props.doctorData?.appointmentBookingWindow || 1,
   password: ''
 });
@@ -80,17 +80,17 @@ const handleUserUpdate = () => {
   closeModal();
 };
 
-const handleBackendErrors = (error) => {
-  if (error.response?.data?.errors) {
-    Object.entries(error.response.data.errors).forEach(([field, messages]) => {
-      toaster.error(messages[0]);
-    });
-  } else if (error.response?.data?.message) {
-    toaster.error(error.response.data.message);
-  } else {
-    toaster.error('An unexpected error occurred');
-  }
-};
+// const handleBackendErrors = (error) => {
+//   if (error.response?.data?.errors) {
+//     Object.entries(error.response.data.errors).forEach(([field, messages]) => {
+//       toaster.error(messages[0]);
+//     });
+//   } else if (error.response?.data?.message) {
+//     toaster.error(error.response.data.message);
+//   } else {
+//     toaster.error('An unexpected error occurred');
+//   }
+// };
 // Added specialization to validation schema
 const getDoctorSchema = (isEditMode) => {
   const baseSchema = {
@@ -123,32 +123,33 @@ const getDoctorSchema = (isEditMode) => {
 };
 getSpecializations();
 
-// Update the watch function to correctly set specialization
 
+// Watch for changes in doctorData
 watch(
   () => props.doctorData,
   (newValue) => {
-    doctor.value = {
-      id: newValue?.id || null,
-      name: newValue?.name || '',
-      email: newValue?.email || '',
-      phone: newValue?.phone || '',
-      specialization: newValue?.specialization || '',
-      frequency: newValue?.frequency || '',
-      avatar: newValue?.avatar || null,
-      appointmentBookingWindow: newValue?.appointmentBookingWindow || 1,
-      customDates: Array.isArray(newValue?.customDates) ? [...newValue.customDates] : [], // Ensure it's always an array
-      schedules: Array.isArray(newValue?.schedules) ? [...newValue.schedules] : [], // Ensure it's always an array
-      password: ''
-    };
+    if (newValue) {
+      doctor.value = {
+        id: newValue?.id || null,
+        name: newValue?.name || '',
+        email: newValue?.email || '',
+        phone: newValue?.phone || '',
+        specialization: newValue?.specialization || '',
+        frequency: newValue?.frequency || '',
+        avatar: newValue?.avatar || null,
+        appointmentBookingWindow: newValue?.appointmentBookingWindow || 1,
+        customDates: Array.isArray(newValue?.customDates) ? [...newValue.customDates] : [],
+        schedules: Array.isArray(newValue?.schedules) ? [...newValue.schedules] : [],
+        password: ''
+      };
 
-    patients_based_on_time.value = newValue?.patients_based_on_time || false;
-    number_of_patients_per_day.value = newValue?.number_of_patients_per_day || 0;
-    time_slot.value = newValue?.time_slot || '';
+      patients_based_on_time.value = newValue?.patients_based_on_time || false;
+      number_of_patients_per_day.value = newValue?.number_of_patients_per_day || 0;
+      time_slot.value = newValue?.time_slot || '';
+    }
   },
   { immediate: true, deep: true }
 );
-
 
 const calculatePatientsPerDay = (startTime, endTime, timeSlot) => {
   const start = new Date(`2000-01-01 ${startTime}`);
@@ -161,7 +162,15 @@ const calculatePatientsPerDay = (startTime, endTime, timeSlot) => {
 const scheduleData = ref([]);
 
 const handleSchedulesUpdated = (newSchedules) => {
-  scheduleData.value = newSchedules;
+  if (Array.isArray(newSchedules)) {
+    doctor.value.schedules = newSchedules;
+    console.log('Updated Schedules:', doctor.value.schedules); // Debugging
+  } else {
+    console.error('New schedules is not an array:', newSchedules);
+  }
+};
+const handlecustomDatesUpdated = (newSchedules) => {
+  doctor.value.customDates = newSchedules;
 };
 const imagePreview = ref(null);
 
@@ -232,17 +241,38 @@ const submitForm = async (values, { resetForm }) => {
     formData.append('specialization', doctor.value.specialization);
     formData.append('time_slot', time_slot.value);
 
+    // Debugging: Log schedules before processing
+    console.log('Schedules:', doctor.value.schedules);
+
     // Handle schedules array
-    scheduleData.value.forEach((schedule, index) => {
+    if (doctor.value.schedules && doctor.value.schedules.schedules && Array.isArray(doctor.value.schedules.schedules)) {
+  // Access the array inside the object
+  doctor.value.schedules.schedules.forEach((schedule, index) => {
+    if (schedule && typeof schedule === 'object') {
+      // Append each key-value pair of the schedule object to formData
       Object.entries(schedule).forEach(([key, value]) => {
         formData.append(`schedules[${index}][${key}]`, value);
       });
-    });
+    } else {
+      console.error('Schedule is not an object:', schedule);
+    }
+  });
+} else {
+  console.error('Schedules is not an array:', doctor.value.schedules);
+}
 
-    // Handle days array
-    if (Array.isArray(values.days)) {
-      values.days.forEach((day, index) => {
-        formData.append(`days[${index}]`, day);
+    // Handle custom dates
+    if (doctor.value.frequency === 'Monthly' && Array.isArray(doctor.value.customDates)) {
+      doctor.value.customDates.forEach((dateObj, index) => {
+        if (typeof dateObj === 'object' && dateObj !== null) {
+          // Flatten the object into key-value pairs
+          Object.entries(dateObj).forEach(([key, value]) => {
+            formData.append(`customDates[${index}][${key}]`, value);
+          });
+        } else {
+          // If it's not an object, append it directly
+          formData.append(`customDates[${index}]`, dateObj);
+        }
       });
     }
 
@@ -257,6 +287,11 @@ const submitForm = async (values, { resetForm }) => {
 
     const url = isEditMode.value ? `/api/doctors/${doctor.value.id}` : '/api/doctors';
 
+    // Debugging: Log FormData before sending
+    for (let [key, value] of formData.entries()) {
+      console.log(key, value);
+    }
+
     await axios.post(url, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
@@ -265,7 +300,9 @@ const submitForm = async (values, { resetForm }) => {
     handleUserUpdate();
     resetForm();
   } catch (error) {
-    handleBackendErrors(error);
+    console.log(error);
+    
+    // handleBackendErrors(error);
   }
 };
 onUnmounted(() => {
@@ -309,7 +346,7 @@ onUnmounted(() => {
 
             <!-- Second Row: Phone and Specialization -->
             <div class="row">
-              
+
               <div class="col-md-6 mb-4">
                 <label for="phone" class="form-label fs-5">Phone</label>
                 <Field type="tel" id="phone" name="phone" :class="{ 'is-invalid': validationErrors.phone }"
@@ -323,7 +360,7 @@ onUnmounted(() => {
                   class="form-control form-control-md">
                   <option value="">Select Specialization</option>
                   <option v-for="spec in specializations" :key="spec.id" :value="spec.id">
-                    {{  spec.name }} 
+                    {{ spec.name }}
                   </option>
                 </Field>
                 <span class="text-sm invalid-feedback">{{ validationErrors.specialization }}</span>
@@ -333,35 +370,24 @@ onUnmounted(() => {
 
             <!-- Patient Selection Row -->
             <div class="row">
-    <div class="col-md-6 mb-4">
-      <label for="patients_based_on_time" class="form-label fs-5">Patients Based on Time</label>
-      <select 
-        v-model="patients_based_on_time"
-        class="form-control form-control-md" 
-        @change="handlePatientSelectionChange"
-      >
-        <option :value="false">Fixed Number of Patients</option>
-        <option :value="true">Based on Time</option>
-      </select>
-    </div>
-    <div v-if="!patients_based_on_time" class="col-md-6 mb-4">
-      <label for="number_of_patients_per_day" class="form-label fs-5">Number of Patients Per Day</label>
-      <input 
-        type="number" 
-        v-model="number_of_patients_per_day"
-        class="form-control form-control-md" 
-        min="0" 
-      />
-    </div>
-    <div v-if="patients_based_on_time" class="col-md-6 mb-4">
-      <label for="time_slot" class="form-label fs-5">Time Slot for Patients</label>
-      <input 
-        v-model="time_slot"
-        class="form-control form-control-md"
-        placeholder="Select time slot" 
-      />
-    </div>
-  </div>
+              <div class="col-md-6 mb-4">
+                <label for="patients_based_on_time" class="form-label fs-5">Patients Based on Time</label>
+                <select v-model="patients_based_on_time" class="form-control form-control-md"
+                  @change="handlePatientSelectionChange">
+                  <option :value="false">Fixed Number of Patients</option>
+                  <option :value="true">Based on Time</option>
+                </select>
+              </div>
+              <div v-if="!patients_based_on_time" class="col-md-6 mb-4">
+                <label for="number_of_patients_per_day" class="form-label fs-5">Number of Patients Per Day</label>
+                <input type="number" v-model="number_of_patients_per_day" class="form-control form-control-md"
+                  min="0" />
+              </div>
+              <div v-if="patients_based_on_time" class="col-md-6 mb-4">
+                <label for="time_slot" class="form-label fs-5">Time Slot for Patients</label>
+                <input v-model="time_slot" class="form-control form-control-md" placeholder="Select time slot" />
+              </div>
+            </div>
 
             <!-- Frequency and Start Time -->
             <div class="row">
@@ -425,18 +451,20 @@ onUnmounted(() => {
                 <span class="text-sm invalid-feedback">{{ validationErrors.password }}</span>
               </div>
             </div>
-           
+
             <div class="row">
-              <div class="col-12" v-if="doctor.frequency === 'Daily'  || doctor.frequency === 'Weekly'">
-                <DoctorSchedules :doctorId="doctor.id" :existingSchedules="doctor.schedules" :patients_based_on_time="patients_based_on_time"
-                  :time_slot="time_slot" :number_of_patients_per_day="number_of_patients_per_day"
-                  @schedulesUpdated="handleSchedulesUpdated" />
+              <div class="col-12" v-if="doctor.frequency === 'Daily' || doctor.frequency === 'Weekly'">
+                <DoctorSchedules :doctorId="doctor.id" :existingSchedules="doctor.schedules"
+                  :patients_based_on_time="patients_based_on_time" :time_slot="time_slot"
+                  v-model="doctor.schedules"
+                  :number_of_patients_per_day="number_of_patients_per_day" @schedulesUpdated="handleSchedulesUpdated" />
               </div>
               <div class="col-md-12 mb-4" v-if="doctor.frequency === 'Monthly'">
                 <label class="form-label fs-5">Custom Dates</label>
-                <CustomDates :existingSchedules="doctor.schedules" v-model="doctor.schedules" :patients_based_on_time="patients_based_on_time"
-                  :time_slot="time_slot" :number_of_patients_per_day="number_of_patients_per_day"
-                  @schedulesUpdated="handleSchedulesUpdated" />
+                <CustomDates :existingSchedules="doctor.schedules" v-model="doctor.customDates"
+                  :patients_based_on_time="patients_based_on_time" :time_slot="time_slot"
+                  :number_of_patients_per_day="number_of_patients_per_day"
+                  @schedulesUpdated="handlecustomDatesUpdated" />
               </div>
             </div>
 
