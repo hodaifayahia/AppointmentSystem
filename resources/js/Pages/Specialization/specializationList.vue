@@ -3,7 +3,8 @@ import { ref, computed, onMounted } from 'vue'
 import axios from 'axios';
 import { useToastr } from '../../Components/toster';
 import specializationModel from "../../Components/specializationModel.vue";
-
+import { useSweetAlert } from '../../Components/useSweetAlert';
+const swal = useSweetAlert();
 
 const specializations = ref([])
 const loading = ref(false)
@@ -42,16 +43,51 @@ const refreshSpecializations = async () => {
 };
 
 const deleteSpecialization = async (id) => {
-  if (!confirm('Are you sure you want to delete this specialization?')) return;
-
   try {
-    await axios.delete(`/api/specializations/${id}`);
+    // Show SweetAlert confirmation dialog using the configured swal instance
+    const result = await swal.fire({
+      title: 'Are you sure?',
+      text: "You won't be able to revert this!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel'
+    });
+
+    // If user confirms, proceed with deletion
+    if (result.isConfirmed) {
+      await axios.delete(`/api/specializations/${id}`);
     toaster.success('Specialization deleted successfully');
     refreshSpecializations(); // Refresh the list after deletion
+      // Show success message
+      swal.fire(
+        'Deleted!',
+        'specialization has been deleted.',
+        'success'
+      );
+
+      // Emit event to notify parent component
+      emit('doctorDeleted');
+      closeModal();
+    }
   } catch (error) {
-    handleBackendErrors(error);
+    // Handle error
+    if (error.response?.data?.message) {
+      swal.fire(
+        'Error!',
+        error.response.data.message,
+        'error'
+      );
+    } else {
+      swal.fire(
+        'Error!',
+        'Failed to delete Doctor.',
+        'error'
+      );
+    }
   }
 };
+
 
 onMounted(() => {
   getSpecializations();
@@ -107,9 +143,9 @@ onMounted(() => {
                   <thead>
                     <tr>
                       <th scope="col">#</th>
+                      <th scope="col">Photo</th>
                       <th scope="col">Specialization</th>
                       <th scope="col">Description</th>
-                      <th scope="col">Photo</th>
                       <th scope="col">Actions</th>
                     </tr>
                   </thead>
@@ -119,14 +155,14 @@ onMounted(() => {
                     </tr>
                     <tr v-else v-for="(specialization, index) in specializations" :key="specialization.id">
                       <td>{{ index + 1 }}</td>
-                      <td>{{ specialization.name }}</td>
-                      <td>{{ specialization.description }}</td>
                       <td>
-                        <img v-if="specialization.photo" :src="`/storage/${specialization.photo}`"
-                          :alt="`Photo for ${specialization.name}`" class="img-thumbnail"
+                        <img v-if="specialization.photo_url" :src="`${specialization.photo_url}`"
+                          :alt="`Photo for ${specialization.photo_url}`" class="img-thumbnail"
                           style="max-width: 40px; max-height: 40px;" />
                         <span v-else>No Photo</span>
                       </td>
+                      <td>{{ specialization.name }}</td>
+                      <td>{{ specialization.description }}</td>
                       <td>
                         <button @click="openModal(specialization)" class="btn btn-sm btn-outline-primary me-2">
                           <i class="fas fa-edit"></i>

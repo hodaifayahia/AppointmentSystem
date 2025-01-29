@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\SpecializationResource;
 use App\Models\Specialization;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -14,7 +15,9 @@ class specializationsController extends Controller
      */
     public function index()
     {
-        return Specialization::get();
+         
+        $specialization =  Specialization::get();
+        return SpecializationResource::collection($specialization);
     }
 
     /**

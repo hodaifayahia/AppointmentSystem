@@ -1,11 +1,12 @@
 <script setup>
-import { ref, computed, defineProps, defineEmits, watch, onUnmounted } from 'vue';
+import { ref, computed, defineProps, defineEmits, watch, onUnmounted, onMounted } from 'vue';
 import { Field, Form } from 'vee-validate';
 import * as yup from 'yup';
 import axios from 'axios';
 import { useToastr } from '../Components/toster';
 import DoctorSchedules from './Doctor/DoctorSchedules.vue';
 import CustomDates from './Doctor/CustomDates.vue';
+import AppointmentBookingWindowModel from './Doctor/AppointmentBookingWindowModel.vue';
 
 const props = defineProps({
   showModal: {
@@ -18,16 +19,15 @@ const props = defineProps({
   },
 });
 
-console.log(props.doctorData);
-
 const emit = defineEmits(['close', 'doctorUpdated']);
 const toaster = useToastr();
 const errors = ref({});
 const specializations = ref({});
 const showPassword = ref(false);
-const patients_based_on_time = ref(false);
-const number_of_patients_per_day = ref(false);
-const time_slot = ref('');
+const patients_based_on_time = ref(props.doctorData.patients_based_on_time);
+const number_of_patients_per_day = ref();
+const selectedMonths = ref([]);
+const time_slot = ref(props.doctorData.time_slots);
 const doctor = ref({
   id: props.doctorData?.id || null,
   name: props.doctorData?.name || '',
@@ -35,38 +35,38 @@ const doctor = ref({
   phone: props.doctorData?.phone || '',
   patients_based_on_time: props.doctorData?.patients_based_on_time || false,
   specialization: props.doctorData?.specialization || '',
+  specialization_id: props.doctorData?.specialization_id || '',
   frequency: props.doctorData?.frequency || '',
   avatar: props.doctorData?.avatar || null,
-  customDates: props.doctorData?.customDates || [],
-  schedules: props.doctorData?.schedules || [], // Initialize as empty array
-  appointmentBookingWindow: props.doctorData?.appointmentBookingWindow || 1,
-  password: ''
+  customDates: props.doctorData?.schedules,
+  schedules: props.doctorData?.schedules || [],
+  appointmentBookingWindow: props.doctorData?.appointment_booking_window ,
+  password: '',
+  number_of_patients_per_day: props.doctorData?.number_of_patients_per_day || 0,
+  time_slots: props.doctorData?.time_slots || '',
 });
+
+
+
+const imagePreview = ref(props.doctorData?.avatar ? props.doctorData.avatar : null);
+
 const getSpecializations = async (page = 1) => {
   try {
-    const response = await axios.get('/api/specializations'); // Changed endpoint to plural
-    specializations.value = response.data.data || response.data; // Adjust based on your API response structure
+    const response = await axios.get('/api/specializations');
+    specializations.value = response.data.data || response.data;
   } catch (error) {
     console.error('Error fetching specializations:', error);
     error.value = error.response?.data?.message || 'Failed to load specializations';
-  } finally {
   }
 };
+
 const isEditMode = computed(() => !!props.doctorData?.id);
 
-// const handlePatientSelectionChange = () => {
-//   if (patients_based_on_time.value) {
-//     number_of_patients_per_day.value = 0;
-//   } else {
-//     time_slot.value = '';
-//   }
-// };
-
 const handleFrequencySelectionChange = () => {
-  if (doctor.frequency !== 'monthly') {
-    doctor.customDates = []; // Clear custom dates if not monthly
-  } else if (doctor.customDates.length === 0) {
-    doctor.customDates = ['']; // Ensure at least one date input if switching to monthly
+  if (doctor.value.frequency !== 'Monthly') {
+    doctor.value.customDates = [];
+  } else if (doctor.value.customDates.length === 0) {
+    doctor.value.customDates = [''];
   }
 };
 
@@ -76,22 +76,10 @@ const closeModal = () => {
 };
 
 const handleUserUpdate = () => {
-  emit('doctorUpdated');  // This should trigger getDoctors() in the parent component
+  emit('doctorUpdated');
   closeModal();
 };
 
-// const handleBackendErrors = (error) => {
-//   if (error.response?.data?.errors) {
-//     Object.entries(error.response.data.errors).forEach(([field, messages]) => {
-//       toaster.error(messages[0]);
-//     });
-//   } else if (error.response?.data?.message) {
-//     toaster.error(error.response.data.message);
-//   } else {
-//     toaster.error('An unexpected error occurred');
-//   }
-// };
-// Added specialization to validation schema
 const getDoctorSchema = (isEditMode) => {
   const baseSchema = {
     name: yup.string().required('Name is required'),
@@ -100,12 +88,8 @@ const getDoctorSchema = (isEditMode) => {
       .string()
       .matches(/^[0-9]{10,15}$/, 'Phone number must be between 10 and 15 digits')
       .required('Phone number is required'),
-    specialization: yup.string().required('Specialization is required'),  // Added validation
+    specialization: yup.string().required('Specialization is required'),
     frequency: yup.string().required('Frequency is required'),
-    appointmentBookingWindow: yup
-      .number()
-      .required('Please select a booking window')
-      .oneOf([1, 3, 5], 'Invalid booking window'),
   };
 
   if (!isEditMode) {
@@ -121,35 +105,48 @@ const getDoctorSchema = (isEditMode) => {
 
   return yup.object(baseSchema);
 };
-getSpecializations();
-
-
-// Watch for changes in doctorData
 watch(
   () => props.doctorData,
   (newValue) => {
     if (newValue) {
       doctor.value = {
+        ...doctor.value,
         id: newValue?.id || null,
         name: newValue?.name || '',
         email: newValue?.email || '',
         phone: newValue?.phone || '',
+        patients_based_on_time: newValue?.patients_based_on_time || false,
         specialization: newValue?.specialization || '',
+        specialization_id: newValue?.specialization_id || '',
         frequency: newValue?.frequency || '',
         avatar: newValue?.avatar || null,
-        appointmentBookingWindow: newValue?.appointmentBookingWindow || 1,
-        customDates: Array.isArray(newValue?.customDates) ? [...newValue.customDates] : [],
-        schedules: Array.isArray(newValue?.schedules) ? [...newValue.schedules] : [],
-        password: ''
+        appointmentBookingWindow: newValue?.appointment_booking_window ,
+        customDates: Array.isArray(newValue?.schedules) ? [...newValue.schedules] : [], // Update customDates
+        schedules: Array.isArray(newValue?.schedules) ? [...newValue.schedules] : [], // Update schedules
+        password: '',
+        number_of_patients_per_day: newValue?.number_of_patients_per_day || 0,
+        time_slots: newValue?.time_slots || '',
       };
+      
+      if (newValue.avatar) {
+        imagePreview.value = newValue.avatar;
+      }
 
-      patients_based_on_time.value = newValue?.patients_based_on_time || false;
-      number_of_patients_per_day.value = newValue?.number_of_patients_per_day || 0;
-      time_slot.value = newValue?.time_slot || '';
+      // Initialize selectedMonths for appointmentBookingWindow
+      if (newValue.appointment_booking_window) {
+        selectedMonths.value = newValue.appointment_booking_window
+          .filter(month => month.is_available)
+          .map(month => ({
+            value: month.month,
+            is_available: true,
+          }));
+      }
     }
   },
   { immediate: true, deep: true }
 );
+console.log(selectedMonths.value);
+
 
 const calculatePatientsPerDay = (startTime, endTime, timeSlot) => {
   const start = new Date(`2000-01-01 ${startTime}`);
@@ -158,22 +155,17 @@ const calculatePatientsPerDay = (startTime, endTime, timeSlot) => {
   return Math.floor(diffInMinutes / timeSlot);
 };
 
-// In your parent component
-const scheduleData = ref([]);
-
 const handleSchedulesUpdated = (newSchedules) => {
   if (Array.isArray(newSchedules)) {
     doctor.value.schedules = newSchedules;
-    console.log('Updated Schedules:', doctor.value.schedules); // Debugging
   } else {
     console.error('New schedules is not an array:', newSchedules);
   }
 };
+
 const handlecustomDatesUpdated = (newSchedules) => {
   doctor.value.customDates = newSchedules;
 };
-const imagePreview = ref(null);
-
 
 const handleImageChange = (e) => {
   const file = e.target.files[0];
@@ -181,32 +173,29 @@ const handleImageChange = (e) => {
     return;
   }
 
-  // Check file size (2MB limit)
   if (file.size > 2 * 1024 * 1024) {
     errors.value = { ...errors.value, avatar: 'Image must be less than 2MB' };
-    e.target.value = ''; // Reset the input
+    e.target.value = '';
     return;
   }
 
-  // Clear previous error if exists
   if (errors.value.avatar) {
     errors.value = { ...errors.value, avatar: null };
   }
 
-  // Set the file and create preview
   doctor.value = {
     ...doctor.value,
     avatar: file
   };
-  // Create and set preview URL
+
   const previewURL = URL.createObjectURL(file);
   imagePreview.value = previewURL;
 
-  // Clean up previous preview URL to prevent memory leaks
   return () => {
     URL.revokeObjectURL(previewURL);
   };
 };
+
 const handlePatientSelectionChange = () => {
   if (doctor.value.patients_based_on_time) {
     doctor.value.number_of_patients_per_day = 0;
@@ -214,15 +203,30 @@ const handlePatientSelectionChange = () => {
     doctor.value.time_slot = '';
   }
 };
-
-// Clean up function for component unmount
+watch(
+  selectedMonths,
+  (newSelectedMonths) => {
+    // Update doctor.appointmentBookingWindow with the latest selected months
+    doctor.value.appointmentBookingWindow = newSelectedMonths.map((month) => ({
+      value: month.value,
+      is_available: month.is_available,
+    }));
+  },
+  { deep: true }
+);
 onUnmounted(() => {
   if (imagePreview.value && imagePreview.value.startsWith('blob:')) {
     URL.revokeObjectURL(imagePreview.value);
   }
 });
-const submitForm = async (values, { resetForm }) => {
+const submitForm = async (values, { setErrors, resetForm }) => {
   try {
+    // Update appointmentBookingWindow with the latest selected months
+    doctor.value.appointmentBookingWindow = selectedMonths.value.map((month) => ({
+      month: month.value,
+      is_available: month.is_available,
+    }));
+
     const formData = new FormData();
 
     // Basic fields
@@ -237,43 +241,59 @@ const submitForm = async (values, { resetForm }) => {
 
     // Other fields
     formData.append('id', doctor.value.id);
-    formData.append('appointmentBookingWindow', doctor.value.appointmentBookingWindow);
-    formData.append('specialization', doctor.value.specialization);
+    formData.append('specialization', doctor.value.specialization_id);
     formData.append('time_slot', time_slot.value);
+    formData.append('number_of_patients_per_day', doctor.value.number_of_patients_per_day);
 
-    // Debugging: Log schedules before processing
-    console.log('Schedules:', doctor.value.schedules);
-
-    // Handle schedules array
-    if (doctor.value.schedules && doctor.value.schedules.schedules && Array.isArray(doctor.value.schedules.schedules)) {
-  // Access the array inside the object
-  doctor.value.schedules.schedules.forEach((schedule, index) => {
-    if (schedule && typeof schedule === 'object') {
-      // Append each key-value pair of the schedule object to formData
-      Object.entries(schedule).forEach(([key, value]) => {
-        formData.append(`schedules[${index}][${key}]`, value);
+    // Handle appointmentBookingWindow
+    if (doctor.value.appointmentBookingWindow && Array.isArray(doctor.value.appointmentBookingWindow)) {
+      doctor.value.appointmentBookingWindow.forEach((month, index) => {
+        formData.append(`appointmentBookingWindow[${index}][month]`, parseInt(month.month, 10)); // Ensure month is an integer
+        formData.append(`appointmentBookingWindow[${index}][is_available]`, month.is_available ? 1 : 0); // Convert boolean to 1 or 0
       });
     } else {
-      console.error('Schedule is not an object:', schedule);
+      console.error('appointmentBookingWindow is missing or not an array:', doctor.value.appointmentBookingWindow);
+      throw new Error('appointmentBookingWindow is required and must be an array.');
     }
-  });
-} else {
-  console.error('Schedules is not an array:', doctor.value.schedules);
-}
 
-    // Handle custom dates
-    if (doctor.value.frequency === 'Monthly' && Array.isArray(doctor.value.customDates)) {
-      doctor.value.customDates.forEach((dateObj, index) => {
-        if (typeof dateObj === 'object' && dateObj !== null) {
-          // Flatten the object into key-value pairs
-          Object.entries(dateObj).forEach(([key, value]) => {
-            formData.append(`customDates[${index}][${key}]`, value);
-          });
-        } else {
-          // If it's not an object, append it directly
-          formData.append(`customDates[${index}]`, dateObj);
-        }
-      });
+    // Handle schedules or customDates based on frequency
+    if (doctor.value.frequency === 'Monthly') {
+      if (doctor.value.customDates && Array.isArray(doctor.value.customDates)) {
+        doctor.value.customDates.forEach((dateObj, index) => {
+          if (typeof dateObj === 'object' && dateObj !== null) {
+            Object.entries(dateObj).forEach(([key, value]) => {
+              formData.append(`customDates[${index}][${key}]`, value);
+            });
+          } else {
+            formData.append(`customDates[${index}]`, dateObj);
+          }
+        });
+      } else {
+        console.error('Custom dates is not an array:', doctor.value.customDates);
+        throw new Error('Custom dates are required for Monthly frequency.');
+      }
+    } else {
+      // Ensure schedules is always an array
+      const schedulesArray = Array.isArray(doctor.value.schedules)
+        ? doctor.value.schedules
+        : doctor.value.schedules?.schedules
+          ? doctor.value.schedules.schedules
+          : [];
+
+      if (schedulesArray && Array.isArray(schedulesArray)) {
+        schedulesArray.forEach((schedule, index) => {
+          if (schedule && typeof schedule === 'object') {
+            Object.entries(schedule).forEach(([key, value]) => {
+              formData.append(`schedules[${index}][${key}]`, value);
+            });
+          } else {
+            console.error('Schedule is not an object:', schedule);
+          }
+        });
+      } else {
+        console.error('Schedules is not an array:', schedulesArray);
+        throw new Error('Schedules are required for Daily or Weekly frequency.');
+      }
     }
 
     // Handle avatar
@@ -300,24 +320,25 @@ const submitForm = async (values, { resetForm }) => {
     handleUserUpdate();
     resetForm();
   } catch (error) {
-    console.log(error);
-    
-    // handleBackendErrors(error);
+    if (error.response?.data?.errors) {
+      setErrors(error.response.data.errors);
+    } else if (error.response?.data?.message) {
+      toaster.error(error.response.data.message);
+    } else {
+      toaster.error('An unexpected error occurred');
+    }
   }
 };
-onUnmounted(() => {
-  if (imagePreview.value && imagePreview.value.startsWith('blob:')) {
-    URL.revokeObjectURL(imagePreview.value);
-  }
+
+
+onMounted(() => {
+  getSpecializations();
 });
-
-
 </script>
-
 <template>
-
   <div class="modal fade overflow-auto" :class="{ show: showModal }" tabindex="-1" aria-labelledby="doctorModalLabel"
     aria-hidden="true" v-if="showModal">
+    
     <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <div class="modal-header">
@@ -327,8 +348,8 @@ onUnmounted(() => {
           </button>
         </div>
         <div class="modal-body">
-          <Form v-slot="{ errors: validationErrors }" @submit="submitForm" :validation-schema="getDoctorSchema">
-            <!-- First Row: Name and Email -->
+          <Form v-slot="{ errors: validationErrors }" @submit="submitForm"
+            :validation-schema="getDoctorSchema(isEditMode)"> <!-- First Row: Name and Email -->
             <div class="row">
               <div class="col-md-6 mb-4">
                 <label for="name" class="form-label fs-5">Name</label>
@@ -343,7 +364,6 @@ onUnmounted(() => {
                 <span class="text-sm invalid-feedback">{{ validationErrors.email }}</span>
               </div>
             </div>
-
             <!-- Second Row: Phone and Specialization -->
             <div class="row">
 
@@ -356,7 +376,7 @@ onUnmounted(() => {
               <div class="col-md-6 mb-4">
                 <label for="specialization" class="form-label fs-5">Specialization</label>
                 <Field as="select" id="specialization" name="specialization"
-                  :class="{ 'is-invalid': validationErrors.specialization }" v-model="doctor.specialization"
+                  :class="{ 'is-invalid': validationErrors.specialization }" v-model="doctor.specialization_id"
                   class="form-control form-control-md">
                   <option value="">Select Specialization</option>
                   <option v-for="spec in specializations" :key="spec.id" :value="spec.id">
@@ -383,6 +403,7 @@ onUnmounted(() => {
                 <input type="number" v-model="number_of_patients_per_day" class="form-control form-control-md"
                   min="0" />
               </div>
+
               <div v-if="patients_based_on_time" class="col-md-6 mb-4">
                 <label for="time_slot" class="form-label fs-5">Time Slot for Patients</label>
                 <input v-model="time_slot" class="form-control form-control-md" placeholder="Select time slot" />
@@ -422,19 +443,11 @@ onUnmounted(() => {
 
             <div class="row">
               <div class="col-md-6 mb-4">
-                <label for="appointmentBookingWindow" class="form-label fs-5">Appointment Booking Window</label>
-                <Field as="select" id="appointmentBookingWindow" name="appointmentBookingWindow"
-                  v-model="doctor.appointmentBookingWindow" class="form-control form-control-md"
-                  :class="{ 'is-invalid': validationErrors.appointmentBookingWindow }">
-                  <option value="" disabled>Select Booking Window</option>
-                  <option :value="1">1 Month</option>
-                  <option :value="3">3 Months</option>
-                  <option :value="5">5 Months</option>
-                </Field>
-
-                <span class="text-sm invalid-feedback">
-                  {{ validationErrors.appointmentBookingWindow }}
-                </span>
+                          <AppointmentBookingWindowModel
+            :isEditMode="isEditMode"
+            :appointment-booking-window="doctor.appointmentBookingWindow"
+            v-model="selectedMonths"
+/>
               </div>
               <div class="col-md-6 mb-4">
                 <label for="password" class="form-label fs-5">
@@ -451,21 +464,21 @@ onUnmounted(() => {
                 <span class="text-sm invalid-feedback">{{ validationErrors.password }}</span>
               </div>
             </div>
-
             <div class="row">
               <div class="col-12" v-if="doctor.frequency === 'Daily' || doctor.frequency === 'Weekly'">
                 <DoctorSchedules :doctorId="doctor.id" :existingSchedules="doctor.schedules"
-                  :patients_based_on_time="patients_based_on_time" :time_slot="time_slot"
-                  v-model="doctor.schedules"
+                  :patients_based_on_time="patients_based_on_time" :time_slot="time_slot" v-model="doctor.schedules"
                   :number_of_patients_per_day="number_of_patients_per_day" @schedulesUpdated="handleSchedulesUpdated" />
               </div>
               <div class="col-md-12 mb-4" v-if="doctor.frequency === 'Monthly'">
                 <label class="form-label fs-5">Custom Dates</label>
+                <pre>{{ doctor.customDates }}</pre>
                 <CustomDates :existingSchedules="doctor.schedules" v-model="doctor.customDates"
                   :patients_based_on_time="patients_based_on_time" :time_slot="time_slot"
                   :number_of_patients_per_day="number_of_patients_per_day"
                   @schedulesUpdated="handlecustomDatesUpdated" />
               </div>
+
             </div>
 
 

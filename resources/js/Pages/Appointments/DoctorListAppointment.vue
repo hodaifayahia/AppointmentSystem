@@ -40,7 +40,11 @@ const goToAppointmentPage = (doctor) => {
 
   router.push({
     name: 'admin.appointments',
-    params: { id: doctor.id }, // Pass d ID
+    params: { 
+      id: doctor.id, 
+       specializationId :doctor.specialization_id // Access specialization ID
+
+    }, // Pass d ID
   });
 };
 
@@ -122,7 +126,10 @@ onMounted(() => {
           <div class="col-sm-6">
             <h1 class="m-0">Doctors</h1>
           </div>
-          <div class="col-sm-6">
+          <div class="col-sm-12">
+            <button class=" float-left btn btn-ligh bg-primary rounded-pill " @click="router.go(-1)">
+              <i class="fas fa-arrow-left"></i> Back
+            </button>
             <ol class="breadcrumb float-sm-right">
               <li class="breadcrumb-item"><a href="#">Home</a></li>
               <li class="breadcrumb-item active">Doctors</li>
@@ -148,24 +155,14 @@ onMounted(() => {
             </div>
           </div>
         </div>
-
-        <div class="row" v-if="isLoading">
-          <div class="col-12 text-center">
-            <div class="spinner-border text-primary" role="status">
-              <span class="visually-hidden"></span>
-            </div>
-          </div>
-        </div>
-        <div v-else class="row">
+        <div  class="row">
           <div v-for="doctor in doctors" :key="doctor.id" class="col-md-3 mb-4 d-flex justify-content-center">
             <div class="card text-center shadow-lg" style="width: 100%; max-width: 250px; border-radius: 15px;"
               @click="goToAppointmentPage(doctor)">
               <!-- Doctor Image -->
               <div class="p-3">
-                <div class="rounded-circle mx-auto border border-primary shadow bg-cover"
-                  style="width: 120px; height: 120px; overflow: hidden;">
-                  <img :src="`${doctor.avatar}`" :alt="`Photo for ${doctor.name}`"
-                    style="width: 100%; height: 100%; object-fit: cover; object-position: center;" />
+                <div class=" mx-auto" style="width: 150px; height: 150px; overflow: hidden;">
+                  <img :src="`${doctor.avatar}`" alt="Specialization image" class="w-100 h-100" style="object-fit:contain" />
                 </div>
               </div>
               <!-- Card Body -->

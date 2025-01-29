@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Resources\PatientResource;
+use \Log;
 use App\Http\Resources\AppointmentResource;
+use App\Http\Resources\PatientResource;
 use App\Models\Appointment;
 use App\Models\Patient;
 use Illuminate\Http\Request;
@@ -15,7 +16,19 @@ class PatientController extends Controller
      */
     public function index()
     {
-        return Patient::all();
+        $patients = Patient::paginate(50);
+
+        return [
+            'data' => PatientResource::collection($patients),
+            'meta' => [
+                'total' => $patients->total(),
+                'per_page' => $patients->perPage(),
+                'current_page' => $patients->currentPage(),
+                'last_page' => $patients->lastPage(),
+                'from' => $patients->firstItem(),
+                'to' => $patients->lastItem(),
+            ],
+        ];
     }
 
     /**
@@ -100,11 +113,22 @@ public function search(Request $request)
      */
     public function PatientAppointments($PatientId)
     {
+        // Log the received PatientId for debugging
+        Log::info('Received PatientId:', ['PatientId' => $PatientId]);
+    
         // Use eager loading to reduce the number of queries, enhancing performance with large datasets
         $appointments = Appointment::with(['patient', 'doctor.user'])
             ->where('patient_id', $PatientId)
             ->orderBy('appointment_date', 'desc') // Sort by appointment date, most recent first
             ->paginate(15); // Paginate with 15 items per page, adjust as needed
+    
+        // Check if any appointments were found
+        if ($appointments->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No appointments found for the given patient.'
+            ], 404);
+        }
     
         // Add custom data or perform additional operations here if required
         $totalAppointments = $appointments->total(); // Total count of appointments
@@ -120,7 +144,7 @@ public function search(Request $request)
         ];
     
         // Use a custom resource collection which includes the metadata
-        return  AppointmentResource::collection($appointments, $metaData);
+        return AppointmentResource::collection($appointments)->additional(['meta' => $metaData]);
     }
     public function SpecificPatient( $patientid)
     {

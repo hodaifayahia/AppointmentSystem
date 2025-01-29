@@ -3,6 +3,8 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Models\Doctor;
+use App\Models\Specialization;
 use App\RoleSystemEnum;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -63,6 +65,19 @@ class User extends Authenticatable
     public function doctor()
     {
         return $this->hasOne(Doctor::class);
+    }
+
+    // If doctors have specializations
+    public function specialization()
+    {
+        return $this->hasOneThrough(
+            Specialization::class,
+            Doctor::class,
+            'user_id', // Foreign key on doctors table
+            'id', // Local key on specializations table
+            'id', // Local key on users table
+            'specialization_id' // Foreign key on doctors table
+        );
     }
 
     // public function role() : Attribute {

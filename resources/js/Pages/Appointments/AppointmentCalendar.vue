@@ -5,6 +5,7 @@ import axios from 'axios';
 import TimeSlotSelector from './TimeSlotSelector.vue';
 import Datepicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css';
+import SimpleCalendar from './SimpleCalendar.vue'; // Import the SimpleCalendar component
 
 const props = defineProps({
   doctorId: {
@@ -18,6 +19,7 @@ const selectedDate = ref(null);
 const availableSlots = ref([]);
 const nextAvailableDate = ref(null);
 const showTimeSlots = ref(false);
+const isForcingAppointment = ref(false); // New state variable
 
 const formattedDate = computed(() => {
   if (!selectedDate.value) return '';
@@ -60,15 +62,24 @@ const handleAvailabilityChecked = ({ hasSlots, nextAvailableDate: nextDate }) =>
     nextAvailableDate.value = nextDate;
   }
 };
+const handleDateSelected = (date) => {
+  console.log(`Selected date: ${date}`);
+  
+  emit('dateSelected', date);; // Emit the selected time to parent
+};
 
 const resetDateSelection = () => {
   selectedDate.value = null;
   availableSlots.value = [];
   showTimeSlots.value = false;
   nextAvailableDate.value = null;
+  isForcingAppointment.value = false; // Reset forcing state
 };
 
-// Fixed disabledDates function for the Datepicker
+const forceAppointment = () => {
+  isForcingAppointment.value = true; // Set forcing state to true
+};
+
 const isDateDisabled = (date) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -92,9 +103,7 @@ watch(selectedDate, checkDateAvailability);
       />
     </div>
 
-    <div v-if="nextAvailableDate && formattedDate !== nextAvailableDate" class="alert alert-info mt-3">
-      <p class="mb-0">Next available appointment date: {{ nextAvailableDate }}</p>
-    </div>
+    
 
     <div v-if="selectedDate && showTimeSlots" class="card mb-3 shadow-sm">
       <div class="card-body">
@@ -108,6 +117,20 @@ watch(selectedDate, checkDateAvailability);
         <button @click="resetDateSelection" class="btn btn-outline-secondary btn-sm mt-3">
           Reset Selection
         </button>
+      </div>
+    </div>
+
+    <!-- Show this when there are no available dates -->
+    <div v-else-if="!nextAvailableDate" class="mt-2 text-center">
+      <p class="text-danger">There are no slots available.</p>
+      <button @click="forceAppointment" class="btn btn-outline-secondary mt-2 mb-2">Force Appointment</button>
+      <div v-if="isForcingAppointment">
+        <SimpleCalendar 
+          :date="formattedDate" 
+          :doctorId="props.doctorId"
+          @timeSelected="handleTimeSelected"
+          @dateSelected="handleDateSelected" 
+        />
       </div>
     </div>
   </div>

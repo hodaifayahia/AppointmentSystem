@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use \Storage;
+use App\Http\Resources\UserDoctorResource;
 use App\Http\Resources\UserResource;
+use App\Models\Doctor;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
@@ -22,13 +25,41 @@ class UserController extends Controller
         // Return the collection wrapped in a resource
         return UserResource::collection($users);  // Wrap collection with resource transformation
     }
+    public function getCurrentUser()
+    {
+        try {
+            $user = Doctor::where('user_id', Auth::id())
+                ->with(['user', 'specialization'])
+                ->first();
     
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Doctor not found for the current user',
+                ], 404);
+            }
+    
+            return response()->json([
+                'success' => true,
+                'data' => new UserDoctorResource($user),
+            ]);
+    
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error fetching user information',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
+    public function role()
     {
-        //
+        return response()->json([
+            'role' => Auth::user()->role,
+        ]);
     }
 
     /**

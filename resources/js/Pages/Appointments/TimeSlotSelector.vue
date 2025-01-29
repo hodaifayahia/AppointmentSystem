@@ -59,7 +59,8 @@ const fetchTimeSlots = async () => {
       const response = await axios.get('/api/appointments/ForceSlots', {
         params: {
           days: props.days,
-          doctor_id: props.doctorid
+          doctor_id: props.doctorid,
+          date:props.date
         }
       });
       

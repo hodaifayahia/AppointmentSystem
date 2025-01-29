@@ -7,9 +7,12 @@ use App\DayOfWeekEnum;
 use App\Enum\AppointmentStatusEnum;
 use App\Http\Resources\AppointmentResource;
 use App\Models\Appointment;
+use App\Models\AppointmentAvailableMonth;
 use App\Models\Doctor;
+use App\Models\ExcludedDate;
 use App\Models\Patient;
 use App\Models\Schedule;
+use App\Models\WaitList;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -17,56 +20,63 @@ class AppointmentController extends Controller
 {
    
   // AppointmentController.php
-
- public function index(Request $request, $doctorId)
-{
-    try {
-        // Start building the query
-        $query = Appointment::query()
-            ->with(['patient', 'doctor:id,user_id', 'doctor.user:id,name'])
-            ->whereHas('doctor', function ($query) {
-                $query->whereNull('deleted_at')
-                    ->whereHas('user');
-            })
-            ->where('doctor_id', $doctorId)
-            ->whereNull('deleted_at')
-            // Add filter for appointments from today onwards
-            ->whereDate('appointment_date', '>=', now()->startOfDay())
-            // Order by appointment date and time
-            ->orderBy('appointment_date', 'asc')
-            ->orderBy('appointment_time', 'asc');
-
-        // Apply status filter if provided and valid
-        if ($request->filled('status') && $request->status !== 'ALL') {
-            $query->where('status', $request->status);
-        }
-
-        // Apply date filter if provided
-        if ($request->filled('date')) {
-            $query->whereDate('appointment_date', $request->date);
-        }
-
-        // Filter for today's appointments if requested
-        if ($request->filled('filter') && $request->filter === 'today') {
-            $query->whereDate('appointment_date', now()->toDateString());
-        }
-
-        // Fetch the filtered appointments
-        $appointments = $query->get();
-
-        return response()->json([
-            'success' => true,
-            'data' => AppointmentResource::collection($appointments)
-        ]);
-
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Failed to fetch appointments',
-            'error' => $e->getMessage()
-        ], 500);
-    }
-}
+  public function index(Request $request, $doctorId)
+  {
+      try {
+          // Start building the query
+          $query = Appointment::query()
+              ->with(['patient', 'doctor:id,user_id,specialization_id', 'doctor.user:id,name', 'waitlist'])
+              ->whereHas('doctor', function ($query) {
+                  $query->whereNull('deleted_at')
+                      ->whereHas('user');
+              })
+              ->where('doctor_id', $doctorId)
+              ->whereNull('deleted_at')
+              // Add filter for appointments from today onwards
+              ->whereDate('appointment_date', '>=', now()->startOfDay())
+              // Order by appointment date and time
+              ->orderBy('appointment_date', 'asc')
+              ->orderBy('appointment_time', 'asc');
+  
+          // Apply status filter if provided and not 'ALL'
+          if ($request->filled('status') && $request->status !== 'ALL') {
+              $query->where('status', $request->status);
+          }
+  
+          // Apply date filter if provided
+          if ($request->filled('date')) {
+              $query->whereDate('appointment_date', $request->date);
+          }
+  
+          // Filter for today's appointments if requested
+          if ($request->filled('filter') && $request->filter === 'today') {
+              $query->whereDate('appointment_date', now()->toDateString());
+              // Filter for SCHEDULED (0) and CONFIRMED (1) statuses
+              $query->whereIn('status', [0, 1]);
+          }
+  
+          // Fetch the filtered appointments
+          $appointments = $query->paginate(50);
+  
+          return response()->json([
+              'success' => true,
+              'data' => AppointmentResource::collection($appointments),
+              'meta' => [
+                  'current_page' => $appointments->currentPage(),
+                  'per_page' => $appointments->perPage(),
+                  'total' => $appointments->total(),
+                  'last_page' => $appointments->lastPage(),
+              ]
+          ]);
+  
+      } catch (\Exception $e) {
+          return response()->json([
+              'success' => false,
+              'message' => 'Failed to fetch appointments',
+              'error' => $e->getMessage()
+          ], 500);
+      }
+  }
 public function GetAllAppointments(Request $request, $doctorId = null)
 {
     try {
@@ -79,7 +89,6 @@ public function GetAllAppointments(Request $request, $doctorId = null)
             })
             ->whereNull('deleted_at')
             // Add filter for appointments from today onwards
-            ->whereDate('appointment_date', '>=', now()->startOfDay())
             // Order by appointment date and time
             ->orderBy('appointment_date', 'asc')
             ->orderBy('appointment_time', 'asc');
@@ -126,89 +135,93 @@ public function GetAllAppointments(Request $request, $doctorId = null)
     }
 }
 
-  public function search(Request $request)
-  {
-
+public function search(Request $request)
+{
+    // Get query parameters
     $query = $request->input('query');
-      $doctorId = $request->input('doctor_id');
-  
-      $appointments = Appointment::query()
-          ->when($query, function ($queryBuilder) use ($query) {
-              $queryBuilder->whereHas('patient', function ($patientQuery) use ($query) {
-                  $patientQuery->where('Firstname', 'like', "%{$query}%")
-                      ->orWhere('Lastname', 'like', "%{$query}%")
-                      ->orWhere('dateOfBirth', 'like', "%{$query}%");
-              });
-          })
-          ->when($doctorId, function ($queryBuilder) use ($doctorId) {
-              $queryBuilder->where('doctor_id', $doctorId);
-          })
-          ->with('patient') // Eager load the patient relationship
-          ->paginate(10);
-  
-      return AppointmentResource::collection($appointments);
-  }
-  private function getDoctorWorkingHours($doctorId, $date)
+    $doctorId = $request->input('doctor_id');
+    $appointmentDate = $request->input('appointment_date');
+    $appointmentTime = $request->input('appointment_time');
+
+    // Base query
+    $appointments = Appointment::query()
+        // Filter by patient name or date of birth
+        ->when($query, function ($queryBuilder) use ($query) {
+            $queryBuilder->whereHas('patient', function ($patientQuery) use ($query) {
+                $patientQuery->where('Firstname', 'like', "%{$query}%")
+                    ->orWhere('Lastname', 'like', "%{$query}%")
+                    ->orWhere('dateOfBirth', 'like', "%{$query}%");
+            });
+        })
+        // Filter by doctor ID
+        ->when($doctorId, function ($queryBuilder) use ($doctorId) {
+            $queryBuilder->where('doctor_id', $doctorId);
+        })
+        // Filter by appointment date
+        ->when($appointmentDate, function ($queryBuilder) use ($appointmentDate) {
+            $queryBuilder->whereDate('appointment_date', $appointmentDate);
+        })
+        // Filter by appointment time
+        ->when($appointmentTime, function ($queryBuilder) use ($appointmentTime) {
+            $queryBuilder->whereTime('appointment_time', $appointmentTime);
+        })
+        // Eager load the patient relationship
+        ->with('patient')
+        // Paginate results
+        ->paginate(10);
+
+    return AppointmentResource::collection($appointments);
+}
+private function getDoctorWorkingHours($doctorId, $date)
 {
     $dayOfWeek = DayOfWeekEnum::cases()[Carbon::parse($date)->dayOfWeek]->value;
-    
+
     $schedules = Schedule::where('doctor_id', $doctorId)
         ->where('is_active', true)
         ->where('day_of_week', $dayOfWeek)
+        ->join('doctors', 'schedules.doctor_id', '=', 'doctors.id')
+        ->select('schedules.*', 'doctors.patients_based_on_time', 'doctors.time_slot')
         ->get();
-    
-    $doctor = Doctor::find($doctorId, ['patients_based_on_time', 'time_slot']);
-    
-    if (!$doctor || $schedules->isEmpty()) {
+
+    if ($schedules->isEmpty()) {
         return [];
     }
-    
+
     $workingHours = [];
-    
-    foreach (['morning', 'afternoon'] as $shift) {
-        $schedule = $schedules->firstWhere('shift_period', $shift);
-        if ($schedule) {
-            try {
-                $startTime = Carbon::parse($date . ' ' . $schedule->start_time);
-                $endTime = Carbon::parse($date . ' ' . $schedule->end_time);
-                
-                if ($doctor->time_slot !== null) {
-                    // Time slot based calculation
-                    $timeSlotMinutes = (int) $doctor->time_slot;
-                    if ($timeSlotMinutes > 0) {
-                        $currentTime = clone $startTime;
-                        while ($currentTime < $endTime) {
-                            $workingHours[] = $currentTime->format('H:i');
-                            $currentTime->addMinutes($timeSlotMinutes);
-                        }
-                    }
-                } else {
-                    // Patient count based calculation
-                    $totalMinutes = $endTime->diffInMinutes($startTime);
-                    $patientsPerShift = (int) $schedule->number_of_patients_per_day;
-                    // Ensure we have valid numbers to work with
-                    if (abs($totalMinutes) > 0 && abs($patientsPerShift) > 0) {
-                        // Calculate minutes per patient
-                       $slotDuration = (int) ceil($totalMinutes / $patientsPerShift);
-                        
-                        $currentTime = clone $startTime;
-                        // Generate time slots until we either reach the end time or have created slots for all patients
-                        $slotsCreated = 0;
-                        while ($currentTime < $endTime && $slotsCreated < $patientsPerShift) {
-                            $workingHours[] = $currentTime->format('H:i');
-                            $currentTime->addMinutes(abs($slotDuration));
-                            $slotsCreated++;
-                        }
+    $doctor = $schedules->first()->doctor; // Access doctor data from the first schedule
+
+    foreach ($schedules as $schedule) {
+        try {
+            $startTime = Carbon::parse($date . ' ' . $schedule->start_time);
+            $endTime = Carbon::parse($date . ' ' . $schedule->end_time);
+
+            if ($doctor->time_slot) {
+                // Time slot based calculation
+                $timeSlotMinutes = (int) $doctor->time_slot;
+                $currentTime = clone $startTime;
+                while ($currentTime < $endTime) {
+                    $workingHours[] = $currentTime->format('H:i');
+                    $currentTime->addMinutes($timeSlotMinutes);
+                }
+            } else {
+                // Patient count based calculation
+                $totalMinutes = $endTime->diffInMinutes($startTime);
+                $patientsPerShift = (int) $schedule->number_of_patients_per_day;
+                if ($totalMinutes > 0 && $patientsPerShift > 0) {
+                    $slotDuration = (int) ceil($totalMinutes / $patientsPerShift);
+                    $currentTime = clone $startTime;
+                    for ($i = 0; $i < $patientsPerShift && $currentTime < $endTime; $i++) {
+                        $workingHours[] = $currentTime->format('H:i');
+                        $currentTime->addMinutes($slotDuration);
                     }
                 }
-            } catch (\Exception $e) {
-                Log::error("Error processing {$shift} schedule: " . $e->getMessage());
             }
+        } catch (\Exception $e) {
+            Log::error("Error processing schedule: " . $e->getMessage());
         }
     }
 
-    
-    return array_unique($workingHours);
+    return $workingHours;
 }
 
     private function getBookedSlots($doctorId, $date)
@@ -229,77 +242,194 @@ public function ForceAppointment(Request $request)
 {
     $validated = $request->validate([
         'doctor_id' => 'required|exists:doctors,id',
-        'days' => 'nullable|integer|min:1',
+        'days' => 'nullable|integer',
+        'date' => 'nullable|date_format:Y-m-d', // Accept date directly
     ]);
 
     $doctorId = $validated['doctor_id'];
     $days = (int)($validated['days'] ?? 0); // Ensure days is an integer
+    $dateInput = $validated['date'] ?? null; // Get the date input if provided
 
-    $date = Carbon::now()->addDays($days)->format('Y-m-d');
-    $gapSlots = [];
-    $additionalSlots = [];
+    try {
+        // Use the provided date if available, otherwise calculate it based on days
+        $date = $dateInput ? Carbon::parse($dateInput)->format('Y-m-d') : Carbon::now()->addDays($days)->format('Y-m-d');
 
-    // Fetch doctor details
-    $doctor = Doctor::find($doctorId, ['time_slot']);
+        $doctor = $this->fetchDoctorDetails($doctorId);
+        $timeSlotMinutes = $this->calculateTimeSlotMinutes($doctor, $date);
+
+        $schedules = $this->fetchSchedules($doctorId, $date);
+        $morningSchedule = $schedules->firstWhere('shift_period', 'morning');
+        $afternoonSchedule = $schedules->firstWhere('shift_period', 'afternoon');
+
+        $gapSlots = [];
+        $additionalSlots = [];
+
+        if (!$morningSchedule && !$afternoonSchedule) {
+            // If the doctor does not work on this date, generate slots from 8:00 to 17:00
+            $additionalSlots = $this->generateDefaultSlots($doctorId,$date, $timeSlotMinutes);
+        } else {
+            // Handle morning and afternoon schedules
+            list($gapSlots, $additionalSlots) = $this->handleSchedules(
+                $morningSchedule,
+                $afternoonSchedule,
+                $date,
+                $timeSlotMinutes
+            );
+        }
+
+        return response()->json([
+            'gap_slots' => $gapSlots,
+            'additional_slots' => $additionalSlots,
+            'next_available_date' => $date,
+            'time_slot_minutes' => $timeSlotMinutes,
+        ]);
+    } catch (\Exception $e) {
+        Log::error('Error calculating slots: ' . $e->getMessage());
+        return response()->json([
+            'error' => 'Error calculating appointment slots: ' . $e->getMessage(),
+        ], 500);
+    }
+}
+
+/**
+ * Fetch doctor details.
+ */
+private function fetchDoctorDetails($doctorId)
+{
+    return Doctor::find($doctorId, ['time_slot']);
+}
+
+/**
+ * Calculate time slot duration dynamically if not set.
+ */
+private function calculateTimeSlotMinutes($doctor, $date)
+{
     $timeSlotMinutes = is_numeric($doctor->time_slot) ? (int) $doctor->time_slot : 0;
 
     if ($timeSlotMinutes <= 0) {
-        return response()->json([
-            'error' => 'Invalid time slot duration for the doctor.',
-        ], 400);
+        $numberOfPatients = Appointment::where('doctor_id', $doctor->id)
+            ->whereDate('appointment_date', $date)
+            ->count();
+
+        $totalAvailableTime = $this->calculateTotalAvailableTime($doctor->id, $date);
+
+        if ($numberOfPatients > 0 && $totalAvailableTime > 0) {
+            $timeSlotMinutes = (int)($totalAvailableTime / $numberOfPatients);
+        } else {
+            $timeSlotMinutes = 30; // Default to 30 minutes
+        }
     }
 
-    // Fetch schedules
+    return $timeSlotMinutes;
+}
+
+/**
+ * Calculate total available time for the day.
+ */
+private function calculateTotalAvailableTime($doctorId, $date)
+{
     $schedules = Schedule::where('doctor_id', $doctorId)
         ->where('is_active', true)
         ->where('day_of_week', DayOfWeekEnum::cases()[Carbon::parse($date)->dayOfWeek]->value)
         ->get();
 
-    $morningSchedule = $schedules->firstWhere('shift_period', 'morning');
-    $afternoonSchedule = $schedules->firstWhere('shift_period', 'afternoon');
+    $totalAvailableTime = 0;
 
-    if ($morningSchedule && $afternoonSchedule) {
-        try {
-            // Create Carbon instances with explicit date-time strings
-            $morningEndDateTime = $date . ' ' . $morningSchedule->end_time;
-            $afternoonStartDateTime = $date . ' ' . $afternoonSchedule->start_time;
-            $afternoonEndDateTime = $date . ' ' . $afternoonSchedule->end_time;
-
-            $morningEndTime = Carbon::parse($morningEndDateTime);
-            $afternoonStartTime = Carbon::parse($afternoonStartDateTime);
-            $afternoonEndTime = Carbon::parse($afternoonEndDateTime);
-
-            // Validate parsed times
-            if (!$morningEndTime || !$afternoonStartTime || !$afternoonEndTime) {
-                throw new \Exception('Invalid time format in schedule');
-            }
-
-            // Calculate gap slots
-            $currentTime = clone $morningEndTime;
-            while ($currentTime < $afternoonStartTime) {
-                $gapSlots[] = $currentTime->format('H:i');
-                $currentTime->addMinutes($timeSlotMinutes);
-            }
-
-            // Calculate additional slots
-            $currentTime = clone $afternoonEndTime;
-            for ($i = 0; $i < 5; $i++) {
-                $currentTime->addMinutes($timeSlotMinutes);
-                $additionalSlots[] = $currentTime->format('H:i');
-            }
-        } catch (\Exception $e) {
-            Log::error('Error calculating slots: ' . $e->getMessage());
-            return response()->json([
-                'error' => 'Error calculating appointment slots: ' . $e->getMessage(),
-            ], 500);
-        }
+    foreach ($schedules as $schedule) {
+        $startTime = Carbon::parse($date . ' ' . $schedule->start_time);
+        $endTime = Carbon::parse($date . ' ' . $schedule->end_time);
+        $totalAvailableTime += $endTime->diffInMinutes($startTime);
     }
 
-    return response()->json([
-        'gap_slots' => $gapSlots,
-        'additional_slots' => $additionalSlots,
-        'next_available_date' => $date,
-    ]);
+    return $totalAvailableTime;
+}
+
+/**
+ * Fetch schedules for the given doctor and date.
+ */
+private function fetchSchedules($doctorId, $date)
+{
+    return Schedule::where('doctor_id', $doctorId)
+        ->where('is_active', true)
+        ->where('day_of_week', DayOfWeekEnum::cases()[Carbon::parse($date)->dayOfWeek]->value)
+        ->get();
+}
+
+/**
+ * Generate default slots from 8:00 to 17:00.
+ */
+private function generateDefaultSlots($doctorId, $date, $timeSlotMinutes)
+{
+    $defaultStartTime = config('app.default_start_time', '08:00');
+    $defaultEndTime = config('app.default_end_time', '17:00');
+
+    $startTime = Carbon::parse($date . ' ' . $defaultStartTime);
+    $endTime = Carbon::parse($date . ' ' . $defaultEndTime);
+    $slots = [];
+
+    $bookedSlots = $this->getBookedSlots($doctorId, $date);
+
+    $currentTime = clone $startTime;
+    while ($currentTime < $endTime) {
+        $slotTime = $currentTime->format('H:i');
+
+        if (!in_array($slotTime, $bookedSlots)) {
+            $slots[] = $slotTime;
+        }
+
+        $currentTime->addMinutes($timeSlotMinutes);
+    }
+
+    return $slots;
+}
+
+/**
+ * Handle morning and afternoon schedules to generate gap and additional slots.
+ */
+private function handleSchedules($morningSchedule, $afternoonSchedule, $date, $timeSlotMinutes)
+{
+    $gapSlots = [];
+    $additionalSlots = [];
+
+    if ($morningSchedule && !$afternoonSchedule) {
+        $morningEndTime = Carbon::parse($date . ' ' . $morningSchedule->end_time);
+        $additionalSlots = $this->generateAdditionalSlots($morningEndTime, $timeSlotMinutes);
+    } elseif (!$morningSchedule && $afternoonSchedule) {
+        $afternoonEndTime = Carbon::parse($date . ' ' . $afternoonSchedule->end_time);
+        $additionalSlots = $this->generateAdditionalSlots($afternoonEndTime, $timeSlotMinutes);
+    } elseif ($morningSchedule && $afternoonSchedule) {
+        $morningEndTime = Carbon::parse($date . ' ' . $morningSchedule->end_time);
+        $afternoonStartTime = Carbon::parse($date . ' ' . $afternoonSchedule->start_time);
+        $afternoonEndTime = Carbon::parse($date . ' ' . $afternoonSchedule->end_time);
+
+        // Generate gap slots between morning and afternoon shifts
+        $currentTime = clone $morningEndTime;
+        while ($currentTime < $afternoonStartTime) {
+            $gapSlots[] = $currentTime->format('H:i');
+            $currentTime->addMinutes($timeSlotMinutes);
+        }
+
+        // Generate additional slots after the afternoon shift
+        $additionalSlots = $this->generateAdditionalSlots($afternoonEndTime, $timeSlotMinutes);
+    }
+
+    return [$gapSlots, $additionalSlots];
+}
+
+/**
+ * Generate additional slots after a given end time.
+ */
+private function generateAdditionalSlots($endTime, $timeSlotMinutes)
+{
+    $slots = [];
+    $currentTime = clone $endTime;
+
+    for ($i = 0; $i < 20; $i++) {
+        $currentTime->addMinutes($timeSlotMinutes);
+        $slots[] = $currentTime->format('H:i');
+    }
+
+    return $slots;
 }
  /**
      * Retrieve a specific appointment for a doctor.
@@ -353,20 +483,27 @@ public function ForceAppointment(Request $request)
     
             // Check if the doctor has any dates in the Schedule model
             $doctorHasSchedule = Schedule::where('doctor_id', $doctorId)
-            ->where('date', $startDate->format('Y-m-d')) // Add date condition
-            ->where('is_active', true) // Ensure the schedule is active
-            ->exists();    
+                ->where('date', $startDate->format('Y-m-d')) // Add date condition
+                ->where('is_active', true) // Ensure the schedule is active
+                ->exists();
+    
+            // Get excluded dates for the specific doctor and for all doctors
+            $excludedDates = ExcludedDate::where(function ($query) use ($doctorId) {
+                $query->where('doctor_id', $doctorId) // Excluded dates for this doctor
+                      ->orWhereNull('doctor_id'); // Excluded dates for all doctors
+            })->get();
+    
             // Find next available appointment based on range
             if ($range > 0) {
-                $nextAvailableDate = $this->findNextAvailableAppointmentWithinRange($startDate, $doctorId, $range, $doctorHasSchedule);
+                $nextAvailableDate = $this->findNextAvailableAppointmentWithinRange($startDate, $doctorId, $range, $doctorHasSchedule, $excludedDates);
             } else {
-                $nextAvailableDate = $this->findNextAvailableAppointment($startDate, $doctorId, $doctorHasSchedule);
+                $nextAvailableDate = $this->findNextAvailableAppointment($startDate, $doctorId, $doctorHasSchedule, $excludedDates);
             }
     
             if (!$nextAvailableDate) {
-                return response()->json([
-                    'message' => 'No available slots found within the specified range.'
-                ]);
+                return  $response = [
+                    'next_available_date' => null,
+                ];
             }
     
             // Calculate period difference from current date
@@ -399,7 +536,6 @@ public function ForceAppointment(Request $request)
     
         } catch (\Exception $e) {
             // Log the error
-            Log::error('Error in checkAvailability: ' . $e->getMessage());
     
             // Return a user-friendly error response
             return response()->json([
@@ -408,11 +544,11 @@ public function ForceAppointment(Request $request)
             ], 500);
         }
     }
-    private function findNextAvailableAppointmentWithinRange(Carbon $startDate, $doctorId, $range, $doctorHasSchedule)
+    private function findNextAvailableAppointmentWithinRange(Carbon $startDate, $doctorId, $range, $doctorHasSchedule, $excludedDates)
     {
         // First check the start date itself
         $currentDate = clone $startDate;
-        if ($this->isDateAvailable($doctorId, $currentDate, $doctorHasSchedule)) {
+        if ($this->isDateAvailableforthisdate($doctorId, $currentDate, $doctorHasSchedule, $excludedDates)) {
             return $currentDate;
         }
     
@@ -423,7 +559,23 @@ public function ForceAppointment(Request $request)
                 $checkDate = clone $startDate;
                 $checkDate->subDays($currentRange);
     
-                if ($this->isDateAvailable($doctorId, $checkDate, $doctorHasSchedule)) {
+                // Get the month and year of the check date
+                $month = $checkDate->month;
+                $year = $checkDate->year;
+    
+                // Check if the month and year are available for appointments
+                $isMonthAvailable = AppointmentAvailableMonth::where('doctor_id', $doctorId)
+                    ->where('month', $month)
+                    ->where('year', $year) // Check for the specific year
+                    ->where('is_available', true)
+                    ->exists();
+    
+                // If the month and year are not available, stop searching backward
+                if (!$isMonthAvailable) {
+                    break;
+                }
+    
+                if ($this->isDateAvailableforthisdate($doctorId, $checkDate, $doctorHasSchedule, $excludedDates)) {
                     return $checkDate;
                 }
             }
@@ -434,7 +586,24 @@ public function ForceAppointment(Request $request)
         // Only search forward up to the range value
         for ($i = 1; $i <= $range; $i++) {
             $currentDate->addDay();
-            if ($this->isDateAvailable($doctorId, $currentDate, $doctorHasSchedule)) {
+    
+            // Get the month and year of the current date
+            $month = $currentDate->month;
+            $year = $currentDate->year;
+    
+            // Check if the month and year are available for appointments
+            $isMonthAvailable = AppointmentAvailableMonth::where('doctor_id', $doctorId)
+                ->where('month', $month)
+                ->where('year', $year) // Check for the specific year
+                ->where('is_available', true)
+                ->exists();
+    
+            // If the month and year are not available, stop searching forward
+            if (!$isMonthAvailable) {
+                break;
+            }
+    
+            if ($this->isDateAvailableforthisdate($doctorId, $currentDate, $doctorHasSchedule, $excludedDates)) {
                 return $currentDate;
             }
         }
@@ -442,30 +611,66 @@ public function ForceAppointment(Request $request)
         // If no appointment found within the range, return null
         return null;
     }
-/**
- * Find the next available appointment starting from a given date.
- * This is used when no range is specified.
- */
-private function findNextAvailableAppointment($startDate, $doctorId, $doctorHasSchedule)
-{
-    $currentDate = Carbon::parse($startDate);
-    $maxDaysToSearch = 365; // Add a reasonable limit to prevent infinite loop
-    $daysSearched = 0;
-
-    while ($daysSearched < $maxDaysToSearch) {
-        if ($this->isDateAvailableforthisdate($doctorId, $currentDate, $doctorHasSchedule)) {
-            return $currentDate;
+    
+    private function findNextAvailableAppointment($startDate, $doctorId, $doctorHasSchedule, $excludedDates)
+    {
+        $currentDate = Carbon::parse($startDate);
+        $endOfYear = Carbon::now()->endOfYear(); // End of the current year
+    
+        // Loop until the end of the current year
+        while ($currentDate->lte($endOfYear)) {
+            // Get the month and year of the current date
+            $month = $currentDate->month;
+            $year = $currentDate->year;
+    
+            // Check if the month and year are available for appointments
+            $isMonthAvailable = AppointmentAvailableMonth::where('doctor_id', $doctorId)
+                ->where('month', $month)
+                ->where('year', $year) // Check for the specific year
+                ->where('is_available', true)
+                ->exists();
+    
+            // If the month and year are available, check if the date is available
+            if ($isMonthAvailable && $this->isDateAvailableforthisdate($doctorId, $currentDate, $doctorHasSchedule, $excludedDates)) {
+                return $currentDate;
+            }
+    
+            // Move to the next day
+            $currentDate->addDay();
         }
-        $currentDate->addDay();
-        $daysSearched++;
+    
+        // If no appointment is found within the current year, return null
+        return null;
     }
-
-    return null;
-}
-private function isDateAvailableforthisdate($doctorId, Carbon $date, $doctorHasSchedule)
+private function isDateAvailableforthisdate($doctorId, Carbon $date, $doctorHasSchedule, $excludedDates)
 {
     // Check if the date is in the past
     if ($date->startOfDay()->lt(Carbon::now()->startOfDay())) {
+        return false;
+    }
+
+    // Check if the date is excluded
+    $isExcluded = $excludedDates->contains(function ($excludedDate) use ($date) {
+        return $date->between($excludedDate->start_date, $excludedDate->end_date);
+    });
+
+    if ($isExcluded) {
+        return false;
+    }
+
+    // Get the month and year of the date
+    $month = $date->month;
+    $year = $date->year;
+
+    // Check if the month and year are available for appointments
+    $isMonthAvailable = AppointmentAvailableMonth::where('doctor_id', $doctorId)
+        ->where('month', $month)
+        ->where('year', $year) // Check for the specific year
+        ->where('is_available', true)
+        ->exists();
+
+    // If the month and year are not available, return false
+    if (!$isMonthAvailable) {
         return false;
     }
 
@@ -509,8 +714,106 @@ private function isDateAvailableforthisdate($doctorId, Carbon $date, $doctorHasS
         return $this->isDateAvailable($doctorId, $date);
     }
 }
+public function getAllCanceledAppointments(Request $request)
+{
+    try {
+        $validated = $request->validate([
+            'doctor_id' => 'required|exists:doctors,id',
+        ]);
 
+        $doctorId = $validated['doctor_id'];
 
+        // Get excluded dates for the specific doctor and for all doctors
+        $excludedDates = ExcludedDate::where(function ($query) use ($doctorId) {
+            $query->where('doctor_id', $doctorId) // Excluded dates for this doctor
+                  ->orWhereNull('doctor_id'); // Excluded dates for all doctors
+        })->get();
+
+        // Fetch all canceled appointments for the doctor
+        $canceledAppointments = $this->findAllCanceledAppointments($doctorId, $excludedDates);
+
+        if ($canceledAppointments->isEmpty()) {
+            return response()->json([
+                'message' => 'No canceled appointments found for the specified doctor.',
+                'canceled_appointments' => []
+            ]);
+        }
+
+        // Build the response
+        $response = [
+            'current_date' => Carbon::now()->format('Y-m-d'),
+            'canceled_appointments' => $canceledAppointments
+        ];
+
+        return response()->json($response);
+
+    } catch (\Exception $e) {
+        // Log the error
+
+        // Return a user-friendly error response
+        return response()->json([
+            'message' => 'An error occurred while fetching canceled appointments.',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
+private function findAllCanceledAppointments($doctorId, $excludedDates)
+{
+    // Fetch all canceled appointments for the doctor
+    $appointments = Appointment::where('doctor_id', $doctorId)
+        ->where('status', 'canceled')
+        ->get();
+
+    // Filter out appointments that fall on excluded dates or violate other restrictions
+    $filteredAppointments = $appointments->filter(function ($appointment) use ($excludedDates, $doctorId) {
+        $appointmentDate = Carbon::parse($appointment->date);
+
+        // Check if the date is excluded
+        $isExcluded = $excludedDates->contains(function ($excludedDate) use ($appointmentDate) {
+            return $appointmentDate->between($excludedDate->start_date, $excludedDate->end_date);
+        });
+
+        if ($isExcluded) {
+            return false;
+        }
+
+        // Check if the month and year are available for appointments
+        $month = $appointmentDate->month;
+        $year = $appointmentDate->year;
+
+        $isMonthAvailable = AppointmentAvailableMonth::where('doctor_id', $doctorId)
+            ->where('month', $month)
+            ->where('year', $year)
+            ->where('is_available', true)
+            ->exists();
+
+        if (!$isMonthAvailable) {
+            return false;
+        }
+
+        // Check if the doctor has a schedule for this date (if applicable)
+        $hasSpecificDates = Schedule::where('doctor_id', $doctorId)
+            ->where('is_active', true)
+            ->whereNotNull('date')
+            ->exists();
+
+        if ($hasSpecificDates) {
+            $isDateScheduled = Schedule::where('doctor_id', $doctorId)
+                ->where('date', $appointmentDate->format('Y-m-d'))
+                ->where('is_active', true)
+                ->exists();
+
+            if (!$isDateScheduled) {
+                return false;
+            }
+        }
+
+        return true;
+    });
+
+    return $filteredAppointments->values(); // Reset keys for JSON response
+}
  /**
      * Check if a specific date is available.
      *
@@ -564,52 +867,69 @@ private function isDateAvailableforthisdate($doctorId, Carbon $date, $doctorHasS
  
      return $days . ' day(s)';
  }
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'phone' => 'required|string|max:20',
-            'doctor_id' => 'required',
-            'appointment_date' => 'required|date_format:Y-m-d',
-            'appointment_time' => 'required|date_format:H:i',
-            'description' => 'nullable|string|max:1000',
-        ]);
-        // Check if slot is already booked
-        $excludedStatuses = [
-            AppointmentSatatusEnum::CANCELED->value, // Add CANCELED here
-        ];
-        
-        $existingAppointment = Appointment::where('doctor_id', $request->doctor_id)
-            ->whereDate('appointment_date', $request->appointment_date)
-            ->where('appointment_time', $request->appointment_time)
-            ->whereNotIn('status', $excludedStatuses)
-            ->exists();
-
-        if ($existingAppointment) {
-            return response()->json([
-                'message' => 'This time slot is already booked.',
-                'errors' => ['appointment_time' => ['The selected time slot is no longer available.']]
-            ], 422);
-        }
-        $patient = Patient::firstOrCreate([
-            'Firstname' => $validated['first_name'],
-            'Lastname' => $validated['last_name'],
-            'phone' => $validated['phone'],
-        ]);
-        
-        $appointment = Appointment::create([
-            'patient_id' => $patient->id,
-            'doctor_id' => $validated['doctor_id'],
-            'appointment_date' => $validated['appointment_date'],
-            'appointment_time' => $validated['appointment_time'],
-            'notes' => $validated['description'] ?? null,
-            'status' => 0,  // Make sure 'status' is in your validation
-            'created_by' => 1
-        ]);
-
-        return new AppointmentResource($appointment);
-    }
+ public function store(Request $request)
+ {
+     // Validate the request
+     $validated = $request->validate([
+         'patient_id' => 'required|exists:patients,id', // Ensure the patient exists
+         'doctor_id' => 'required|exists:doctors,id',   // Ensure the doctor exists
+         'appointment_date' => 'required|date_format:Y-m-d',
+         'appointment_time' => 'required|date_format:H:i',
+         'description' => 'nullable|string|max:1000',
+         'addToWaitlist' => 'nullable|boolean', // Add validation for waitlist field
+     ]);
+ 
+     // Check if the slot is already booked
+     $excludedStatuses = [
+         AppointmentSatatusEnum::CANCELED->value, // Add CANCELED here
+     ];
+ 
+     $existingAppointment = Appointment::where('doctor_id', $request->doctor_id)
+         ->whereDate('appointment_date', $request->appointment_date)
+         ->where('appointment_time', $request->appointment_time)
+         ->whereNotIn('status', $excludedStatuses)
+         ->exists();
+ 
+     if ($existingAppointment) {
+         return response()->json([
+             'message' => 'This time slot is already booked.',
+             'errors' => ['appointment_time' => ['The selected time slot is no longer available.']]
+         ], 422);
+     }
+ 
+     // Create the appointment
+     $appointment = Appointment::create([
+         'patient_id' => $validated['patient_id'], // Use the provided patient_id
+         'doctor_id' => $validated['doctor_id'],
+         'appointment_date' => $validated['appointment_date'],
+         'appointment_time' => $validated['appointment_time'],
+         'add_to_waitlist' => $validated['addToWaitlist'] ?? false, // Default to false if not provided
+         'notes' => $validated['description'] ?? null,
+         'status' => 0,  // Default status (e.g., pending)
+         'created_by' => 1, // Assuming created_by is the user ID
+     ]);
+ 
+     // Check if the appointment should be added to the waitlist
+     if ($validated['addToWaitlist'] ?? false) {
+         // Fetch specialization_id from the doctor (assuming it's stored in the Doctor model)
+         $doctor = Doctor::find($validated['doctor_id']);
+         $specialization_id = $doctor->specialization_id;
+ 
+         // Create a waitlist entry
+         WaitList::create([
+             'doctor_id' => $validated['doctor_id'],
+             'patient_id' => $validated['patient_id'], // Use the provided patient_id
+             'is_Daily' => false,
+             'specialization_id' => $specialization_id,
+             'importance' =>  null, // Use importance from the request
+             'appointmentId' => $appointment->id ?? null, // Use importance from the request
+             'notes' => $validated['description'] ?? null, // Use notes from the appointment
+             'created_by' => 1, // Assuming created_by is the user ID
+         ]);
+     }
+ 
+     return new AppointmentResource($appointment);
+ }
     public function show($id)
     {
         $appointment = Appointment::findOrFail($id);
@@ -624,6 +944,12 @@ private function isDateAvailableforthisdate($doctorId, Carbon $date, $doctorHasS
     
         $doctorId = $validated['doctor_id'];
         $now = Carbon::now();
+    
+        // Get excluded dates for the specific doctor and for all doctors
+        $excludedDates = ExcludedDate::where(function ($query) use ($doctorId) {
+            $query->where('doctor_id', $doctorId) // Excluded dates for this doctor
+                  ->orWhereNull('doctor_id'); // Excluded dates for all doctors
+        })->get();
     
         // Get canceled appointments grouped by date, excluding past appointments
         $canceledAppointments = Appointment::where('doctor_id', $doctorId)
@@ -646,6 +972,28 @@ private function isDateAvailableforthisdate($doctorId, Carbon $date, $doctorHasS
         // Prepare result for canceled appointments
         $canceledAppointmentsResult = [];
         foreach ($groupedCanceledAppointments as $date => $appointments) {
+            // Check if the date is excluded
+            $isExcluded = $excludedDates->contains(function ($excludedDate) use ($date) {
+                return Carbon::parse($date)->between(
+                    $excludedDate->start_date,
+                    $excludedDate->end_date
+                );
+            });
+    
+            // If the date is excluded, skip it
+            if ($isExcluded) {
+                continue;
+            }
+    
+            // Check if the month is available
+            $month = Carbon::parse($date)->month;
+            $isMonthAvailable = $this->isMonthAvailable($doctorId, $month);
+    
+            // If the month is not available, skip this date
+            if (!$isMonthAvailable) {
+                continue;
+            }
+    
             // Create a list of available time slots for the given date
             $timeSlots = $appointments->map(function ($appointment) {
                 return [
@@ -686,8 +1034,8 @@ private function isDateAvailableforthisdate($doctorId, Carbon $date, $doctorHasS
             }
         }
     
-        // Find the closest available non-canceled appointment
-        $closestAvailableAppointment = $this->findClosestAvailableAppointment($doctorId);
+        // Find the closest available non-canceled appointment, excluding excluded dates and unavailable months
+        $closestAvailableAppointment = $this->findClosestAvailableAppointment($doctorId, $excludedDates);
     
         // Prepare result for normal available appointments (closest)
         $normalAppointmentsResult = $closestAvailableAppointment ? [
@@ -701,7 +1049,7 @@ private function isDateAvailableforthisdate($doctorId, Carbon $date, $doctorHasS
         ]);
     }
     
-    private function findClosestAvailableAppointment($doctorId)
+    private function findClosestAvailableAppointment($doctorId, $excludedDates)
     {
         $currentDate = Carbon::now();
         $currentTime = $currentDate->format('H:i');
@@ -715,24 +1063,53 @@ private function isDateAvailableforthisdate($doctorId, Carbon $date, $doctorHasS
             return $time > $currentTime;
         });
     
-        foreach ($todayWorkingHours as $time) {
-            $appointmentExists = Appointment::where('doctor_id', $doctorId)
-                ->where('appointment_date', $currentDate->format('Y-m-d'))
-                ->where('appointment_time', $time)
-                ->where('status', '!=', AppointmentSatatusEnum::CANCELED->value)
-                ->exists();
+        // Check if today is excluded
+        $isTodayExcluded = $excludedDates->contains(function ($excludedDate) use ($currentDate) {
+            return $currentDate->between($excludedDate->start_date, $excludedDate->end_date);
+        });
     
-            if (!$appointmentExists) {
-                return [
-                    'date' => $currentDate->format('Y-m-d'),
-                    'time' => $time
-                ];
+        // Check if the current month is available
+        $currentMonth = $currentDate->month;
+        $isCurrentMonthAvailable = $this->isMonthAvailable($doctorId, $currentMonth);
+    
+        if (!$isTodayExcluded && $isCurrentMonthAvailable) {
+            foreach ($todayWorkingHours as $time) {
+                $appointmentExists = Appointment::where('doctor_id', $doctorId)
+                    ->where('appointment_date', $currentDate->format('Y-m-d'))
+                    ->where('appointment_time', $time)
+                    ->where('status', '!=', AppointmentSatatusEnum::CANCELED->value)
+                    ->exists();
+    
+                if (!$appointmentExists) {
+                    return [
+                        'date' => $currentDate->format('Y-m-d'),
+                        'time' => $time
+                    ];
+                }
             }
         }
     
         // If no available slots today, check future days
         for ($i = 1; $i < 30; $i++) { // Limit to 30 days
             $date = $currentDate->copy()->addDays($i)->format('Y-m-d');
+    
+            // Check if the date is excluded
+            $isDateExcluded = $excludedDates->contains(function ($excludedDate) use ($date) {
+                return Carbon::parse($date)->between($excludedDate->start_date, $excludedDate->end_date);
+            });
+    
+            if ($isDateExcluded) {
+                continue; // Skip this date
+            }
+    
+            // Check if the month is available
+            $month = Carbon::parse($date)->month;
+            $isMonthAvailable = $this->isMonthAvailable($doctorId, $month);
+    
+            if (!$isMonthAvailable) {
+                continue; // Skip this month
+            }
+    
             $workingHours = $this->getDoctorWorkingHours($doctorId, $date);
     
             foreach ($workingHours as $time) {
@@ -753,22 +1130,42 @@ private function isDateAvailableforthisdate($doctorId, Carbon $date, $doctorHasS
     
         return null; // No available appointment found within the range
     }
-    
-    
 
+    private function isMonthAvailable($doctorId, $month)
+    {
+        // Get the current year and month
+        $currentYear = Carbon::now()->year;
+        $currentMonth = Carbon::now()->month;
+    
+        // If the month has already passed this year, return false (do not look into the next year)
+        if ($month < $currentMonth) {
+            return false;
+        }
+    
+        // Check if the month is available in the AppointmentAvailableMonth model for the current year
+        return AppointmentAvailableMonth::where('doctor_id', $doctorId)
+            ->where('month', $month)
+            ->where('is_available', true)
+            ->exists();
+    }
+    
+    
     public function changeAppointmentStatus(Request $request, $id)
     {
         $validated = $request->validate([
             'status' => 'required|integer|in:' . implode(',', array_column(AppointmentSatatusEnum::cases(), 'value')),
+            'reason' => 'nullable|string|required_if:status,2|max:255'
         ]);
-    
-        // Ensure the status is valid and corresponds to the enum values
-        $status = $validated['status'];
     
         $appointment = Appointment::findOrFail($id);
     
-        // Assign the validated status (casted to integer)
-        $appointment->status = $status;
+        $appointment->status = $validated['status'];
+        
+        // Add reason only if status is 2 and reason is provided
+        if ($validated['status'] == 2 && isset($validated['reason'])) {
+            $appointment->reason = $validated['reason'];
+        }
+    
         $appointment->save();
     
         return response()->json([
@@ -776,9 +1173,9 @@ private function isDateAvailableforthisdate($doctorId, Carbon $date, $doctorHasS
             'appointment' => new AppointmentResource($appointment),
         ]);
     }
-    public function destroy($id)
+    public function destroy($appointmentid)
     {
-        $appointment = Appointment::findOrFail($id);
+        $appointment = Appointment::findOrFail($appointmentid);
         $appointment->delete();
 
         return response()->json([
@@ -786,37 +1183,88 @@ private function isDateAvailableforthisdate($doctorId, Carbon $date, $doctorHasS
         ]);
     }
 
-
     public function update(Request $request, $id)
     {
-        $appointment = Appointment::findOrFail($id);
-        
+        // Validate the request data
         $validated = $request->validate([
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'phone' => 'required|string|max:20',
-            'doctor_id' => 'required|exists:doctors,id',
-            'appointment_date' => 'required|date_format:Y-m-d',
-            'appointment_time' => 'required|date_format:H:i',
-            'notes' => 'nullable|string|max:1000',
+            'first_name' => 'sometimes|required|string|max:255',
+            'last_name' => 'sometimes|required|string|max:255',
+            'phone' => 'sometimes|required|string|max:20',
+            'doctor_id' => 'sometimes|required',
+            'appointment_date' => 'sometimes|required|date_format:Y-m-d',
+            'appointment_time' => 'sometimes|required|date_format:H:i',
+            'description' => 'nullable|string|max:1000',
+            'addToWaitlist' => 'nullable|boolean', // Add validation for waitlist field
+            'importance' => 'nullable|integer',   // Add validation for importance field
         ]);
-
-        // Check if new slot is already booked (excluding current appointment)
-        $existingAppointment = Appointment::where('doctor_id', $request->doctor_id)
-            ->whereDate('appointment_date', $request->appointment_date)
-            ->where('appointment_time', $request->appointment_time)
-            ->where('id', '!=', $id)
+    
+        // Find the appointment by ID
+        $appointment = Appointment::findOrFail($id);
+    
+        // Check if the time slot is already booked (excluding the current appointment)
+        $excludedStatuses = [
+            AppointmentSatatusEnum::CANCELED->value, // Add CANCELED here
+        ];
+    
+        $existingAppointment = Appointment::where('doctor_id', $request->doctor_id ?? $appointment->doctor_id)
+            ->whereDate('appointment_date', $request->appointment_date ?? $appointment->appointment_date)
+            ->where('appointment_time', $request->appointment_time ?? $appointment->appointment_time)
+            ->whereNotIn('status', $excludedStatuses)
+            ->where('id', '!=', $appointment->id) // Exclude the current appointment
             ->exists();
-
+    
         if ($existingAppointment) {
             return response()->json([
                 'message' => 'This time slot is already booked.',
                 'errors' => ['appointment_time' => ['The selected time slot is no longer available.']]
             ], 422);
         }
-
-        $appointment->update($validated);
-        
+    
+        // Update the patient details
+        $patient = Patient::findOrFail($appointment->patient_id);
+        $patient->update([
+            'Firstname' => $validated['first_name'] ?? $patient->Firstname,
+            'Lastname' => $validated['last_name'] ?? $patient->Lastname,
+            'phone' => $validated['phone'] ?? $patient->phone,
+        ]);
+    
+        // Update the appointment details
+        $appointment->update([
+            'doctor_id' => $validated['doctor_id'] ?? $appointment->doctor_id,
+            'appointment_date' => $validated['appointment_date'] ?? $appointment->appointment_date,
+            'appointment_time' => $validated['appointment_time'] ?? $appointment->appointment_time,
+            'add_to_waitlist' => $validated['addToWaitlist'] ?? $appointment->add_to_waitlist,
+            'notes' => $validated['description'] ?? $appointment->notes,
+        ]);
+    
+        // Handle waitlist logic
+        if (isset($validated['addToWaitlist'])) {
+            if ($validated['addToWaitlist']) {
+                // Fetch specialization_id from the doctor (assuming it's stored in the Doctor model)
+                $doctor = Doctor::find($validated['doctor_id'] ?? $appointment->doctor_id);
+                $specialization_id = $doctor->specialization_id;
+    
+                // Create or update the waitlist entry
+                WaitList::updateOrCreate(
+                    [
+                        'doctor_id' => $validated['doctor_id'] ?? $appointment->doctor_id,
+                        'patient_id' => $patient->id,
+                    ],
+                    [
+                        'specialization_id' => $specialization_id,
+                        'importance' => $validated['importance'] ?? null, // Use importance from the request
+                        'notes' => $validated['description'] ?? null, // Use notes from the appointment
+                        'created_by' => 1, // Assuming created_by is the user ID
+                    ]
+                );
+            } else {
+                // Remove the appointment from the waitlist if addToWaitlist is false
+                WaitList::where('doctor_id', $validated['doctor_id'] ?? $appointment->doctor_id)
+                    ->where('patient_id', $patient->id)
+                    ->delete();
+            }
+        }
+    
         return new AppointmentResource($appointment);
     }
 

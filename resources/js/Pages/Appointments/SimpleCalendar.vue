@@ -7,7 +7,8 @@ import '@vuepic/vue-datepicker/dist/main.css';
 
 const props = defineProps({
   doctorId: { type: Number, required: true },
-  days: { type: Number, default: 0 }
+  days: { type: Number, default: null },
+  date: { type: Number, default: null }
 });
 
 const emit = defineEmits(['timeSelected', 'dateSelected']);
@@ -18,27 +19,26 @@ const formattedDate = computed(() => {
   if (!selectedDate.value) return '';
   return `${selectedDate.value.getFullYear()}-${(selectedDate.value.getMonth() + 1).toString().padStart(2, '0')}-${selectedDate.value.getDate().toString().padStart(2, '0')}`;
 });
-
 const fetchSlots = async () => {
   try {
     const response = await axios.get('/api/appointments/ForceSlots', {
-        params: {
-          days: props.days,  // Assuming days is needed for this endpoint, adjust if not
-          doctor_id: props.doctorId
-        }
-      });      
-    
+      params: {
+        date: props.date ? props.date : null,  // Send date if available, otherwise null
+        days: props.date ? null : props.days, // Send days only if date is not available
+        doctor_id: props.doctorId
+      }
+    });
+
     availableSlots.value = {
       gap_slots: response.data.gap_slots || [],
       additional_slots: response.data.additional_slots || [],
       next_available_date: response.data.next_available_date ? new Date(response.data.next_available_date) : null
     };
-    
 
     // Set the selected date to the next available date if it exists
     selectedDate.value = availableSlots.value.next_available_date;
     emit('dateSelected', response.data.next_available_date); // Emit selected date to the parent
-    
+
   } catch (error) {
     console.error('Error fetching slots:', error);
     availableSlots.value = {};
@@ -80,20 +80,16 @@ const resetDateSelection = () => {
           />
         </div>
 
-        <div v-if="availableSlots.next_available_date" class="mt-3">
-          <h6 class="mb-2">Next Available Appointment:</h6>
-          <p class="mb-0">{{ availableSlots.next_available_date.toDateString() }}</p>
-        </div>
+        
       </div>
     </div>
 
     <div v-if="selectedDate" class="card mb-3 shadow-sm">
       <div class="card-body">
         <TimeSlotSelector
-          :date="formattedDate"
+          :date="props.date"
           :forceAppointment="true"
           :doctorid="props.doctorId"
-          :days="props.days"
           @timeSelected="handleTimeSelected"
           class="mt-3"
         />

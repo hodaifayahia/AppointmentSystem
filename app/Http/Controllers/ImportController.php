@@ -80,7 +80,7 @@ class ImportController extends Controller
             ], 422);
         }
     }
-    public function ImportAppointment(Request $request)
+    public function ImportAppointment(Request $request , $doctorid)
     {
         try {
             // More lenient file validation
@@ -97,32 +97,51 @@ class ImportController extends Controller
                 'file.mimes' => 'The file must be a CSV or Excel file (xlsx, csv).',
                 'file.max' => 'The file size must not exceed 10MB.',
             ]);
-
+        
+            // Get the authenticated user's ID
             $createdBy = Auth::id();
-            Excel::import(new AppointmentImport($createdBy), $request->file('file'));
-
+        
+            // Perform the import
+            $import = new AppointmentImport($createdBy, $doctorid);
+            Excel::import($import, $request->file('file'));
+        
+            // Get the results of the import
+            $successCount = $import->getSuccessCount();
+            $errors = $import->getErrors();
+        
+            // Return a JSON response with the results
+            if (count($errors) > 0) {
+                return response()->json([
+                    'success' => true,
+                    'message' => "Successfully imported {$successCount} appointments, but some rows had errors.",
+                    'errors' => $errors,
+                ]);
+            }
+        
             return response()->json([
                 'success' => true,
-                'message' => 'Patients imported successfully!'
+                'message' => "Successfully imported {$successCount} appointments.",
             ]);
-
+        
         } catch (ValidationException $e) {
+            // Handle validation errors (e.g., file type or size issues)
             $failures = collect($e->failures())
                 ->map(function ($failure) {
                     return "Row {$failure->row()}: {$failure->errors()[0]}";
                 })
                 ->join(', ');
-
+        
             return response()->json([
                 'success' => false,
-                'message' => 'Import failed: ' . $failures
+                'message' => 'Import failed: ' . $failures,
             ], 422);
-
+        
         } catch (\Exception $e) {
+            // Handle any other exceptions
             return response()->json([
                 'success' => false,
-                'message' => 'Import failed: ' . $e->getMessage()
-            ], 422);
+                'message' => 'Import failed: ' . $e->getMessage(),
+            ], 500);
         }
     }
 }

@@ -1,14 +1,14 @@
-
 <script setup>
-import { defineProps, defineEmits , ref} from 'vue';
+import { defineProps, defineEmits, ref, onMounted } from 'vue';
 import DoctorModel from '../../Components/DoctorModel.vue';
-import DeleteDoctorModel from '../../Components/DeleteDoctorModel.vue';
 import { useRouter } from 'vue-router';
+import { useSweetAlert } from '../../Components/useSweetAlert';
+import axios from 'axios';
 
-
-
+const swal = useSweetAlert();
 const router = useRouter();
 
+// Props and emits
 const props = defineProps({
   doctor: {
     type: Object,
@@ -25,11 +25,35 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['doctorUpdated', 'toggleSelection']);
+
+// Refs
 const showDeleteModel = ref(false);
 const isModalOpen = ref(false);
 const selectedUser = ref(null);
+const userRole = ref(null); // Track user role
 
+// Fetch user role and initialize doctor ID
+const initializeDoctorId = async () => {
+  try {
+    const user = await axios.get('/api/role');
+   
 
+    if (user.data.role === 'admin') {
+      userRole.value = user.data.role;
+      // console.log('User role:', userRole.value);
+      
+    } 
+  } catch (err) {
+    console.error('Error fetching user role:', err);
+  }
+};
+
+// Lifecycle hook
+onMounted(() => {
+  initializeDoctorId();
+});
+
+// Modal and user actions
 const closeModal = () => {
   isModalOpen.value = false;
   showDeleteModel.value = false;
@@ -51,22 +75,7 @@ const handleUserUpdate = () => {
   closeModal();
 };
 
-
-// Utility functions
-// const formatDays = (daysData) => {
-//   if (Array.isArray(daysData)) {
-//     return daysData;
-//   } else if (typeof daysData === 'string') {
-//     try {
-//       return JSON.parse(daysData);
-//     } catch (error) {
-//       console.error('Error parsing days:', error);
-//       return [daysData];
-//     }
-//   }
-//   return [];
-// };
-
+// Format time
 const formatTime = (time) => {
   if (!time) return '';
   const [hours, minutes] = time.split(':');
@@ -76,18 +85,44 @@ const formatTime = (time) => {
   return `${formattedHour}:${minutes} ${ampm}`;
 };
 
+// Navigate to doctor schedule page
 const goToDoctorSchdulePage = (doctorId) => {
-  // Navigate using the router
-  router.push({ name: 'admin.docters.schedule', params: { id: doctorId } });
+  router.push({ name: 'admin.doctors.schedule', params: { id: doctorId } });
 };
 
+// Handle delete
+const handleDelete = async (id) => {
+  try {
+    const result = await swal.fire({
+      title: 'Are you sure?',
+      text: "You won't be able to revert this!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel'
+    });
+
+    if (result.isConfirmed) {
+      await axios.delete(`/api/doctors/${id}`, { params: { id: props.doctor.id } });
+      swal.fire('Deleted!', 'Doctor has been deleted.', 'success');
+      emit('doctorDeleted');
+      closeModal();
+    }
+  } catch (error) {
+    if (error.response?.data?.message) {
+      swal.fire('Error!', error.response.data.message, 'error');
+    } else {
+      swal.fire('Error!', 'Failed to delete Doctor.', 'error');
+    }
+  }
+};
 </script>
 
 <template>
   <tr 
-  class="doctor-item"
-  @click="goToDoctorSchdulePage(doctor.id)" 
-  style="cursor: pointer;" 
+    class="doctor-item"
+    @click="goToDoctorSchdulePage(doctor.id)" 
+    style="cursor: pointer;" 
   >
     <td class="select-column">
       <input 
@@ -112,7 +147,7 @@ const goToDoctorSchdulePage = (doctorId) => {
       {{ `${doctor.time_slots} min slots`  }}
     </td>
     <td class="doctor-actions">
-      <div class="btn-group">
+      <div class="btn-group" v-if="userRole === 'admin'">
         <button 
           class="btn btn-sm btn-outline-primary mx-1" 
           title="Edit"
@@ -123,7 +158,7 @@ const goToDoctorSchdulePage = (doctorId) => {
         <button 
           class="btn btn-sm btn-outline-danger" 
           title="Delete"
-          @click.stop="openDeleteModal"
+          @click.stop="handleDelete(doctor.id)"
         >
           <i class="fas fa-trash-alt"></i>
         </button>
@@ -131,9 +166,6 @@ const goToDoctorSchdulePage = (doctorId) => {
     </td>
   </tr>
 
-
-
-  
   <!-- Modals -->
   <Teleport to="body">
     <DoctorModel
@@ -143,17 +175,8 @@ const goToDoctorSchdulePage = (doctorId) => {
       @close="closeModal"
       @doctorUpdated="handleUserUpdate"
     />
-
-    <DeleteDoctorModel
-      v-if="showDeleteModel"
-      :show-modal="showDeleteModel"
-      :doctor-data="selectedUser"
-      @close="closeModal"
-      @doctor-deleted="handleUserUpdate"
-    />
   </Teleport>
 </template>
-
 
 <style scoped>
 .doctor-item {

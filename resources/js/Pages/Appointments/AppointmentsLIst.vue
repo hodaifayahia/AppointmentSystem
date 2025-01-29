@@ -12,13 +12,25 @@ const statuses = ref([]);
 const currentFilter = ref('ALL');
 const route = useRoute();
 const router = useRouter();
-const doctorId = route.params.id;
+const doctorId = ref(null);
 const pagination = ref({});
 
+const initializeDoctorId = async () => {
+  try {
+    const response = await axios.get('/api/user');
+    const user = response.data.data;
 
+    if (user.role === 'doctor') {
+      doctorId.value = user.id;
+    } else {
+      doctorId.value = route.params.id;
+    }
+  } catch (err) {
+    console.error('Error fetching user:', err);
+    doctorId.value = route.params.id;
+  }
+};
 
-
-// Fetch appointments with filters
 const getAppointments = async (status = null) => {
   try {
     loading.value = true;
@@ -27,11 +39,11 @@ const getAppointments = async (status = null) => {
     currentFilter.value = status || 'ALL';
 
     const params = {
-      status: status === 'ALL' ? null : status
+      status: status === 'ALL' ? null : status,
     };
 
-    const response = await axios.get(`/api/appointments/${doctorId}`, { params });
-    pagination.value = response.data.meta; // Store meta data for pagination
+    const response = await axios.get(`/api/appointments/${doctorId.value}`, { params });
+    pagination.value = response.data.meta;
 
     if (response.data.success) {
       appointments.value = response.data.data;
@@ -40,35 +52,29 @@ const getAppointments = async (status = null) => {
     }
   } catch (err) {
     console.error('Error fetching appointments:', err);
-    error.value = err.message || 'Failed to load appointments';
+    error.value = 'Failed to load appointments. Please try again later.';
     appointments.value = [];
   } finally {
     loading.value = false;
   }
 };
 
-
-// Fetch appointment statuses
 const getAppointmentsStatus = async () => {
   try {
-    loading.value = true; // Set loading state
-    error.value = null; // Clear any previous errors
+    loading.value = true;
+    error.value = null;
 
-    // Debugging: Verify doctorId
-    console.log('Sending doctorId:', doctorId);
-
-    // Only include doctorId in the URL path
-    const response = await axios.get(`/api/appointmentStatus/${doctorId}`);
+    const response = await axios.get(`/api/appointmentStatus/${doctorId.value}`);
 
     statuses.value = [
-      { name: 'ALL', value: null, color: 'secondary', icon: 'fas fa-list' }, // Default "ALL" option
-      ...response.data // Spread the response data into the array
+      { name: 'ALL', value: null, color: 'secondary', icon: 'fas fa-list' },
+      ...response.data,
     ];
   } catch (err) {
     console.error('Error fetching appointment statuses:', err);
-    error.value = 'Failed to load status filters. Please try again later.'; // User-friendly error message
+    error.value = 'Failed to load status filters. Please try again later.';
   } finally {
-    loading.value = false; // Reset loading state
+    loading.value = false;
   }
 };
 
@@ -76,15 +82,14 @@ const handleSearchResults = (searchData) => {
   appointments.value = searchData.data;
   pagination.value = searchData.meta;
 };
-// Navigate to create appointment page
+
 const goToAddAppointmentPage = () => {
   router.push({
     name: 'admin.appointments.create',
-    params: { doctorId }
+    params: { doctorId: doctorId.value },
   });
 };
 
-// Watch for route changes to reload appointments
 watch(
   () => route.params.id,
   (newDoctorId) => {
@@ -94,8 +99,9 @@ watch(
   }
 );
 
-onMounted(() => {
-  getAppointmentsStatus(doctorId);
+onMounted(async () => {
+  await initializeDoctorId();
+  getAppointmentsStatus();
   getAppointments();
 });
 </script>

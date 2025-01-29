@@ -6,22 +6,16 @@ import PatientModel from "../../Components/PatientModel.vue";
 
 import { useRouter } from 'vue-router';
 
-
+import { useSweetAlert } from '../../Components/useSweetAlert';
+const swal = useSweetAlert();
 
 const router = useRouter();
 const Patient = ref([])
 const loading = ref(false)
 const error = ref(null)
 const toaster = useToastr();
-
-
-
-const users = ref([]);
-const pagination = ref({});
-const selectedUser = ref({ name: '', email: '', phone: '', password: '' });
 // const isModalOpen = ref(false);
 const searchQuery = ref('');
-const isLoading = ref(false);
 // const selectedUserBox = ref([]);
 // const loading = ref(false);
 const file = ref(null);
@@ -148,17 +142,54 @@ const closeModal = () => {
 const refreshPatient = async () => {
   await getPatient();
 };
-const deletePatient = async (id) => {
-  if (!confirm('Are you sure you want to delete this Patient?')) return;
 
+
+const deletePatient = async (id) => {
   try {
-    await axios.delete(`/api/Patients/${id}`);
-    toaster.success('Patient deleted successfully');
-    refreshPatient(); // Refresh the list after deletion
+    // Show SweetAlert confirmation dialog using the configured swal instance
+    const result = await swal.fire({
+      title: 'Are you sure?',
+      text: "You won't be able to revert this!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel'
+    });
+
+    // If user confirms, proceed with deletion
+    if (result.isConfirmed) {
+      await axios.delete(`/api/Patients/${id}`);
+      toaster.success('Patient deleted successfully');
+      refreshPatient(); // Refresh the list after deletion
+      // Show success message
+      swal.fire(
+        'Deleted!',
+        'patient has been deleted.',
+        'success'
+      );
+
+      // Emit event to notify parent component
+      emit('doctorDeleted');
+      closeModal();
+    }
   } catch (error) {
-    handleBackendErrors(error);
+    // Handle error
+    if (error.response?.data?.message) {
+      swal.fire(
+        'Error!',
+        error.response.data.message,
+        'error'
+      );
+    } else {
+      swal.fire(
+        'Error!',
+        'Failed to delete Doctor.',
+        'error'
+      );
+    }
   }
 };
+
 const goToPatientAppointmentsPage = (PatientId) => {
   // Navigate using the router
   router.push({ name: 'admin.patient.appointments', params: { id: PatientId } });
@@ -226,13 +257,6 @@ onMounted(() => {
                 <!-- File Upload -->
                 <div class="d-flex flex-column align-items-center">
 
-                  <div v-if="loading" class="loading-indicator text-center ">
-                    <div class="spinner-border text-primary" role="status">
-                      <span class="visually-hidden"></span>
-                    </div>
-                    <span class="ml-2">Importing users...</span>
-                  </div>
-
                   <div class="custom-file mb-3 " style="width: 200px; margin-left: 160px;">
                     <label for="fileUpload" class="btn btn-primary w-100 premium-file-button">
                       <i class="fas fa-file-upload mr-2"></i> Choose File
@@ -253,13 +277,6 @@ onMounted(() => {
                 </div>
               </div>
 
-              <!-- Loading Indicator -->
-              <div v-if="isLoading" class="text-center">
-                <div class="spinner-border text-primary" role="status">
-                  <span class="visually-hidden">Loading...</span>
-                </div>
-              </div>
-
             </div>
 
             <!-- Patient List -->
@@ -267,12 +284,6 @@ onMounted(() => {
               <div class="card-body">
                 <div v-if="error" class="alert alert-danger" role="alert">
                   {{ error }}
-                </div>
-
-                <div v-if="loading" class="text-center py-4">
-                  <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden"></span>
-                  </div>
                 </div>
 
                 <table v-else class="table table-hover ">
@@ -303,7 +314,7 @@ onMounted(() => {
                         <button @click="openModal(Patient)" class="btn btn-sm btn-outline-primary me-2">
                           <i class="fas fa-edit"></i>
                         </button>
-                        <button @click="deletePatient(Patient.id)" class="btn btn-sm btn-outline-danger">
+                        <button @click.stop="deletePatient(Patient.id)" class="btn btn-sm btn-outline-danger">
                           <i class="fas fa-trash-alt"></i>
                         </button>
                       </td>

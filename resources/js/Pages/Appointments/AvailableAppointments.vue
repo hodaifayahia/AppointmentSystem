@@ -9,6 +9,11 @@ const props = defineProps({
     type: Number,
     required: true,
   },
+  waitlist: {
+    type: Boolean,
+    required: true,
+    default: false,
+  },
 });
 
 const emit = defineEmits(['dateSelected', 'timeSelected']);
@@ -24,6 +29,7 @@ const availableTimes = ref([]);
 const selectedType = ref('');
 const timeSlotKey = ref(0);
 
+// Fetch time slots for a specific date and type
 const fetchTimeSlots = async (date, type) => {
   try {
     if (type === 'canceled') {
@@ -47,6 +53,7 @@ const fetchTimeSlots = async (date, type) => {
   }
 };
 
+// Fetch available appointments for the selected doctor
 const fetchAvailableAppointments = async () => {
   try {
     const response = await axios.get('/api/appointments/available', {
@@ -61,6 +68,7 @@ const fetchAvailableAppointments = async () => {
   }
 };
 
+// Handle appointment selection
 const selectAppointment = async () => {
   const [type, date] = selectedValue.value.split('|');
   selectedType.value = type;
@@ -77,24 +85,40 @@ const selectAppointment = async () => {
   }
 };
 
+// Handle time selection
 const handleTimeSelected = (time) => {
   emit('timeSelected', time);
 };
 
+// Watch for changes in selectedValue
 watch(selectedValue, () => {
   if (selectedValue.value) {
     selectAppointment();
   }
 });
 
+// Watch for changes in doctorId
+watch(() => props.doctorId, (newDoctorId) => {
+  if (newDoctorId) {
+    // Reset selected values
+    selectedAppointment.value = null;
+    selectedValue.value = '';
+    availableTimes.value = [];
+    timeSlotKey.value++; // Force TimeSlotSelector to remount
+
+    // Fetch new appointments
+    fetchAvailableAppointments();
+  }
+});
+
+// Fetch appointments when the component is mounted
 onMounted(fetchAvailableAppointments);
 </script>
-
 <template>
   <div class="form-group mb-4">
     <label class="text-muted mb-2">Available Appointment Dates</label>
     <div
-      v-if="availableAppointments.canceled_appointments.length === 0 && !availableAppointments.normal_appointments"
+      v-if="availableAppointments.canceled_appointments.length === 0 && (!availableAppointments.normal_appointments || waitlist)"
       class="text-muted p-3 border rounded"
     >
       No available appointments.
@@ -106,7 +130,7 @@ onMounted(fetchAvailableAppointments);
         class="form-select form-control w-full mb-3"
       >
         <option disabled value="">Select an appointment</option>
-        <optgroup v-if="availableAppointments.canceled_appointments.length > 0" label="Canceled Appointments">
+        <optgroup v-if="availableAppointments.canceled_appointments.length > 0 && waitlist" label="Canceled Appointments">
           <option
             v-for="appointment in availableAppointments.canceled_appointments"
             :key="`canceled-${appointment.date}`"
@@ -115,7 +139,7 @@ onMounted(fetchAvailableAppointments);
             {{ formatDateHelper(appointment.date) }} (Canceled)
           </option>
         </optgroup>
-        <optgroup v-if="availableAppointments.normal_appointments" label="Normal Appointments">
+        <optgroup v-if="availableAppointments.normal_appointments && !waitlist" label="Normal Appointments">
           <option
             :key="`normal-${availableAppointments.normal_appointments.date}`"
             :value="'normal|' + formatDateHelper(availableAppointments.normal_appointments.date)"

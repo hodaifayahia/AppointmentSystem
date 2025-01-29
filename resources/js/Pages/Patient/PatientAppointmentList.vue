@@ -3,7 +3,6 @@ import { ref, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 
-
 const appointments = ref([]);
 const loading = ref(true);
 const error = ref(null);
@@ -14,10 +13,6 @@ const pagination = ref({});
 
 const Patientid = route.params.id;
 
-
-
-
-// Fetch appointments with filters
 const getAppointments = async (status = null) => {
     try {
         loading.value = true;
@@ -29,17 +24,17 @@ const getAppointments = async (status = null) => {
         const params = {
             status: status === 'ALL' ? null : status
         };
+        
 
-
-        const response = await axios.get(`/api/appointments/patient/${Patientid}`, { params });
-        console.log(response.data);
-
-        pagination.value = response.data.meta; // Store meta data for pagination
-
-        if (response.data.data) {
-            appointments.value = response.data.data;
+        const response = await axios.get(`/api/appointments/${Patientid}`, { params });
+        
+        if (response.data.success === false) {
+            // Handle the case where no appointments are found
+            appointments.value = [];
+            error.value = response.data.message;
         } else {
-            throw new Error(response.data.message);
+            pagination.value = response.data.meta;
+            appointments.value = response.data.data;            
         }
     } catch (err) {
         console.error('Error fetching appointments:', err);
@@ -50,11 +45,10 @@ const getAppointments = async (status = null) => {
     }
 };
 
-
 // Fetch appointment statuses
 const getAppointmentsStatus = async () => {
     try {
-        const response = await axios.get('/api/appointmentStatus');
+        const response = await axios.get(`/api/appointmentStatus/${Patientid}`);
         statuses.value = [
             { name: 'ALL', value: null, color: 'secondary', icon: 'fas fa-list' },
             ...response.data
@@ -64,23 +58,6 @@ const getAppointmentsStatus = async () => {
         error.value = 'Failed to load status filters';
     }
 };
-
-const handleSearchResults = (searchData) => {
-    appointments.value = searchData.data;
-    pagination.value = searchData.meta;
-};
-// Navigate to create appointment page
-
-
-// Watch for route changes to reload appointments
-watch(
-    () => route.params.id,
-    (newPatient) => {
-        if (newPatient) {
-            getAppointments(currentFilter.value);
-        }
-    }
-);
 
 const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -92,11 +69,31 @@ const formatDate = (dateString) => {
 };
 
 const formatTime = (time) => {
-    const [, timePart] = time.split('T');
-    if (timePart.length === 5) return timePart;
-    const [hours, minutes] = timePart.split(':');
-    return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+    if (!time) return "00:00";
+    try {
+        if (time.includes('T')) {
+            const [, timePart] = time.split('T');
+            if (timePart.length === 6) return timePart;
+            const [hours, minutes] = timePart.split(':');
+            return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+        }
+        const [hours, minutes] = time.split(':');
+        return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+    } catch (error) {
+        console.error("Error formatting time:", error);
+        return "00:00";
+    }
 };
+
+// Watch for route changes to reload appointments
+watch(
+    () => route.params.id,
+    (newPatient) => {
+        if (newPatient) {
+            getAppointments(currentFilter.value);
+        }
+    }
+);
 
 onMounted(() => {
     getAppointmentsStatus();
@@ -137,11 +134,6 @@ onMounted(() => {
                         <div class="card shadow-sm">
                             <div class="card-body">
 
-                                <div v-if="loading" class="text-center py-4">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden"></span>
-                                    </div>
-                                </div>
 
                                 <div class="table-responsive">
                                     <table class="table table-hover  table-bordered">
@@ -162,8 +154,10 @@ onMounted(() => {
                                                 <td colspan="8" class="text-center text-muted py-4">No appointments
                                                     found</td>
                                             </tr>
+                                            
 
                                             <tr v-else v-for="(appointment, index) in appointments"
+
                                                 :key="appointment.id" :class="appointment.status.color">
                                                 <td class="text-center align-middle">{{ index + 1 }}</td>
                                                 <td class="align-middle">{{ appointment.patient_first_name }} {{

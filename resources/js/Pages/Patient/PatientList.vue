@@ -4,33 +4,35 @@ import axios from 'axios';
 import { useToastr } from '../../Components/toster';
 import PatientModel from "../../Components/PatientModel.vue";
 import PatientListItem from './PatientListItem.vue';
+import { Bootstrap5Pagination } from 'laravel-vue-pagination';
 
 const patients = ref([]);
 const loading = ref(false);
 const error = ref(null);
 const toaster = useToastr();
 
+// Changed from pagination to paginationData for clarity
+const paginationData = ref({
+});
 
-const users = ref([]);
-const pagination = ref({});
-const selectedUser = ref({ name: '', email: '', phone: '', password: '' });
-// const isModalOpen = ref(false);
+const selectedPatient = ref({});
 const searchQuery = ref('');
-const isLoading = ref(false);
-// const selectedUserBox = ref([]);
-// const loading = ref(false);
-const file = ref(null);
-const errorMessage = ref('');
-const successMessage = ref('');
-const fileInput = ref(null);
-
+const isModalOpen = ref(false);
 
 const getPatients = async (page = 1) => {
   try {
     loading.value = true;
-    const response = await axios.get('/api/patients');
-    patients.value = response.data.data || response.data;
-    console.log(patients.value);
+    const response = await axios.get(`/api/patients?page=${page}`);
+    
+    // Store the entire response data
+    if (response.data.data) {
+      patients.value = response.data.data;
+      paginationData.value = response.data.meta;  // Store the complete pagination object
+    } else {
+      patients.value = response.data;
+    }
+    
+    console.log('Pagination Data:', paginationData.value);
   } catch (err) {
     console.error('Error fetching patients:', err);
     error.value = err.response?.data?.message || 'Failed to load patients';
@@ -38,9 +40,6 @@ const getPatients = async (page = 1) => {
     loading.value = false;
   }
 };
-
-const isModalOpen = ref(false);
-const selectedPatient = ref([]);
 
 const openModal = (patient = null) => {
   selectedPatient.value = patient ? { ...patient } : {};
@@ -75,15 +74,12 @@ onMounted(() => {
 <template>
   <div class="appointment-page">
     <!-- Header -->
-
+    
     <!-- Main Content -->
     <div class="content">
       <div class="container-fluid">
-        
         <div class="row">
-          
           <div class="col-lg-12">
-            
             <PatientListItem
               :patients="patients"
               :loading="loading"
@@ -91,10 +87,17 @@ onMounted(() => {
               @edit="openModal"
               @delete="deletePatient"
             />
+            <!-- Pagination Component -->
+              <Bootstrap5Pagination
+                :data="paginationData"
+                @pagination-change-page="getPatients"
+              />
+            
           </div>
         </div>
       </div>
     </div>
+
     <!-- Patient Modal -->
     <PatientModel
       :show-modal="isModalOpen"
@@ -104,3 +107,26 @@ onMounted(() => {
     />
   </div>
 </template>
+
+<style scoped>
+.appointment-page {
+  padding: 20px;
+}
+
+/* Add styling for pagination if needed */
+:deep(.pagination) {
+  margin-bottom: 0;
+}
+
+:deep(.page-link) {
+  color: #007bff;
+  background-color: #fff;
+  border: 1px solid #dee2e6;
+}
+
+:deep(.page-item.active .page-link) {
+  background-color: #007bff;
+  border-color: #007bff;
+  color: #fff;
+}
+</style>

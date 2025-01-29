@@ -1,49 +1,82 @@
 <?php
 
 namespace App\Http\Resources;
+namespace App\Http\Resources;
 
-use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Storage;
 
 class DoctorResource extends JsonResource
 {
-    /**
-     * Transform the resource into an array.
-     *
-     * @return array<string, mixed>
-     */
     public function toArray($request)
     {
         return [
             'id' => $this->id,
             'name' => $this->user->name ?? '',
-            'avatar' => $this->user->avatar 
-                ? asset(Storage::url($this->user->avatar)) 
-                : asset('storage/default.png'),
-            'email' => $this->user->email,
-            'phone' => $this->user->phone,
+            'avatar' => $this->getAvatarUrl(),
+            'email' => $this->user->email ?? '',
+            'phone' => $this->user->phone ?? '',
             'specialization' => $this->specialization->name ?? null,
-            'time_slots' => $this->time_slot, // If applicable
+            'specialization_id' => $this->specialization->id ?? null,
+            'time_slots' => $this->time_slot,
             'frequency' => $this->frequency,
             'patients_based_on_time' => $this->patients_based_on_time,
             'specific_date' => $this->specific_date,
-            'appointment_booking_window' => $this->appointment_booking_window,
-            'schedules' => $this->schedules->map(function ($schedule) {
-                return [
-                    'id' => $schedule->id,
-                    'day_of_week' => $schedule->day_of_week,
-                    'date' => $schedule->date,
-                    'number_of_patients_per_day' => $schedule->number_of_patients_per_day,
-                    'start_time' => $schedule->start_time,
-                    'end_time' => $schedule->end_time,
-                    'shift_period' => $schedule->shift_period,
-                    'is_active' => $schedule->is_active,
-                ];
-            }),
-            'created_at' => $this->created_at->format(config('app.date_formate')),
-            'updated_at' => $this->updated_at->format(config('app.date_formate')),
+            'appointment_booking_window' => $this->formatAppointmentBookingWindow(),
+            'schedules' => $this->formatSchedules(),
+            'created_at' => $this->formatTimestamp($this->created_at),
+            'updated_at' => $this->formatTimestamp($this->updated_at),
         ];
     }
 
+    protected function getAvatarUrl()
+    {
+        return $this->user->avatar
+            ? asset(Storage::url($this->user->avatar))
+            : asset('storage/default.png');
+    }
+
+    protected function formatAppointmentBookingWindow()
+    {
+        // Ensure the relationship is loaded and not null
+        if ($this->appointmentAvailableMonths) {
+            return $this->appointmentAvailableMonths->map(function ($month) {
+                return [
+                    'month' => $month->month,
+                    'is_available' => $month->is_available,
+                ];
+            });
+        }
+
+        // Return an empty array if the relationship is not loaded or null
+        return [];
+    }
+
+    protected function formatSchedules()
+    {
+        return $this->schedules->map(function ($schedule) {
+            return [
+                'id' => $schedule->id,
+                'day_of_week' => $schedule->day_of_week,
+                'date' => $schedule->date,
+                'number_of_patients_per_day' => $schedule->number_of_patients_per_day,
+                'start_time' => $schedule->start_time,
+                'end_time' => $schedule->end_time,
+                'shift_period' => $schedule->shift_period,
+                'is_active' => $schedule->is_active,
+            ];
+        });
+    }
+
+    /**
+     * Format a timestamp using the application's date format.
+     *
+     * @param  \Carbon\Carbon|null  $timestamp
+     * @return string|null
+     */
+    protected function formatTimestamp($timestamp)
+    {
+        $format = config('app.date_format', 'Y-m-d'); // Fallback to 'Y-m-d' if config is missing
+        return $timestamp ? $timestamp->format($format) : null;
+    }
 }

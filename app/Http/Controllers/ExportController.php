@@ -20,6 +20,6 @@ class ExportController extends Controller
     }
     public function ExportAppointment()
     {
-        return Excel::download(new AppointmentExport, 'Patients.xlsx');
+        return Excel::download(new AppointmentExport, 'appointments.xlsx');
     }
 }

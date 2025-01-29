@@ -33,6 +33,30 @@ class AppointmentStatus extends Controller
             ];
         });
     }
+    public function appointmentStatusPatient(Request $request, $patientid) {
+      
+        
+        if (!$patientid) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Doctor ID is required.'
+            ], 400);
+        }
+    
+        $casces = AppointmentSatatusEnum::cases();
+    
+        return collect($casces)->map(function ($status) use ($patientid) {
+            return [
+                'name' => $status->name,
+                'value' => $status->value,
+                'count' => Appointment::where('status', $status->value)
+                            ->where('patient_id', $patientid)
+                            ->count(),
+                'color' => AppointmentSatatusEnum::from($status->value)->color(),
+                'icon' => $status->icon(), // Include icon in the response
+            ];
+        });
+    }
     public function todaysAppointments(Request $request, $doctorid) {
         // Debugging: Check the value of doctorid
  

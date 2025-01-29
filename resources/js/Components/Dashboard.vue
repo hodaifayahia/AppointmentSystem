@@ -54,7 +54,6 @@ const getAppointments = async (status = null, filter = null, date = null) => {
   }
 };
 
-// Fetch doctors and their working dates
 const fetchDoctorsworkingDates = async (month) => {
   try {
     loading.value = true;
@@ -65,7 +64,13 @@ const fetchDoctorsworkingDates = async (month) => {
     });
 
     if (response.data) {
-      doctors.value = response.data.data;
+      // Assign a unique color to each doctor
+      const colors = ['#FF6B6B', '#4ECDC4', '#FFD166', '#06D6A0', '#118AB2', '#073B4C', '#EF476F'];
+      doctors.value = response.data.data.map((doctor, index) => ({
+        ...doctor,
+        working_dates: doctor.working_dates.map(date => formatLocalDate(new Date(date))),
+        color: colors[index % colors.length], // Assign a color from the palette
+      }));
     } else {
       throw new Error('Failed to fetch doctors');
     }
@@ -76,7 +81,21 @@ const fetchDoctorsworkingDates = async (month) => {
     loading.value = false;
   }
 };
+const hasAppointments = (date) => {
+  const dateStr = formatLocalDate(date);
+  return appointments.value.some(apt => {
+    const aptDate = formatLocalDate(new Date(apt.date));
+    return aptDate === dateStr;
+  });
+};
 
+const getAppointmentCount = (date) => {
+  const dateStr = formatLocalDate(date);
+  return appointments.value.filter(apt => {
+    const aptDate = formatLocalDate(new Date(apt.date));
+    return aptDate === dateStr;
+  }).length;
+};
 // Calendar navigation
 const previousMonth = () => {
   currentDate.value = new Date(currentDate.value.getFullYear(), currentDate.value.getMonth() - 1);
@@ -92,6 +111,12 @@ const nextMonth = () => {
 const formatMonthYear = (date) => {
   return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
 };
+const formatLocalDate = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 // Calendar computations
 const currentMonthYear = computed(() => {
@@ -100,7 +125,6 @@ const currentMonthYear = computed(() => {
     month: 'long',
   }).format(currentDate.value);
 });
-
 const calendarDays = computed(() => {
   const year = currentDate.value.getFullYear();
   const month = currentDate.value.getMonth();
@@ -164,32 +188,37 @@ const formattedDate = computed(() => {
 const selectDate = (date) => {
   selectedDate.value = date;
   filters.value.date = formattedDate.value;
+  filters.value.doctorName = "";
   getAppointments(null, null, formattedDate.value); // Pass the selected date
 };
 
-const hasAppointments = (date) => {
-  const dateStr = date.toISOString().split('T')[0];
-  return appointments.value.some(apt => apt.date === dateStr);
-};
 
-const getAppointmentCount = (date) => {
-  const dateStr = date.toISOString().split('T')[0];
-  return appointments.value.filter(apt => apt.date === dateStr).length;
-};
-
-const getDoctorsWorkingOnDate = (date) => {
-  const dateStr = date.toISOString().split('T')[0];
-  return doctors.value
-    .filter(doctor => doctor.working_dates.includes(dateStr))
-    .map(doctor => doctor.name);
-};
 
 // Filter by doctor name
 const filterByDoctor = (doctorName) => {
   filters.value.doctorName = doctorName;
   getAppointments(null, null, filters.value.date); // Pass the selected date
 };
+const getDoctorsWorkingOnDate = (date) => {
+  const dateStr = formatLocalDate(date);
+  console.log('Checking date:', dateStr);
 
+  // Filter doctors whose working_dates include the formatted date
+  const workingDoctors = doctors.value
+    .filter(doctor => {
+      return doctor.working_dates.some(workingDate => {
+        const formattedWorkingDate = formatLocalDate(new Date(workingDate));
+        return formattedWorkingDate === dateStr;
+      });
+    })
+    .map(doctor => ({
+      name: doctor.name,
+      color: doctor.color,
+    }));
+
+  console.log('Working Doctors on', dateStr, ':', workingDoctors);
+  return workingDoctors;
+};
 // Formatted selected date
 const formattedSelectedDate = computed(() => {
   return new Intl.DateTimeFormat('en-US', {
@@ -199,6 +228,7 @@ const formattedSelectedDate = computed(() => {
     day: 'numeric',
   }).format(selectedDate.value);
 });
+
 
 // Clear all filters
 const clearFilters = () => {
@@ -218,14 +248,32 @@ const formatDate = (date) => {
   return new Date(date).toLocaleDateString();
 };
 
-// Format time
-const formatTime = (time) => {
-  const [, timePart] = time.split('T');
-  if (timePart.length === 5) return timePart;
-  const [hours, minutes] = timePart.split(':');
-  return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
-};
 
+
+function formatTime(time) {
+    // Handle undefined or null input
+    if (!time) {
+        console.error("Invalid time input:", time);
+        return "00:00"; // Return a default value or handle the error as needed
+    }
+
+    try {
+        // Check if the time is in ISO format (e.g., "2023-10-02T10:00:00")
+        if (time.includes('T')) {
+            const [, timePart] = time.split('T');
+            if (timePart.length === 6) return timePart; // Handle cases like "T10:00"
+            const [hours, minutes] = timePart.split(':');
+            return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+        }
+
+        // Handle plain time strings (e.g., "10:00")
+        const [hours, minutes] = time.split(':');
+        return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+    } catch (error) {
+        console.error("Error formatting time:", error);
+        return "00:00"; // Return a default value or handle the error as needed
+    }
+}
 // Status options
 const statusOptions = ref([
   { value: 0, label: 'Scheduled' },
@@ -304,27 +352,22 @@ onMounted(() => {
             </div>
             <!-- Display doctors working on this day -->
             <div class="doctor-names" v-if="doctors.length > 0">
-              <div
-                v-for="doctor in doctors"
-                :key="doctor"
-                class="doctor-name"
-                @click.stop="filterByDoctor(doctor)"
-              >
-                {{ doctor }}
-              </div>
-            </div>
+  <div
+    v-for="doctor in doctors"
+    :key="doctor.name"
+    class="doctor-name"
+    :style="{ backgroundColor: doctor.color }"
+    @click.stop="filterByDoctor(doctor.name)"
+  >
+    {{ doctor.name }}
+  </div>
+</div>
           </div>
         </div>
       </div>
     </div>
 
     <div>
-      <!-- Loading Spinner -->
-      <div v-if="loading" class="text-center my-4">
-        <div class="spinner-border text-primary" role="status">
-          <span class="visually-hidden">Loading...</span>
-        </div>
-      </div>
 
       <!-- Error Message -->
       <div v-if="error" class="alert alert-danger my-4">
@@ -495,22 +538,27 @@ onMounted(() => {
   -webkit-overflow-scrolling: touch;
 }
 
+.doctor-names {
+  position: absolute;
+  bottom: 10px;
+  left: 5px;
+  right: 5px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
 .doctor-name {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: bold;
-  margin-bottom: 5px;
-  text-align: center;
-  color: #333;
+  padding: 4px 8px;
+  border-radius: 12px;
+  color: white;
   cursor: pointer;
-  /* Add pointer cursor */
-  transition: color 0.2s ease;
-  /* Smooth color transition */
+  transition: opacity 0.2s ease;
 }
 
 .doctor-name:hover {
-  color: #007bff;
-  /* Change color on hover */
-  text-decoration: underline;
-  /* Add underline on hover */
+  opacity: 0.8;
 }
 </style>

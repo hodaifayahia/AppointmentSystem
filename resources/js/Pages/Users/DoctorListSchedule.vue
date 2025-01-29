@@ -3,12 +3,32 @@ import { ref, onMounted } from 'vue';
 import axios from 'axios';
 import { useRoute } from 'vue-router';
 
-const schedules = ref([]);
+const months = ref([]);
+  const schedules = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const route = useRoute();
 const doctorName = ref("");
 const doctorId = route.params.id;
+
+const monthNames = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
+
+const monthwork = async () => {
+  try {
+    const response = await axios.get(`/api/monthwork/${doctorId}`);
+    months.value = response.data.map(month => ({
+      ...month,
+      month_name: monthNames[month.month - 1] // Convert month integer to name
+    }));
+  } catch (e) {
+    console.error("Error fetching schedules:", e);
+    loading.value = false;
+  }
+};
+
 const fetchSchedules = async () => {
   try {
     const response = await axios.get(`/api/schedules/${doctorId}`, {
@@ -17,8 +37,11 @@ const fetchSchedules = async () => {
       },
     });
     
+    console.log(response.data);
+    
     // Store the fetched schedules in the reactive variable
     schedules.value = response.data.schedules;
+
     doctorName.value = response.data.doctor_name;
     
     // Process the schedules into the desired format
@@ -54,6 +77,7 @@ const fetchSchedules = async () => {
     loading.value = false;
   }
 };
+
 const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -63,8 +87,12 @@ const formatDate = (dateString) => {
     });
 };
 
-onMounted(fetchSchedules);
+onMounted(() => {
+  fetchSchedules();
+  monthwork();
+});
 </script>
+
 <template>
   <div class="container mt-4 premium-ui">
     <!-- Loading Spinner -->
@@ -116,14 +144,41 @@ onMounted(fetchSchedules);
           No schedules found for this doctor.
         </div>
       </div>
+      
+    <!-- Available Months -->
+<div class="available-months mb-4">
+  <h4 class="mb-3">Available Months</h4>
+  <div class="row">
+    <div v-for="month in months" :key="month.month" class="col-md-4 mb-3">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">{{ month.month_name }} {{ month.year }}</h5>
+          <p class="card-text">
+            <span :class="month.is_available ? 'text-success' : 'text-danger'">
+              {{ month.is_available ? 'Available' : 'Not Available' }}
+            </span>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
     </div>
   </div>
 </template>
-
 <style scoped>
 .premium-ui {
   font-family: 'Roboto', 'Helvetica Neue', sans-serif;
   color: #333;
+}
+.card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 .premium-title {

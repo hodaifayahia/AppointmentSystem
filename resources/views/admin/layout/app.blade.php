@@ -11,7 +11,6 @@
 </head>
 <body class="hold-transition sidebar-mini text-sm">
   <div class="wrapper" id="app">
-
         <!-- Navbar -->
         <nav class="main-header navbar navbar-expand navbar-white navbar-light">
           <!-- Left navbar links -->
@@ -93,88 +92,111 @@
               <div class="image">
               </div>
               <div class="info">
-                <a href="#" class="d-block text-center">Admin </a>
+                <a href="#" class="d-block text-center">{{ Auth::user()->name }} </a>
+                <img src="{{Auth::user()->avatar }}" alt="">
               </div>
             </div>
 
             <!-- Sidebar Menu -->
             <nav class="mt-2">
               <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
-                <!-- Add icons to the links using the .nav-icon class with font-awesome or any other icon font library -->
+                <!-- Dashboard -->
+                @if(Auth::user()->role === 'receptionist' || Auth::user()->role === 'admin')
+
                 <li class="nav-item">
-                    <router-link to="/admin/dashboard" active-class="active" class="nav-link">
-                        <i class="nav-icon fas fa-tachometer-alt"></i>
-                        <p>
-                            Dashboard
-                        </p>
-                    </router-link>
-                </li>
-                <li class="nav-item">
-                    <router-link to="/admin/appointments/specialization" active-class="active" class="nav-link">
-                        <i class="nav-icon fas fa-calendar-alt"></i>
-                        <p>
-                            Appointment
-                        </p>
-                    </router-link>
-                </li>
-                <li class="nav-item">
-                    <router-link to="/admin/users" active-class="active" class="nav-link">
-                        <i class="nav-icon fas fa-users"></i>
-                        <p>
-                            Admins
-                        </p>
-                    </router-link>
-                </li>
-                
-                <li class="nav-item">
-                    <router-link to="/admin/docters" active-class="active" class="nav-link">
-                        <i class="nav-icon fas fa-users"></i>
-                        <p>
-                            Doctors
-                        </p>
-                    </router-link>
-                </li>
-                <li class="nav-item">
-                  <router-link to="/admin/patient" active-class="active" class="nav-link">
-                    <i class="nav-icon fas fa-user-injured"></i>                        <p>
-                          Patient
-                      </p>
+                  <router-link to="/admin/dashboard" active-class="active" class="nav-link">
+                    <i class="nav-icon fas fa-tachometer-alt"></i>
+                    <p>Dashboard</p>
                   </router-link>
-              </li>
-                <li class="nav-item">
-                    <router-link to="/admin/specializations" active-class="active" class="nav-link">
-                      <i class="nav-icon fas fa-briefcase"></i>                        <p>
-                          specializations
-                        </p>
-                    </router-link>
                 </li>
-                {{-- <li class="nav-item">
-                    <router-link to="/admin/specializations" active-class="active" class="nav-link">
-                      <i class="nav-icon fas fa-briefcase"></i>                        <p>
-                          Execloaded
-                        </p>
+            @endif
+                <!-- Admin-specific links -->
+                @if(Auth::user()->role === 'admin')
+                  <li class="nav-item">
+                    <router-link to="/admin/users" active-class="active" class="nav-link">
+                      <i class="nav-icon fas fa-users"></i>
+                      <p>Admins</p>
                     </router-link>
-                </li> --}}
+                  </li>
+                  <li class="nav-item">
+                    <router-link to="/admin/specializations" active-class="active" class="nav-link">
+                      <i class="nav-icon fas fa-briefcase"></i>
+                      <p>Specializations</p>
+                    </router-link>
+                  </li>
+                  
+                  <li class="nav-item">
+                    <router-link to="/admin/excludeDates" active-class="active" class="nav-link">
+                      <i class="nav-icon fas fa-calendar-times"></i>
+                      <p>Exclude</p>
+                    </router-link>
+                  </li>
+                 
+                @endif
+            
+                <!-- Receptionist-specific links -->
+                @if(Auth::user()->role === 'receptionist' || Auth::user()->role === 'admin')
+                <li class="nav-item">
+                  <router-link to="/admin/docters" active-class="active" class="nav-link">
+                    <i class="nav-icon fas fa-users"></i>
+                    <p>Doctors</p>
+                  </router-link>
+                </li>
+                  <li class="nav-item">
+                    <router-link to="/admin/appointments/specialization" active-class="active" class="nav-link">
+                      <i class="nav-icon fas fa-calendar-alt"></i>
+                      <p>Appointment</p>
+                    </router-link>
+                  </li>
+                  <li class="nav-item">
+                    <router-link to="/admin/patient" active-class="active" class="nav-link">
+                      <i class="nav-icon fas fa-user-injured"></i>
+                      <p>Patient</p>
+                    </router-link>
+                  </li>
+                
+                  <li class="nav-item">
+                    <router-link to="/admin/Waitlist" active-class="active" class="nav-link">
+                      <i class="nav-icon fas fa-clock"></i>
+                      <p>Waitlist</p>
+                    </router-link>
+                  </li>
+                @endif
+            
+                <!-- Doctor-specific links -->
+                @if(Auth::user()->role === 'doctor')
+                  <li class="nav-item">
+                    <router-link to="/doctor/appointments" active-class="active" class="nav-link">
+                      <i class="nav-icon fas fa-calendar-alt"></i>
+                      <p>Appointment</p>
+                    </router-link>
+                  </li>
+
+                  <li class="nav-item">
+                    <router-link to="/doctor/excludeDates" active-class="active" class="nav-link">
+                      <i class="nav-icon fas fa-calendar-times"></i>
+                      <p>Day Offs</p>
+                    </router-link>
+                  </li>
+                @endif
+            
+                <!-- Settings and Logout (Common for all roles) -->
                 <li class="nav-item">
                   <router-link to="/admin/settings" active-class="active" class="nav-link">
-                      <i class="nav-icon fas fa-cogs"></i>
-                      <p>
-                          Settings
-                      </p>
+                    <i class="nav-icon fas fa-cogs"></i>
+                    <p>Settings</p>
                   </router-link>
-              </li>
-              <li class="nav-item mr-2">
-                  <form action="{{ route('logout') }}" method="POST" style="display: contents; ">
-                      @csrf
-                      <a href="#" onclick="event.preventDefault(); this.closest('form').submit();" class="nav-link" style="padding: 2; text-decoration: none;">
-                          <i class="nav-icon fas fa-sign-out-alt" style="margin-right: 5px;"></i>
-                          <p style="display: inline; margin: 0;">Logout</p>
-                      </a>
+                </li>
+                <li class="nav-item mr-2">
+                  <form action="{{ route('logout') }}" method="POST" style="display: contents;">
+                    @csrf
+                    <a href="#" onclick="event.preventDefault(); this.closest('form').submit();" class="nav-link" style="padding: 2; text-decoration: none;">
+                      <i class="nav-icon fas fa-sign-out-alt" style="margin-right: 5px;"></i>
+                      <p style="display: inline; margin: 0;">Logout</p>
+                    </a>
                   </form>
-              </li>
-            </ul>
-            
-            
+                </li>
+              </ul>
             </nav>
             <!-- /.sidebar-menu -->
           </div>

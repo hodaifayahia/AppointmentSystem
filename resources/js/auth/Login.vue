@@ -37,8 +37,8 @@ const togglePasswordVisibility = () => {
             <!-- Image at the Top -->
             <div class="bg-primary text-center p-4">
                 <div class="rounded-circle mx-auto border border-primary shadow"
-                  style="width: 120px; height: 120px; overflow: hidden;">
-                  <img src="/login.png" alt="Doctor image" class="w-100 h-100" style="object-fit: cover;" />
+                    style="width: 120px; height: 120px; overflow: hidden;">
+                    <img src="/login.png" alt="Doctor image" class="w-100 h-100" style="object-fit: cover;" />
                 </div>
                 <h1 class="text-white text-2xl font-bold">Appointment System</h1>
                 <h2 class="text-white text-lg">Clinic Osis</h2>
@@ -50,26 +50,26 @@ const togglePasswordVisibility = () => {
                 <form @submit="handleLogin">
                     <!-- Email Field -->
                     <div class="mb-3">
-    <label for="email" class="form-label">Email</label>
-    <div class="input-group">
-        <input v-model="form.email" type="email" id="email" 
-            class="form-control" placeholder="Enter your email" required>
-        <span class="input-group-text">
-            <i class="fas fa-envelope"></i>
-        </span>
-    </div>
-</div>
+                        <label for="email" class="form-label">Email</label>
+                        <div class="input-group">
+                            <input v-model="form.email" type="email" id="email" class="form-control"
+                                placeholder="Enter your email" required>
+                            <span class="input-group-text">
+                                <i class="fas fa-envelope"></i>
+                            </span>
+                        </div>
+                    </div>
 
-<div class="mb-3">
-    <label for="password" class="form-label">Password</label>
-    <div class="input-group">
-        <input v-model="form.password" :type="showPassword ? 'text' : 'password'" id="password" 
-            class="form-control" placeholder="Enter your password" required>
-        <span class="input-group-text cursor-pointer" @click="togglePasswordVisibility">
-            <i :class="['fas', showPassword ? 'fa-eye-slash' : 'fa-eye']"></i>
-        </span>
-    </div>
-</div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <div class="input-group">
+                            <input v-model="form.password" :type="showPassword ? 'text' : 'password'" id="password"
+                                class="form-control" placeholder="Enter your password" required>
+                            <span class="input-group-text cursor-pointer" @click="togglePasswordVisibility">
+                                <i :class="['fas', showPassword ? 'fa-eye-slash' : 'fa-eye']"></i>
+                            </span>
+                        </div>
+                    </div>
 
                     <!-- Remember Me & Submit -->
                     <div class="d-flex justify-content-between align-items-center mb-4">

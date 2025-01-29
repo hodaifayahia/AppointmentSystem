@@ -66,8 +66,9 @@ return [
     */
 
     'timezone' => env('APP_TIMEZONE', 'UTC'),
-'date_formate' => 'Y-m-d', 
-'time_format' => 'H:i',    /*
+    'date_format' => 'Y-m-d', // Default date format
+    'datetime_format' => 'Y-m-d H:i:s', // Optional: Custom datetime format
+  /*
     |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------

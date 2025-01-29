@@ -3,6 +3,9 @@
 namespace App\Models;
 
 use App\AppointmentSatatusEnum;
+use App\Models\Doctor;
+use App\Models\Patient;
+use App\Models\WaitList;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -14,15 +17,16 @@ class Appointment extends Model
         'doctor_id',
         'patient_id',
         'notes',
+        'appointment_booking_window',
         'appointment_date',
         'appointment_time',
+        'add_to_waitlist',
+        'reason',
         'status',
     ];
 
    
 protected $casts = [
-    'appointment_date' => 'datetime',
-    'appointment_time' => 'datetime',
     'status' => AppointmentSatatusEnum::class
 ];
     // Define relationships if needed.
@@ -31,9 +35,15 @@ protected $casts = [
         return $this->belongsTo(Doctor::class);
     }
     
+// In Appointment model
+public function patient()
+{
+    return $this->belongsTo(Patient::class, 'patient_id');
+}
 
-    public function patient()
-    {
-        return $this->belongsTo(Patient::class);
-    }
+public function waitlist()
+{
+    return $this->hasOne(WaitList::class, 'patient_id', 'patient_id')
+                ->where('doctor_id', $this->doctor_id);
+}
 }

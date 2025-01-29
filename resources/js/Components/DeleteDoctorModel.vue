@@ -21,21 +21,7 @@ const closeModal = () => {
   emit('close');
 };
 
-const handleDelete = async () => {
-  try {
-    
-    await axios.delete(`/api/doctors/${props.doctorData.id}`,{params: {id:props.doctorData.id}});
-    toaster.success('Doctor deleted successfully');
-    emit('doctorDeleted');
-    closeModal();
-  } catch (error) {
-    if (error.response?.data?.message) {
-      toaster.error(error.response.data.message);
-    } else {
-      toaster.error('Failed to delete Doctor');
-    }
-  }
-};
+
 </script>
 
 <template>

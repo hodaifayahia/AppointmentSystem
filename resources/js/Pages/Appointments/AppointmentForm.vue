@@ -14,13 +14,14 @@ const router = useRouter();
 const nextAppointmentDate = ref('');
 const searchQuery = ref('');
 const toastr = useToastr();
+const importanceLevels = ref([]);
+
 const props = defineProps({
   editMode: { type: Boolean, default: false },
   doctorId: { type: Number, default: null },
   appointmentId: { type: Number, default: null }
 });
 
-// Reactive form data
 const form = reactive({
   id: null,
   first_name: '',
@@ -28,13 +29,15 @@ const form = reactive({
   last_name: '',
   patient_Date_Of_Birth: '',
   phone: '',
-  doctor_id: props.doctorId ,
+  doctor_id: props.doctorId,
   appointment_date: '',
   appointment_time: '',
   description: '',
+  description: '',
+  addToWaitlist: false, // Default to false
+  importance: 1, // Default importance level
   status: {},
 });
-// Fetch appointment data when in edit mode
 const fetchAppointmentData = async () => {
   if (props.editMode && props.appointmentId) {
     try {
@@ -44,15 +47,16 @@ const fetchAppointmentData = async () => {
         // Populate form with appointment data
         form.id = appointment.id;
         form.first_name = appointment.first_name;
-        form.patient_id = appointment.patient_id; // This will trigger patient selection in PatientSearch
+        form.patient_id = appointment.patient_id;
         form.last_name = appointment.last_name;
         form.patient_Date_Of_Birth = appointment.patient_Date_Of_Birth;
         form.phone = appointment.phone;
-        form.doctor_id = props.doctorId; // Note: This might not need changing if it's always the current doctor
+        form.doctor_id = props.doctorId;
         form.appointment_date = appointment.appointment_date;
         form.appointment_time = appointment.appointment_time;
-        form.status = appointment.status;
         form.description = appointment.description;
+        form.addToWaitlist = appointment.addToWaitlist; // Populate waitlist field
+        form.status = appointment.status;
 
         // Set the search query to potentially match the patient's name
         searchQuery.value = `${appointment.first_name} ${appointment.last_name} ${appointment.patient_Date_Of_Birth} ${appointment.phone}`;
@@ -62,10 +66,14 @@ const fetchAppointmentData = async () => {
     }
   }
 };
-
+// Fetch importance enum values
+const fetchImportanceEnum = async () => {
+  const response = await axios.get('/api/importance-enum');
+  importanceLevels.value = response.data;
+};
 // Handle patient selection
 const handlePatientSelect = (patient) => {
-  
+
   form.first_name = patient.firstname;
   form.last_name = patient.lastname;
   form.patient_Date_Of_Birth = patient.dateOfBirth;
@@ -81,7 +89,7 @@ const handleDaysChange = (days) => {
 
 // Handle date selection from calendar
 const handleDateSelected = (date) => {
-  
+
   form.appointment_date = date; // Store selected date in `appointment_date`
   nextAppointmentDate.value = date; // Optionally display it
 };
@@ -98,10 +106,10 @@ const handleTimeSelected = (time) => {
 const handleSubmit = async (values, { setErrors }) => {
   try {
     const method = props.editMode ? 'put' : 'post';
-    const url = props.editMode 
-      ? `/api/appointments/${props.appointmentId}` 
+    const url = props.editMode
+      ? `/api/appointments/${props.appointmentId}`
       : '/api/appointments';
-    
+
     const response = await axios[method](url, form);
     console.log(`${props.editMode ? 'Appointment updated:' : 'Appointment created:'}`, response.data);
 
@@ -130,7 +138,7 @@ watch(() => form.selectionMethod, resetSelection);
 
 // Load existing appointment data in edit mode
 onMounted(async () => {
- 
+  fetchImportanceEnum();
   fetchAppointmentData();
 
 });
@@ -139,54 +147,39 @@ onMounted(async () => {
 <template>
   <Form @submit="handleSubmit" v-slot="{ errors }">
     <!-- Patient Search Component -->
-    <PatientSearch v-model="searchQuery" :patientId="form.patient_id" 
-    @patientSelected="handlePatientSelect" />
+    <PatientSearch v-model="searchQuery" :patientId="form.patient_id" @patientSelected="handlePatientSelect" />
 
     <!-- Available Appointments Component -->
-    <AvailableAppointments :doctorId="props.doctorId"   @dateSelected="handleDateSelected"
-    @timeSelected="handleTimeSelected" />
+    <AvailableAppointments :doctorId="props.doctorId" @dateSelected="handleDateSelected"
+      @timeSelected="handleTimeSelected" />
 
     <!-- Appointment Method Selection -->
     <div class="form-group mb-4">
       <label for="selectionMethod" class="form-label">Select Appointment Method</label>
-      <select 
-        id="selectionMethod" 
-        v-model="form.selectionMethod" 
-        class="form-control"
-      >
+      <select id="selectionMethod" v-model="form.selectionMethod" class="form-control">
         <option value="days">By Days</option>
         <option value="calendar">By Calendar</option>
       </select>
     </div>
 
     <!-- Show 'By Days' Option -->
-    <NextAppointmentDate
-      v-if="form.selectionMethod === 'days'"
-      :doctorId="props.doctorId"
-      :initialDays="form.days"
-      @update:days="handleDaysChange"
-      @dateSelected="handleDateSelected"
-      @timeSelected="handleTimeSelected"
-    />
+    <NextAppointmentDate v-if="form.selectionMethod === 'days'" :doctorId="props.doctorId" :initialDays="form.days"
+      @update:days="handleDaysChange" @dateSelected="handleDateSelected" @timeSelected="handleTimeSelected" />
 
     <!-- Show Calendar if 'By Calendar' Option is Selected -->
 
-    <AppointmentCalendar
-      v-if="form.selectionMethod === 'calendar'"
-      :doctorId="props.doctorId"
-      @timeSelected="handleTimeSelected"
-      @dateSelected="handleDateSelected"
-    />
+    <AppointmentCalendar v-if="form.selectionMethod === 'calendar'" :doctorId="props.doctorId"
+      @timeSelected="handleTimeSelected" @dateSelected="handleDateSelected" />
+    <!-- Waitlist Checkbox -->
     <div class="form-group mb-4">
-  <label for="description" class="form-label">Description</label>
-  <textarea 
-    id="description" 
-    v-model="form.description" 
-    class="form-control" 
-    rows="3"
-    placeholder="Enter appointment details..."
-  ></textarea>
-</div>
+      <label for="addToWaitlist" class="form-label ">Add to Waitlist</label>
+      <input type="checkbox" id="addToWaitlist" v-model="form.addToWaitlist" class="form-check-input" />
+    </div>
+    <div class="form-group mb-4">
+      <label for="description" class="form-label">Description</label>
+      <textarea id="description" v-model="form.description" class="form-control" rows="3"
+        placeholder="Enter appointment details..."></textarea>
+    </div>
     <!-- Submit Button -->
     <div class="form-group">
       <button type="submit" class="btn btn-primary rounded-pill">
@@ -195,9 +188,7 @@ onMounted(async () => {
     </div>
   </Form>
 </template>
-
 <style scoped>
-/* Styles for the form and selection method */
 .form-group {
   margin-bottom: 1.5rem;
 }
@@ -212,6 +203,10 @@ onMounted(async () => {
   width: 100%;
   padding: 0.5rem;
   border-radius: 4px;
+}
+
+.form-check-input {
+  margin-left: 10px
 }
 
 .btn {

@@ -70,62 +70,49 @@ const handleBackendErrors = (error) => {
   }
 };
 
-const createFormData = (data) => {
+// Helper function to create FormData
+const createFormData = (values) => {
   const formData = new FormData();
-
-  // Iterate through each key in the provided data
-  Object.keys(data).forEach((key) => {
-    if (key === 'avatar' && data[key] instanceof File) {
-      // For avatar, check if it's a file before appending
-      formData.append(key, data[key], data[key].name);
-    } else if (data[key] !== null && data[key] !== undefined && data[key] !== '') {
-      // Append other non-null, non-undefined, and non-empty fields
-      formData.append(key, data[key]);
+  Object.keys(values).forEach(key => {
+    if (key === 'photo' && values[key] instanceof File) {
+      formData.append(key, values[key], values[key].name);
+    } else if (values[key] !== null && values[key] !== undefined) {
+      formData.append(key, values[key]);
     }
   });
-
   return formData;
 };
-
 const submitForm = async (values) => {
-  try {
-    // Ensure merging with `user.value` does not overwrite essential properties
-    const mergedValues = {
-      ...user.value,
-      ...values,
-    };
+  try {    
+    const submissionData = ({
+      ...specialization.value,
+      ...values
+    });
 
-    // Add `_method` for method spoofing only if in edit mode
     if (isEditMode.value) {
-      mergedValues._method = 'PUT';
-    }
-
-    const formData = createFormData(mergedValues);
-
-    // Determine the correct HTTP method and endpoint
-    if (isEditMode.value) {
-      await axios.post(`/api/users/${user.value.id}`, formData, {
+      console.log(submissionData.val);
+      
+      await axios.put(`/api/specializations/${specialization.value.id}`, submissionData, {
         headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+          'Content-Type': 'multipart/form-data'
+        }
       });
-      toaster.success('User updated successfully');
+      toastr.success('Specialization updated successfully');
     } else {
-      await axios.post('/api/users', formData, {
+      await axios.post('/api/specializations', submissionData, {
         headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+          'Content-Type': 'multipart/form-data'
+        }
       });
-      toaster.success('User added successfully');
+      toastr.success('Specialization added successfully');
     }
 
-    emit('userUpdated');
+    emit('specUpdate');
     closeModal();
   } catch (error) {
     handleBackendErrors(error);
   }
 };
-
 </script>
 <template>
   <div class="modal fade" :class="{ show: showModal }" tabindex="-1" aria-labelledby="specializationModalLabel" aria-hidden="true" v-if="showModal">

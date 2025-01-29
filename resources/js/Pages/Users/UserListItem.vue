@@ -4,7 +4,8 @@ import AddUserComponent from '@/Components/AddUserComponent.vue';
 import DeleteUserModel from '@/Components/DeleteUserModel.vue';
 import { useToastr } from '../../Components/toster';
 import axios from 'axios';
-
+import { useSweetAlert } from '../../Components/useSweetAlert';
+const swal = useSweetAlert();
 const props = defineProps({
   user: {
     type: Object,
@@ -38,10 +39,54 @@ const editUser = () => {
   isModalOpen.value = true;
 };
 
-const openDeleteModal = () => {
-  selectedUser.value = { ...props.user };
-  showDeleteModel.value = true;
+
+const handleDelete = async (id) => {
+  try {
+    // Show SweetAlert confirmation dialog using the configured swal instance
+    const result = await swal.fire({
+      title: 'Are you sure?',
+      text: "You won't be able to revert this!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel'
+    });
+
+    // If user confirms, proceed with deletion
+    if (result.isConfirmed) {
+      await axios.delete(`/api/users/${id}`);
+    toaster.success('User deleted successfully');
+    handleUserUpdate();
+
+      // Show success message
+      swal.fire(
+        'Deleted!',
+        'User has been deleted.',
+        'success'
+      );
+
+      // Emit event to notify parent component
+      emit('doctorDeleted');
+      closeModal();
+    }
+  } catch (error) {
+    // Handle error
+    if (error.response?.data?.message) {
+      swal.fire(
+        'Error!',
+        error.response.data.message,
+        'error'
+      );
+    } else {
+      swal.fire(
+        'Error!',
+        'Failed to delete Doctor.',
+        'error'
+      );
+    }
+  }
 };
+
 
 const handleUserUpdate = () => {
   emit('user-updated');
@@ -108,7 +153,7 @@ const formatDate = (dateString) => {
         <button class="btn btn-sm btn-outline-primary mx-1" title="Edit" @click="editUser">
           <i class="fas fa-edit"></i>
         </button>
-        <button class="btn btn-sm btn-outline-danger" title="Delete" @click="openDeleteModal">
+        <button class="btn btn-sm btn-outline-danger" title="Delete" @click.stop="handleDelete(user.id)">
           <i class="fas fa-trash-alt"></i>
         </button>
       </div>

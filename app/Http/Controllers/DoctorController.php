@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\AppointmentBookingWindow;
 use App\DayOfWeekEnum;
 use App\Http\Resources\DoctorResource;
+use App\Models\Appointment;
 use App\Models\Doctor;
 use App\Models\Schedule;
 use App\Models\User;
@@ -17,201 +18,236 @@ use Illuminate\Support\Facades\Validator;
 
 class DoctorController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index(Request $request)
     {
+        // Get the filter query parameter
         $filter = $request->query('query');
+        $doctorId = $request->query('doctor_id'); // Get doctorId from query parameter
+
+        // Base query for doctors
         $doctorsQuery = Doctor::whereHas('user', function ($query) {
             $query->where('role', 'doctor');
         })
-        ->with(['user', 'specialization', 'schedules']); // Add 'schedules'
-        
-        
+        ->with(['user', 'specialization', 'schedules', 'appointmentAvailableMonths']); // Eager load relationships
+
+        // Apply filter if provided
         if ($filter) {
             $doctorsQuery->where('specialization_id', $filter);
         }
-        
+
+        // Apply filter by doctorId if provided
+        if ($doctorId) {
+            $doctorsQuery->where('id', $doctorId); 
+        }
+
+        // Paginate the results
         $doctors = $doctorsQuery->paginate();
+
+        // Return the paginated results as a collection of DoctorResource
         return DoctorResource::collection($doctors);
     }
     
-  
-public function WorkingDates(Request $request)
-{
-    $id = $request->query('id'); // Get the id parameter (optional)
-    $month = $request->query('month'); // Get the month parameter (e.g., '2023-10')
-
-    // Base query to fetch doctors
-    $doctorsQuery = Doctor::whereHas('user', function ($query) {
-        $query->where('role', 'doctor');
-    })
-    ->with(['user', 'specialization', 'schedules' => function ($query) use ($month) {
-        if ($month) {
-            // Filter schedules for the provided month
-            $query->whereYear('date', '=', substr($month, 0, 4))
-                  ->whereMonth('date', '=', substr($month, 5, 2));
+    public function WorkingDates(Request $request)
+    {
+        $id = $request->query('id'); // Get the id parameter (optional)
+        $month = $request->query('month'); // Get the month parameter (e.g., '2023-10')
+    
+        // Base query to fetch doctors
+        $doctorsQuery = Doctor::whereHas('user', function ($query) {
+            $query->where('role', 'doctor');
+        })
+        ->with(['user', 'specialization']);
+    
+        // Apply id filter if provided
+        if ($id) {
+            $doctorsQuery->where('id', $id);
         }
-    }]);
-
-    // Apply id filter if provided
-    if ($id) {
-        $doctorsQuery->where('id', $id);
+    
+        // Fetch the doctors
+        $doctors = $doctorsQuery->get();
+    
+        // Transform the results
+        $transformedDoctors = $doctors->map(function ($doctor) use ($month) {
+            return $this->transformDoctor($doctor, $month);
+        });
+    
+        return response()->json([
+            'data' => $transformedDoctors,
+        ]);
     }
-
-    // Fetch the doctors
-    $doctors = $doctorsQuery->get();
-
-    // Transform the results
-    $transformedDoctors = $doctors->map(function ($doctor) use ($month) {
-        return $this->transformDoctor($doctor, $month);
-    });
-
-    return response()->json([
-        'data' => $transformedDoctors,
-    ]);
-}
-
-private function transformDoctor($doctor, $month)
-{
-    $workingDates = [];
-
-    // Fetch schedules directly from the Schedule model
-    $schedules = Schedule::where('doctor_id', $doctor->id)->get();
-
-    // Debugging: Check fetched schedules
-
-    // If schedules exist, extract the dates
-    if ($schedules->isNotEmpty()) {
-        $workingDates = $this->getWorkingDatesForMonth($schedules, $month);
-    }
-
-    return [
-        'id' => $doctor->id,
-        'name' => $doctor->user->name,
-        'specialization' => $doctor->specialization->name,
-        'working_dates' => $workingDates,
-    ];
-}
-private function getWorkingDatesForMonth($schedules, $month): array
-{
-    $workingDates = [];
-
-    // Parse the month into year and month
-    $year = substr($month, 0, 4);
-    $monthNumber = substr($month, 5, 2);
-
-    foreach ($schedules as $schedule) {
-        if (!empty($schedule->date)) {
-            // If a specific date is provided, use it as a working date
-            $workingDates[] = $schedule->date;
-        } else {
-            // If no specific date is provided, generate dates based on the day_of_week
-            $dayOfWeek = $schedule->day_of_week;
-            $currentMonth = Carbon::create($year, $monthNumber, 1)->startOfMonth();
-            $endOfMonth = Carbon::create($year, $monthNumber, 1)->endOfMonth();
-
-            while ($currentMonth->lte($endOfMonth)) {
-                if ($currentMonth->isDayOfWeek($dayOfWeek)) {
-                    $workingDates[] = $currentMonth->toDateString();
-                }
-                $currentMonth->addDay();
-            }
+    
+    private function transformDoctor($doctor, $month)
+    {
+        $workingDates = [];
+    
+        // Fetch appointments for the doctor for the specified month
+        $appointments = Appointment::where('doctor_id', $doctor->id)
+            ->whereYear('appointment_date', '=', substr($month, 0, 4))
+            ->whereMonth('appointment_date', '=', substr($month, 5, 2))
+            ->get();
+    
+        // Extract working dates from appointments
+        if ($appointments->isNotEmpty()) {
+            $workingDates = $appointments->pluck('appointment_date')->unique()->values()->toArray();
         }
+    
+        return [
+            'id' => $doctor->id,
+            'name' => $doctor->user->name,
+            'specialization' => $doctor->specialization->name,
+            'working_dates' => $workingDates,
+        ];
     }
-
-    return $workingDates;
-}
-
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
-    {
-        //
+    public function getDoctor(Request $request, $id = null)
+{
+    // If an ID is provided, return the specific doctor
+    if ($id) {
+        $doctor = Doctor::whereHas('user', function ($query) {
+            $query->where('role', 'doctor');
+        })
+        ->with(['user', 'specialization', 'schedules']) // Load related data
+        ->find($id); // Find the doctor by ID
+
+        if (!$doctor) {
+            return response()->json(['message' => 'Doctor not found'], 404);
+        }
+
+        return new DoctorResource($doctor); // Return a single doctor resource
     }
+
+    // If no ID is provided, return a paginated list of doctors
+    $filter = $request->query('query');
+    $doctorsQuery = Doctor::whereHas('user', function ($query) {
+        $query->where('role', 'doctor');
+    })
+    ->with(['user', 'specialization', 'schedules']); // Add 'schedules'
+
+    if ($filter) {
+        $doctorsQuery->where('specialization_id', $filter);
+    }
+
+    $doctors = $doctorsQuery->paginate();
+    return DoctorResource::collection($doctors); // Return a collection of doctors
+}
+    // public function getDoctor($doctorid)
+    // {
+    //     $doctor = Doctor::find($doctorid);
+
+    //     return DoctorResource::collection($doctor);
+    // }
 
     /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
-    {
-        
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
-            'phone' => 'required|string',
-            'password' => 'required|min:8',
-            'specialization' => 'required|exists:specializations,id',
-            'frequency' => 'required|string',
-            'patients_based_on_time' => 'required|boolean',
-            'appointmentBookingWindow' => 'required|integer|in:1,3,5',
-            'time_slot' => 'nullable|integer|gt:0|required_if:patients_based_on_time,true',
-            'schedules' => 'array|required_without:customDates',
-            'customDates' => 'array|required_without:schedules',
-            'schedules.*.day_of_week' => 'required|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
-            'schedules.*.shift_period' => 'required|in:morning,afternoon',
-            'schedules.*.start_time' => 'required',
-            'schedules.*.end_time' => 'required|after:schedules.*.start_time',
-            'schedules.*.number_of_patients_per_day' => 'required|integer|min:1',
-            'customDates.*.date' => 'required|date|after_or_equal:today',
-            'customDates.*.morningStartTime' => 'nullable|required_with:customDates.*.morningEndTime|date_format:H:i',
-            'customDates.*.morningEndTime' => 'nullable|required_with:customDates.*.morningStartTime|date_format:H:i',
-            'customDates.*.afternoonStartTime' => 'nullable|required_with:customDates.*.afternoonEndTime|date_format:H:i',
-            'customDates.*.afternoonEndTime' => 'nullable|required_with:customDates.*.afternoonStartTime|date_format:H:i',
-            'customDates.*.morningPatients' => 'nullable|required_with:customDates.*.morningStartTime|integer|min:1',
-            'customDates.*.afternoonPatients' => 'nullable|required_with:customDates.*.afternoonStartTime|integer|min:1',
-            'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-        ]);
-    
-        try {
-            return DB::transaction(function () use ($request) {
-                $avatarPath = null;
-                if ($request->hasFile('avatar')) {
-                    $avatar = $request->file('avatar');
-                    $fileName = $request->name . '-' . time() . '.' . $avatar->getClientOriginalExtension();
-                    $avatarPath = $avatar->storeAs('avatar', $fileName, 'public');
+{
+    $validated = $request->validate([
+        'name' => 'required|string|max:255',
+        'email' => 'required|email|unique:users,email',
+        'phone' => 'required|string',
+        'password' => 'required|min:8',
+        'specialization' => 'required|exists:specializations,id',
+        'frequency' => 'required|string',
+        'patients_based_on_time' => 'required|boolean',
+        'time_slot' => 'nullable|integer|required_if:patients_based_on_time,true',
+        'schedules' => 'array|required_without:customDates',
+        'customDates' => 'array|required_without:schedules',
+        'schedules.*.day_of_week' => 'required|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+        'schedules.*.shift_period' => 'required|in:morning,afternoon',
+        'schedules.*.start_time' => 'required',
+        'schedules.*.end_time' => 'required|after:schedules.*.start_time',
+        'schedules.*.number_of_patients_per_day' => 'required|integer|min:1',
+        'customDates.*.date' => 'required|date|after_or_equal:today',
+        'customDates.*.morningStartTime' => 'nullable|required_with:customDates.*.morningEndTime|date_format:H:i',
+        'customDates.*.morningEndTime' => 'nullable|required_with:customDates.*.morningStartTime|date_format:H:i',
+        'customDates.*.afternoonStartTime' => 'nullable|required_with:customDates.*.afternoonEndTime|date_format:H:i',
+        'customDates.*.afternoonEndTime' => 'nullable|required_with:customDates.*.afternoonStartTime|date_format:H:i',
+        'customDates.*.morningPatients' => 'nullable|required_with:customDates.*.morningStartTime|integer|min:1',
+        'customDates.*.afternoonPatients' => 'nullable|required_with:customDates.*.afternoonStartTime|integer|min:1',
+        'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+        'appointmentBookingWindow' => 'required|array',
+        'appointmentBookingWindow.*.month' => 'required|integer|between:1,12',
+        'appointmentBookingWindow.*.is_available' => 'required|boolean',
+    ]);
+
+    try {
+        return DB::transaction(function () use ($request) {
+            $avatarPath = null;
+            if ($request->hasFile('avatar')) {
+                $avatar = $request->file('avatar');
+                $fileName = $request->name . '-' . time() . '.' . $avatar->getClientOriginalExtension();
+                $avatarPath = $avatar->storeAs('avatar', $fileName, 'public');
+            }
+
+            // Create the user
+            $user = User::create([
+                'name' => $request->name,
+                'email' => $request->email,
+                'phone' => $request->phone,
+                'created_by' => 2,
+                'password' => Hash::make($request->password),
+                'avatar' => $avatarPath,
+                'role' => 'doctor',
+            ]);
+
+            // Create the doctor
+            $doctor = Doctor::create([
+                'user_id' => $user->id,
+                'specialization_id' => $request->specialization,
+                'created_by' => 2,
+                'frequency' => $request->frequency,
+                'patients_based_on_time' => $request->patients_based_on_time,
+                'time_slot' => $request->time_slot,
+            ]);
+
+            // Prepare appointment available months data for bulk insertion
+            $appointmentMonths = [];
+            $currentYear = date('Y');
+            $currentMonth = date('n'); // Get current month without leading zeros
+
+            if ($request->has('appointmentBookingWindow')) {
+                foreach ($request->appointmentBookingWindow as $month) {
+                    $year = $currentYear;
+                    if ($month['month'] < $currentMonth) {
+                        $year = $currentYear + 1; // If the month has passed, set the year to next year
+                    }
+
+                    $appointmentMonths[] = [
+                        'month' => $month['month'],
+                        'year' => $year, // Add the year
+                        'doctor_id' => $doctor->id,
+                        'is_available' => $month['is_available'],
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
                 }
-                $user = User::create([
-                    'name' => $request->name,
-                    'email' => $request->email,
-                    'phone' => $request->phone,
-                    'created_by' =>2,
-                    'password' => Hash::make($request->password),
-                    'avatar' => $avatarPath,
-                    'role' => 'doctor',
-                ]);
-    
-                $doctor = Doctor::create([
-                    'user_id' => $user->id,
-                    'specialization_id' => $request->specialization,
-                    'created_by' =>2,
-                    'frequency' => $request->frequency,
-                    'patients_based_on_time' => $request->patients_based_on_time,
-                    'time_slot' => $request->time_slot,
-                    'appointment_booking_window' => AppointmentBookingWindow::from($request->appointmentBookingWindow)->value,
-                ]);
-    
-                if ($request->has('customDates')) {
-                    $this->createCustomSchedules($request, $doctor);
-                } elseif ($request->has('schedules')) {
-                    $this->createRegularSchedules($request, $doctor);
-                }
-    
-                return response()->json([
-                    'message' => 'Doctor and schedules created successfully!',
-                    'doctor' => new DoctorResource($doctor),
-                ], 201);
-            });
-    
-        } catch (\Exception $e) {
+
+                // Insert all appointment months in one query
+                DB::table('appointment_available_month')->insert($appointmentMonths);
+            }
+
+            // Handle custom dates or regular schedules
+            if ($request->has('customDates')) {
+                $this->createCustomSchedules($request, $doctor);
+            } elseif ($request->has('schedules')) {
+                $this->createRegularSchedules($request, $doctor);
+            }
+
             return response()->json([
-                'message' => 'Error creating doctor',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+                'message' => 'Doctor, schedules, and appointment months created successfully!',
+                'doctor' => new DoctorResource($doctor),
+            ], 201);
+        });
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Error creating doctor',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
     
     private function createCustomSchedules(Request $request, Doctor $doctor)
 {
@@ -314,7 +350,7 @@ private function getWorkingDatesForMonth($schedules, $month): array
     }
 
     // Make sure your DoctorResource handles JSON days properly
-    public function update(Request $request,  $doctor)
+    public function update(Request $request, $doctor)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -324,7 +360,6 @@ private function getWorkingDatesForMonth($schedules, $month): array
             'specialization' => 'required|exists:specializations,id',
             'frequency' => 'required|string',
             'patients_based_on_time' => 'required|boolean',
-            'appointmentBookingWindow' => 'required|integer|in:1,3,5',
             'time_slot' => 'nullable|integer|gt:0|required_if:patients_based_on_time,true',
             'schedules' => 'array|required_without:customDates',
             'customDates' => 'array|required_without:schedules',
@@ -333,7 +368,6 @@ private function getWorkingDatesForMonth($schedules, $month): array
             'schedules.*.start_time' => 'required',
             'schedules.*.end_time' => 'required|after:schedules.*.start_time',
             'schedules.*.number_of_patients_per_day' => 'required|integer|min:1',
-            // 'customDates.*.date' => 'required|date|after_or_equal:today',
             'customDates.*.morningStartTime' => 'nullable|required_with:customDates.*.morningEndTime|date_format:H:i',
             'customDates.*.morningEndTime' => 'nullable|required_with:customDates.*.morningStartTime|date_format:H:i|after:customDates.*.morningStartTime',
             'customDates.*.afternoonStartTime' => 'nullable|required_with:customDates.*.afternoonEndTime|date_format:H:i',
@@ -341,12 +375,17 @@ private function getWorkingDatesForMonth($schedules, $month): array
             'customDates.*.morningPatients' => 'nullable|required_with:customDates.*.morningStartTime|integer|min:1',
             'customDates.*.afternoonPatients' => 'nullable|required_with:customDates.*.afternoonStartTime|integer|min:1',
             'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'appointmentBookingWindow' => 'required|array',
+            'appointmentBookingWindow.*.month' => 'required|integer|between:1,12',
+            'appointmentBookingWindow.*.is_available' => 'required|boolean',
         ]);
     
         try {
             return DB::transaction(function () use ($request, $doctor) {
+                // Find the doctor
+                $doctor = Doctor::findOrFail($doctor);
+    
                 // Check if the doctor has an associated user
-                $doctor = Doctor::find($doctor);
                 if (!$doctor->user) {
                     throw new \Exception('Doctor user not found');
                 }
@@ -354,14 +393,17 @@ private function getWorkingDatesForMonth($schedules, $month): array
                 // Handle avatar update
                 $avatarPath = $doctor->user->avatar ?? null;
                 if ($request->hasFile('avatar')) {
+                    // Store new avatar
+                    $avatar = $request->file('avatar');
+                    $fileName = $request->name . '-' . time() . '.' . $avatar->getClientOriginalExtension();
+                    $newAvatarPath = $avatar->storeAs('avatar', $fileName, 'public');
+    
                     // Delete old avatar if exists
                     if ($avatarPath && Storage::disk('public')->exists($avatarPath)) {
                         Storage::disk('public')->delete($avatarPath);
                     }
-                    
-                    $avatar = $request->file('avatar');
-                    $fileName = $request->name . '-' . time() . '.' . $avatar->getClientOriginalExtension();
-                    $avatarPath = $avatar->storeAs('avatar', $fileName, 'public');
+    
+                    $avatarPath = $newAvatarPath;
                 }
     
                 // Update user information
@@ -385,14 +427,42 @@ private function getWorkingDatesForMonth($schedules, $month): array
                     'frequency' => $request->frequency,
                     'patients_based_on_time' => $request->patients_based_on_time,
                     'time_slot' => $request->time_slot,
-                    'appointment_booking_window' => AppointmentBookingWindow::from($request->appointmentBookingWindow)->value,
                 ]);
+    
+                // Handle appointment booking window
+                if ($request->has('appointmentBookingWindow')) {
+                    // Delete existing appointment months
+                    DB::table('appointment_available_month')->where('doctor_id', $doctor->id)->delete();
+    
+                    // Prepare new appointment months data for bulk insertion
+                    $appointmentMonths = [];
+                    $currentYear = date('Y'); // Get current year
+                    $currentMonth = date('n'); // Get current month without leading zeros
+    
+                    foreach ($request->appointmentBookingWindow as $month) {
+                        $year = $currentYear;
+                        if ($month['month'] < $currentMonth) {
+                            $year = $currentYear + 1; // If the month has passed, set the year to next year
+                        }
+    
+                        $appointmentMonths[] = [
+                            'month' => $month['month'],
+                            'year' => $year, // Add the year
+                            'doctor_id' => $doctor->id,
+                            'is_available' => $month['is_available'],
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ];
+                    }
+    
+                    // Insert all appointment months in one query
+                    DB::table('appointment_available_month')->insert($appointmentMonths);
+                }
     
                 // Delete existing schedules
                 $doctor->schedules()->delete();
     
                 // Create new schedules
-
                 if ($request->has('customDates')) {
                     $this->createCustomSchedules($request, $doctor);
                 } elseif ($request->has('schedules')) {
@@ -407,15 +477,19 @@ private function getWorkingDatesForMonth($schedules, $month): array
                     'doctor' => new DoctorResource($doctor)
                 ]);
             });
-    
         } catch (\Exception $e) {
             \Log::error('Error updating doctor: ' . $e->getMessage());
-            
+    
             return response()->json([
                 'message' => 'Error updating doctor',
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    public function GetDoctorsBySpecilaztion($specializationId)  {
+        $doctors = Doctor::where('specialization_id', $specializationId)->get();
+        return DoctorResource::collection($doctors);
     }
 
     public function search(Request $request)

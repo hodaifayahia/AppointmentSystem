@@ -24,6 +24,7 @@ class Doctor extends Model
         'frequency',
         'specific_date',
         'patients_based_on_time',
+        'add_to_waitlist',
         'notes',
         'avatar',
         'appointment_booking_window',
@@ -100,7 +101,11 @@ public function schedules()
      *
      * @return array
      */
-  
+  // Doctor.php
+public function appointmentAvailableMonths()
+{
+    return $this->hasMany(AppointmentAvailableMonth::class);
+}
 
     /**
      * Check if doctor is available on a specific day.
