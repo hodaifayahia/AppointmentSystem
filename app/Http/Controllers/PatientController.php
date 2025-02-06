@@ -8,6 +8,7 @@ use App\Http\Resources\PatientResource;
 use App\Models\Appointment;
 use App\Models\Patient;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class PatientController extends Controller
 {
@@ -16,8 +17,9 @@ class PatientController extends Controller
      */
     public function index()
     {
-        $patients = Patient::paginate(50);
-
+        // Paginate the patients with a specific number of items per page (e.g., 5)
+        $patients = Patient::paginate(10);
+    
         return [
             'data' => PatientResource::collection($patients),
             'meta' => [
@@ -30,7 +32,6 @@ class PatientController extends Controller
             ],
         ];
     }
-
     /**
      * Store a newly created resource in storage.
      */
@@ -50,26 +51,28 @@ class PatientController extends Controller
             'phone' => $validatedData['phone'],
             'dateOfBirth' => $validatedData['dateOfBirth'] ?? null, // Handle optional date
             'Idnum' => $validatedData['Idnum'] ?? null, // Handle optional ID number
-            'created_by' => 2,
+            'created_by' => Auth::id(), // Assuming you're using Laravel's built-in authentication
         ]);
        
     
         return new PatientResource($patient);
     }
     
-    public function update(Request $request, Patient $patient)
+    public function update(Request $request,  $patientid)
     {
         $validatedData = $request->validate([
-            'firstname' => 'required|string|max:255',
-            'lastname' => 'required|string', 
+            'first_name' => 'required|string|max:255',
+'last_name' => 'required|string',
+
             'phone' => 'required|string',
             'dateOfBirth' => 'nullable|date|string',
             'Idnum' => 'nullable|string|max:20',
         ]);
+         $patient = Patient::find($patientid);
     
         $patient->update([
-            'Firstname' => $validatedData['firstname'],
-            'Lastname' => $validatedData['lastname'],
+            'Firstname' => $validatedData['first_name'],
+            'Lastname' => $validatedData['last_name'],
             'phone' => $validatedData['phone'],
             'dateOfBirth' => $validatedData['dateOfBirth'] ?? null,
             'Idnum' => $validatedData['Idnum'] ?? null,
@@ -155,20 +158,15 @@ public function search(Request $request)
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Patient $patient)
+    public function destroy($patientid)
     {
-        try {
-            $patient->delete();
-            return response()->json([
-                'message' => 'Patient deleted successfully',
-            ], Response::HTTP_OK); // Return 200 OK
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Failed to delete patient',
-                'error' => $e->getMessage(), // Optionally include the error message for debugging
-            ], Response::HTTP_INTERNAL_SERVER_ERROR); // Return 500 Internal Server Error
-        }
+        $patient = Patient::find($patientid);
+        $patient->delete();
+        return response()->json([
+            'message' => 'Patient deleted successfully',
+        ], 200); // Return 200 OK
     }
+        
     public function bulkDestroy(Request $request)
     {
         $request->validate([

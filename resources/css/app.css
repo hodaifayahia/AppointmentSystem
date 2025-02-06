@@ -3,3 +3,59 @@
 @import "/node_modules/admin-lte/plugins/fontawesome-free/css/all.min.css";
 @import url('https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback');
 
+/* Icon Colors */
+.nav-icon.fas.fa-tachometer-alt {
+    color: #007bff; /* Blue */
+  }
+  
+  .nav-icon.fas.fa-users {
+    color: #28a745; /* Green */
+  }
+  
+  .nav-icon.fas.fa-briefcase {
+    color: #17a2b8; /* Cyan */
+  }
+  
+  .nav-icon.fas.fa-calendar-times {
+    color: #dc3545; /* Red */
+  }
+  
+  .nav-icon.fas.fa-calendar-alt {
+    color: #ffc107; /* Yellow */
+  }
+  
+  .nav-icon.fas.fa-user-injured {
+    color: #6c757d; /* Gray */
+  }
+  
+  .nav-icon.fas.fa-clock {
+    color: #6610f2; /* Purple */
+  }
+  
+  .nav-icon.fas.fa-cogs {
+    color: #20c997; /* Teal */
+  }
+  
+  .nav-icon.fas.fa-sign-out-alt {
+    color: #dc3545; /* Red */
+  }
+  
+  .nav-icon.fas.fa-envelope {
+    color: #007bff; /* Blue */
+  }
+  
+  .nav-icon.fas.fa-bell {
+    color: #ffc107; /* Yellow */
+  }
+  
+  .nav-icon.fas.fa-cog {
+    color: #28a745; /* Green */
+  }
+
+  .search-container {
+    width: 100%;
+    /* Ensure full width */
+    position: relative;
+    /* For positioning the search button */
+  }
+ 

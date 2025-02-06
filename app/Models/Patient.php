@@ -20,8 +20,6 @@ class Patient extends Model
         'Idnum',
         'created_by',
         'dateOfBirth',
-        'created_at',
-        'updated_at',
     ];
 
     public function appointments()

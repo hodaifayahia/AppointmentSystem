@@ -10,7 +10,7 @@ const excludedDates = ref([]);
 const newDate = ref('');
 const dateRange = ref({ from: '', to: '' });
 const showModal = ref(false);
-const modalMode = ref('single');
+const modalMode = ref('');
 const doctors = ref([]);
 
 // Toast notifications

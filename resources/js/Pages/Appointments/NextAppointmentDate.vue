@@ -12,7 +12,7 @@ const props = defineProps({
 });
 
 // Emit event to parent component
-const emit = defineEmits(['update:days','update:range', 'dateSelected' , 'timeSelected']);
+const emit = defineEmits(['update:days', 'update:range', 'dateSelected', 'timeSelected']);
 
 const days = ref(props.initialDays); // Days input
 const nextAppointmentDate = ref(''); // Next available appointment date
@@ -38,18 +38,18 @@ const checkAvailability = async () => {
   }
 
   try {
-   
+
     const response = await axios.get('/api/appointments/checkAvailability', {
-      params: { 
-        days: days.value, 
-        doctor_id: props.doctorId, 
-        range: range.value , // Pass the range to the API
+      params: {
+        days: days.value,
+        doctor_id: props.doctorId,
+        range: range.value, // Pass the range to the API
         include_slots: true
 
       }
     });
     console.log(response.data.data);
-    
+
     nextAppointmentDate.value = response.data.next_available_date;
     period.value = response.data.period || [];
     emit('dateSelected', nextAppointmentDate.value); // Emit the selected date to parent
@@ -66,7 +66,7 @@ const checkAvailability = async () => {
 // Handle the time slot selection
 const handleDateSelected = (date) => {
   console.log(`Selected date: ${date}`);
-  
+
   emit('dateSelected', date);; // Emit the selected time to parent
 };
 const handleTimeSelected = (time) => {
@@ -98,54 +98,35 @@ onMounted(() => {
 
 <template>
   <div class="w-100" style="width: 200px;">
-    <label for="range" class="text-muted">Range (Optionall)</label>
-    <input 
-      class="form-control" 
-      type="number" 
-      id="range" 
-      placeholder="Enter the range" 
-      v-model="range" 
-      @input="checkAvailability"  
-    />
-  </div>
+    <label for="days" class="text-muted">Days</label>
+    <input type="number" v-model="days" class="form-control" id="days" placeholder="Enter number of days" />
+    
 
   <div class="form-group mb-4">
-    <label for="days" class="text-muted">Days</label>
-    <input
-      type="number"
-      v-model="days"
-      class="form-control"
-      id="days"
-      placeholder="Enter number of days"
-    />
-    
+    <label for="range" class="text-muted">Range (Optionall)</label>
+    <input class="form-control" type="number" id="range" placeholder="Enter the range" v-model="range"
+      @input="checkAvailability" />
+  </div>
+
     <div v-if="nextAppointmentDate" class="mt-2 text-info">
       Next appointment will be on: {{ formatDateHelper(nextAppointmentDate) }}
       <p>{{ period }}</p>
     </div>
-    
-    
+
+
     <div v-else-if="!nextAppointmentDate && days > 0" class="mt-2 text-center">
-  <p class="text-danger">There are no slots available.</p>
-  <button @click="forceAppointment" class="btn btn-outline-secondary mt-2 mb-2">Force Appointment</button>
-  <div v-if="isForcingAppointment">
-    <SimpleCalendar :days="days" 
-     :doctorId="props.doctorId"
-     @timeSelected="handleTimeSelected"
-     @dateSelected="handleDateSelected" />
-  </div>
-</div>
+      <p class="text-danger">There are no slots available.</p>
+      <button @click="forceAppointment" class="btn btn-outline-secondary mt-2 mb-2">Force Appointment</button>
+      <div v-if="isForcingAppointment">
+        <SimpleCalendar :days="days" :doctorId="props.doctorId" @timeSelected="handleTimeSelected"
+          @dateSelected="handleDateSelected" />
+      </div>
+    </div>
   </div>
 
   <!-- If next appointment date is available, show the TimeSlotSelector component -->
-  <TimeSlotSelector
-    v-if="nextAppointmentDate"
-    :date="nextAppointmentDate"
-    :range="range"
-    @timeSelected="handleTimeSelected"
-    :doctorid="props.doctorId"
-    class="mt-4"
-  />
+  <TimeSlotSelector v-if="nextAppointmentDate" :date="nextAppointmentDate" :range="range"
+    @timeSelected="handleTimeSelected" :doctorid="props.doctorId" class="mt-4" />
 </template>
 
 <style scoped>

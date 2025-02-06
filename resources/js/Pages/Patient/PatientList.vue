@@ -4,11 +4,11 @@ import axios from 'axios';
 import { useToastr } from '../../Components/toster';
 import PatientModel from "../../Components/PatientModel.vue";
 import PatientListItem from './PatientListItem.vue';
-import { Bootstrap5Pagination } from 'laravel-vue-pagination';
 
 const patients = ref([]);
 const loading = ref(false);
 const error = ref(null);
+const role= ref(null);
 const toaster = useToastr();
 
 // Changed from pagination to paginationData for clarity
@@ -40,6 +40,20 @@ const getPatients = async (page = 1) => {
     loading.value = false;
   }
 };
+const initializeRole = async () => {
+  try {
+    const user = await axios.get('/api/role');
+
+
+    if (user.data.role === 'admin') {
+      role.value = user.data.role;
+      // console.log('User role:', userRole.value);
+
+    }
+  } catch (err) {
+    console.error('Error fetching user role:', err);
+  }
+};
 
 const openModal = (patient = null) => {
   selectedPatient.value = patient ? { ...patient } : {};
@@ -54,20 +68,9 @@ const refreshPatients = async () => {
   await getPatients();
 };
 
-const deletePatient = async (id) => {
-  if (!confirm('Are you sure you want to delete this Patient?')) return;
-
-  try {
-    await axios.delete(`/api/Patients/${id}`);
-    toaster.success('Patient deleted successfully');
-    refreshPatients();
-  } catch (error) {
-    handleBackendErrors(error);
-  }
-};
-
 onMounted(() => {
   getPatients();
+  initializeRole();
 });
 </script>
 
@@ -81,18 +84,10 @@ onMounted(() => {
         <div class="row">
           <div class="col-lg-12">
             <PatientListItem
-              :patients="patients"
-              :loading="loading"
-              :error="error"
+              :role="role"
               @edit="openModal"
-              @delete="deletePatient"
+             
             />
-            <!-- Pagination Component -->
-              <Bootstrap5Pagination
-                :data="paginationData"
-                @pagination-change-page="getPatients"
-              />
-            
           </div>
         </div>
       </div>

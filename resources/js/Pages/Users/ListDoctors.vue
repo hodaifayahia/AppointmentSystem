@@ -29,6 +29,7 @@ const isLoading = ref(false);
 const selectedDoctorBox = ref([]);
 const selectAll = ref(false);
 const pagination = ref({});
+const userRole = ref('');
 
 
 const getDoctors = async (page = 1) => {
@@ -75,7 +76,21 @@ const refreshUsers = () => {
   getDoctors();
   closeModal(); // Close modal after successful update
 };
+// Fetch user role and initialize doctor ID
+const initializeDoctorId = async () => {
+  try {
+    const user = await axios.get('/api/role');
+   
 
+    if (user.data.role === 'admin') {
+      userRole.value = user.data.role;
+      // console.log('User role:', userRole.value);
+      
+    } 
+  } catch (err) {
+    console.error('Error fetching user role:', err);
+  }
+};
 
 
 // Debounced search function
@@ -142,7 +157,9 @@ const selectAllDoctors = () => {
 
 onMounted(() => {
   getDoctors();
+  initializeDoctorId();
 });
+
 </script>
 
 <template>
@@ -174,6 +191,7 @@ onMounted(() => {
             <div class="row mb-3">
               <div class="col-12 d-flex flex-wrap justify-content-end gap-2">
                 <button 
+                v-if="userRole === 'admin'"
                   class="btn btn-primary btn-sm d-flex align-items-center gap-1 px-3 py-2" 
                   title="Add Doctor"
                   @click="openModal"

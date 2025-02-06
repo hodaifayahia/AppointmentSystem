@@ -11,9 +11,13 @@ const props = defineProps({
   },
   waitlist: {
     type: Boolean,
-    required: true,
+    required: false,
     default: false,
   },
+  isEmpty:{
+    type:Boolean,
+    default:false
+  }
 });
 
 const emit = defineEmits(['dateSelected', 'timeSelected']);
@@ -118,7 +122,7 @@ onMounted(fetchAvailableAppointments);
   <div class="form-group mb-4">
     <label class="text-muted mb-2">Available Appointment Dates</label>
     <div
-      v-if="availableAppointments.canceled_appointments.length === 0 && (!availableAppointments.normal_appointments || waitlist)"
+      v-if="availableAppointments.canceled_appointments.length === 0 && (!availableAppointments.normal_appointments || availableAppointments.normal_appointments.length === 0)"
       class="text-muted p-3 border rounded"
     >
       No available appointments.
@@ -130,7 +134,7 @@ onMounted(fetchAvailableAppointments);
         class="form-select form-control w-full mb-3"
       >
         <option disabled value="">Select an appointment</option>
-        <optgroup v-if="availableAppointments.canceled_appointments.length > 0 && waitlist" label="Canceled Appointments">
+        <optgroup v-if="(availableAppointments.canceled_appointments.length > 0 && waitlist) || (availableAppointments.canceled_appointments.length > 0 && !isEmpty) " label="Canceled Appointments">
           <option
             v-for="appointment in availableAppointments.canceled_appointments"
             :key="`canceled-${appointment.date}`"

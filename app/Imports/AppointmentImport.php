@@ -12,6 +12,8 @@ use Maatwebsite\Excel\Concerns\WithBatchInserts;
 use Maatwebsite\Excel\Validators\Failure;
 use Carbon\Carbon;
 use Throwable;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class AppointmentImport implements 
     ToModel, 
@@ -31,101 +33,81 @@ class AppointmentImport implements
         $this->doctorId = $doctorId;
     }
 
-    /**
-     * @param array $row
-     * @return \Illuminate\Database\Eloquent\Model|null
-     */
     public function model(array $row)
     {
-        try {
-            // Format dates
-            $appointmentDate = $this->formatDate($row['appointment_date']);
-            $appointmentTime = $this->formatTime($row['appointment_time']);
-            $dateOfBirth = isset($row['date_of_birth']) ? $this->formatDate($row['date_of_birth']) : null;
-            
-            // Clean phone number
-            $phone = $this->cleanPhoneNumber($row['phone']);
+        DB::beginTransaction();
 
+        try {
+            // Format dates and times
+            $appointmentTime = $this->formatTime($row['appointment_time']);
+            $appointmentDate = $this->formatDate('2025-2-11');
+
+            $phone = $this->cleanPhoneNumber($row['phone'] ?? '');
+            
             // Create or find the patient
             $patient = Patient::firstOrCreate(
-                ['phone' => $phone],
                 [
-                    'Firstname' => ucfirst(strtolower(trim($row['first_name']))),
-                    'Lastname' => ucfirst(strtolower(trim($row['last_name']))),
+                    'phone' => $phone,
+                    'Firstname' => ucfirst(strtolower(trim($row['firstname']))),
+                    'Lastname' => ucfirst(strtolower(trim($row['lastname']))),
+                ],
+                [
                     'created_by' => $this->createdBy,
-                    'Idnum' => $row['idnum'] ?? null,
-                    'dateOfBirth' => $dateOfBirth,
                 ]
             );
 
-            // Create the appointment without specifying an ID
+            // Create the appointment
             $appointment = new Appointment();
             $appointment->patient_id = $patient->id;
             $appointment->doctor_id = $this->doctorId;
             $appointment->appointment_date = $appointmentDate;
-            $appointment->appointment_time = $appointmentTime;
+            $appointment->appointment_time = $appointmentTime; // Now properly formatted
             $appointment->status = 0;
             $appointment->created_by = $this->createdBy;
             $appointment->notes = $row['notes'] ?? null;
             $appointment->save();
 
+            DB::commit();
             $this->successCount++;
             return $appointment;
 
         } catch (Throwable $e) {
+            DB::rollBack();
             $this->errors[] = "Error processing row: " . $e->getMessage();
+            Log::error("Error processing row: " . $e->getMessage());
             return null;
         }
     }
 
-    /**
-     * @param Throwable $e
-     */
     public function onError(Throwable $e)
     {
         $this->errors[] = "Error: " . $e->getMessage();
+        Log::error("Error: " . $e->getMessage());
     }
 
-    /**
-     * @param Failure[] $failures
-     */
     public function onFailure(Failure ...$failures)
     {
         foreach ($failures as $failure) {
             $this->errors[] = "Row {$failure->row()}: " . implode(', ', $failure->errors());
+            Log::error("Row {$failure->row()}: " . implode(', ', $failure->errors()));
         }
     }
 
-    /**
-     * Reduce batch size to prevent potential issues
-     * @return int
-     */
     public function batchSize(): int
     {
         return 50;
     }
 
-    /**
-     * @return array
-     */
     public function getErrors(): array
     {
         return $this->errors;
     }
 
-    /**
-     * @return int
-     */
     public function getSuccessCount(): int
     {
         return $this->successCount;
     }
 
-    /**
-     * Format date to Y-m-d (only date)
-     * @param string $date
-     * @return string|null
-     */
     protected function formatDate($date)
     {
         if (empty($date)) {
@@ -135,7 +117,6 @@ class AppointmentImport implements
         try {
             // Check if the date is a numeric value (Excel serial number)
             if (is_numeric($date)) {
-                // Convert Excel serial number to a date string
                 return Carbon::create(1900, 1, 1)->addDays((int) $date - 2)->format('Y-m-d');
             }
 
@@ -146,11 +127,6 @@ class AppointmentImport implements
         }
     }
 
-    /**
-     * Format time to H:i:s (only time)
-     * @param string $time
-     * @return string
-     */
     protected function formatTime($time)
     {
         if (empty($time)) {
@@ -158,37 +134,28 @@ class AppointmentImport implements
         }
 
         try {
-            // Check if the time is a numeric value (Excel serial number)
-            if (is_numeric($time)) {
-                // Convert Excel serial number to a time string
-                $hours = (int) ($time * 24);
-                $minutes = (int) (($time * 24 * 60) % 60);
-                $seconds = (int) (($time * 24 * 60 * 60) % 60);
-                return sprintf('%02d:%02d:%02d', $hours, $minutes, $seconds);
+            // Handle Excel time format (decimal between 0 and 1)
+            if (is_numeric($time) && $time >= 0 && $time < 1) {
+                $seconds = round($time * 86400); // Convert to seconds (24 * 60 * 60)
+                $hours = floor($seconds / 3600);
+                $minutes = floor(($seconds % 3600) / 60);
+                $secs = $seconds % 60;
+                return sprintf('%02d:%02d:%02d', $hours, $minutes, $secs);
+            }
+            
+            // Handle string time format
+            if (is_string($time)) {
+                return Carbon::parse($time)->format('H:i:s');
             }
 
-            // If not a numeric value, parse it as a regular time string
-            return Carbon::parse($time)->format('H:i:s');
+            throw new \Exception("Invalid time value");
         } catch (Throwable $e) {
-            throw new \Exception("Invalid time format: {$time}. Expected format: H:i:s or Excel serial number.");
+            throw new \Exception("Invalid time format: {$time}. Expected format: H:i:s or Excel time value.");
         }
     }
 
-    /**
-     * Clean phone number
-     * @param string $phone
-     * @return string
-     */
     protected function cleanPhoneNumber($phone)
     {
-        // Remove all non-numeric characters
-        $phone = preg_replace('/[^0-9]/', '', $phone);
-        
-        // Ensure minimum length
-        if (strlen($phone) < 8) {
-            throw new \Exception("Invalid phone number: too short");
-        }
-
-        return $phone;
+        return preg_replace('/[^0-9]/', '', (string)$phone);
     }
 }

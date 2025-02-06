@@ -16,15 +16,12 @@ class PatientResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'firstname' => $this->Firstname,
-            'lastname' => $this->Lastname,
+            'first_name' => $this->Firstname,
+            'last_name' => $this->Lastname,
             'phone' => $this->phone,
             'dateOfBirth' => $this->dateOfBirth,
             'Idnum' => $this->Idnum,
-            // Format the date using Carbon
-            'created_at' => $this->created_at->format(config('app.date_formate')),
-            // Or use a specific format you prefer
-            'updated_at' => $this->updated_at->format(config('app.date_formate')), 
+            
         ];
     }
 }

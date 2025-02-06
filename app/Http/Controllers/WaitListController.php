@@ -11,6 +11,7 @@ use App\Models\Patient;
 use App\Models\WaitList;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 
 class WaitListController extends Controller
@@ -96,7 +97,7 @@ class WaitListController extends Controller
         }
     
         // Add created_by to the validated data
-        $validatedData['created_by'] = 2;
+        $validatedData['created_by'] = Auth::id();
     
         // Check if a waitlist entry already exists for the given patient, doctor, and specialization
         $existingWaitlist = WaitList::where('patient_id', $validatedData['patient_id'])
@@ -255,7 +256,13 @@ class WaitListController extends Controller
          return new AppointmentResource($appointment);
      }
      // app/Http/Controllers/WaitlistController.php
-
+     public function isempty()  {
+        $waitlist = WaitList::where('is_Daily', 0)->exists();
+        return response()->json([
+            'data' => $waitlist
+        ]);
+       
+     }
 
     /**
      * Remove the specified resource from storage.

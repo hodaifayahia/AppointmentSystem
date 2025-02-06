@@ -121,7 +121,7 @@ watch(
             end_time: shifts.morning.endTime.slice(0, 5), // Remove seconds
             is_active: true,
             number_of_patients_per_day: props.patients_based_on_time
-              ? calculatePatientsPerDay(shifts.morning.startTime, shifts.morning.endTime, props.time_slot || 30) // Fallback to 30 minutes
+              ? calculatePatientsPerDay(shifts.morning.startTime, shifts.morning.endTime, props.time_slot) // Fallback to 30 minutes
               : props.number_of_patients_per_day,
           });
         }

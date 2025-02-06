@@ -56,44 +56,47 @@
               </div>
             </li>
             <!-- User Dropdown Menu -->
-            <li class="nav-item dropdown">
-              <a class="nav-link" data-toggle="dropdown" href="#">
-                <i class="far fa-user"></i>
-              </a>
-              <div class="dropdown-menu dropdown-menu-lg dropdown-menu-right">
-                <a href="#" class="dropdown-item">
-                  <i class="fas fa-user-circle mr-2"></i> Profile
-                </a>
-                <div class="dropdown-divider"></div>
-                <a href="#" class="dropdown-item">
-                  <i class="fas fa-cog mr-2"></i> Settings
-                </a>
-                <div class="dropdown-divider"></div>
-                <a href="#" class="dropdown-item">
-                  <i class="fas fa-sign-out-alt mr-2"></i> Logout
-                </a>
-              </div>
-            </li>
+          <!-- User Dropdown Menu -->
+<li class="nav-item dropdown">
+  <a class="nav-link" data-toggle="dropdown" href="#">
+    <i class="far fa-user"></i>
+  </a>
+  <div class="dropdown-menu dropdown-menu-lg dropdown-menu-right">
+    <div class="dropdown-divider"></div>
+    <router-link to="/admin/settings" active-class="active" class="nav-link d-flex">
+      <i class="fas fa-cog mr-2 mt-1"></i>
+      <p>Settings</p>
+    </router-link>
+    <div class="dropdown-divider"></div>
+    <form action="{{ route('logout') }}" method="POST" style="display: contents;">
+      @csrf
+      <a href="#" onclick="event.preventDefault(); this.closest('form').submit();" class="nav-link" style="padding: 2; text-decoration: none;">
+        <i class="nav-icon fas fa-sign-out-alt" style="margin-right: 5px;"></i>
+        <p style="display: inline; margin: 0;">Logout</p>
+      </a>
+    </form>
+  </div>
+</li>
           </ul>
         </nav>
-        <!-- /.navbar -->
-
+   
         <!-- Main Sidebar Container -->
         <aside class="main-sidebar sidebar-dark-primary elevation-4">
           <!-- Brand Logo -->
-          <a href="index3.html" class="brand-link">
-            <span class="brand-text font-weight-light">Appointment System</span>
-          </a>
-
+          <a href="#" class="brand-link d-flex align-items-center">
+            <img src="{{ asset('login.png') }}" class="img-circle elevation-2 mr-2" alt="User Image" style="height: 40px; width: 40px; object-fit: cover;">
+            <span class="brand-text font-weight-light ms-2">Clinc Oasis</span>
+        </a>
+        
           <!-- Sidebar -->
           <div class="sidebar">
             <!-- Sidebar user panel (optional) -->
             <div class="user-panel mt-3 pb-3 mb-3 d-flex">
               <div class="image">
+
               </div>
               <div class="info">
-                <a href="#" class="d-block text-center">{{ Auth::user()->name }} </a>
-                <img src="{{Auth::user()->avatar }}" alt="">
+                <a href="#" class="d-block text-center">{{ Auth::user()->name }}</a>
               </div>
             </div>
 
@@ -101,7 +104,6 @@
             <nav class="mt-2">
               <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
                 <!-- Dashboard -->
-                @if(Auth::user()->role === 'receptionist' || Auth::user()->role === 'admin')
 
                 <li class="nav-item">
                   <router-link to="/admin/dashboard" active-class="active" class="nav-link">
@@ -109,7 +111,7 @@
                     <p>Dashboard</p>
                   </router-link>
                 </li>
-            @endif
+         
                 <!-- Admin-specific links -->
                 @if(Auth::user()->role === 'admin')
                   <li class="nav-item">

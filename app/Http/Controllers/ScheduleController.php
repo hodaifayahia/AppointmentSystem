@@ -23,10 +23,10 @@ class ScheduleController extends Controller
         $doctor = Doctor::where('id', $request->doctor_id)
         ->with('user:id,name') // Only select id and name from users table
         ->first();
-        
         // If you want to return both schedules and doctor information
         return [
             'doctor_name' => $doctor ?$doctor->user->name : null, // Assuming you have a DoctorResource
+            'patients_based_on_time' => $doctor ?$doctor->patients_based_on_time : null, // Assuming you have a DoctorResource
             'schedules' => ScheduleResource::collection($schedules)
         ];
     }

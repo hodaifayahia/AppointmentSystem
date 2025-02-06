@@ -14,6 +14,7 @@ const router = useRouter();
 const nextAppointmentDate = ref('');
 const searchQuery = ref('');
 const toastr = useToastr();
+const isEmpty = ref(false);
 const importanceLevels = ref([]);
 
 const props = defineProps({
@@ -71,11 +72,16 @@ const fetchImportanceEnum = async () => {
   const response = await axios.get('/api/importance-enum');
   importanceLevels.value = response.data;
 };
+const isWaitListEmpty = async () => {
+  const response = await axios.get('/api/waitlist/empty');
+  isEmpty.value = response.data.data;
+  
+};
 // Handle patient selection
 const handlePatientSelect = (patient) => {
 
-  form.first_name = patient.firstname;
-  form.last_name = patient.lastname;
+  form.first_name = patient.first_name;
+  form.last_name = patient.last_name;
   form.patient_Date_Of_Birth = patient.dateOfBirth;
   form.phone = patient.phone;
   form.patient_id = patient.id;
@@ -140,6 +146,7 @@ watch(() => form.selectionMethod, resetSelection);
 onMounted(async () => {
   fetchImportanceEnum();
   fetchAppointmentData();
+  isWaitListEmpty();
 
 });
 </script>
@@ -150,7 +157,7 @@ onMounted(async () => {
     <PatientSearch v-model="searchQuery" :patientId="form.patient_id" @patientSelected="handlePatientSelect" />
 
     <!-- Available Appointments Component -->
-    <AvailableAppointments :doctorId="props.doctorId" @dateSelected="handleDateSelected"
+    <AvailableAppointments :waitlist="false" :isEmpty="isEmpty" :doctorId="props.doctorId" @dateSelected="handleDateSelected"
       @timeSelected="handleTimeSelected" />
 
     <!-- Appointment Method Selection -->

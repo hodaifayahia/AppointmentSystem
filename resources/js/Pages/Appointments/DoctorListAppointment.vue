@@ -1,7 +1,6 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-
 import axios from 'axios';
 
 const doctors = ref([]);
@@ -9,47 +8,9 @@ const searchQuery = ref('');
 const isLoading = ref(false);
 const route = useRoute();
 const router = useRouter();
-const specializationId = route.params.id; // Access specialization ID
+const specializationId = route.params.id;
 
-
-// Watch for route changes to fetch doctors
-
-// Function to fetch doctors
-const getDoctors = async () => {
-  try {
-    isLoading.value = true;
-    const response = await axios.get('/api/doctors', {
-      params: { query: specializationId },
-    });
-    doctors.value = response.data.data;
-
-    // Fetch appointments for each doctor
-    doctors.value.forEach(doctor => {
-      fetchAvailableAppointments(doctor.id);
-    });
-  } catch (error) {
-    console.error('Error fetching doctors:', error);
-  } finally {
-    isLoading.value = false;
-  }
-};
-
-
-const goToAppointmentPage = (doctor) => {
-  console.log();
-
-  router.push({
-    name: 'admin.appointments',
-    params: { 
-      id: doctor.id, 
-       specializationId :doctor.specialization_id // Access specialization ID
-
-    }, // Pass d ID
-  });
-};
-
-
-// Debounced search function
+const availableAppointments = ref({});
 
 // Debounced search function
 const debouncedSearch = (() => {
@@ -63,9 +24,7 @@ const debouncedSearch = (() => {
           params: { query: searchQuery.value },
         });
         doctors.value = response.data.data;
-
       } catch (error) {
-        toaster.error('Failed to search doctors');
         console.error('Error searching doctors:', error);
       } finally {
         isLoading.value = false;
@@ -77,19 +36,29 @@ const debouncedSearch = (() => {
 // Watch for search query changes
 watch(searchQuery, debouncedSearch);
 
+// Fetch doctors and their appointments in parallel
+const getDoctors = async () => {
+  try {
+    isLoading.value = true;
+    const response = await axios.get('/api/doctors', {
+      params: { query: specializationId },
+    });
+    doctors.value = response.data.data;
 
-// Store appointments for each doctor
-const availableAppointments = ref({});
-
-// Function to fetch doctors
-
+    // Fetch appointments for all doctors in parallel
+    await Promise.all(doctors.value.map(doctor => fetchAvailableAppointments(doctor.id)));
+  } catch (error) {
+    console.error('Error fetching doctors:', error);
+  } finally {
+    isLoading.value = false;
+  }
+};
 
 const fetchAvailableAppointments = async (doctorId) => {
   try {
     const response = await axios.get('/api/appointments/available', {
       params: { doctor_id: doctorId }
     });
-    // Store appointments for this specific doctor
     availableAppointments.value[doctorId] = {
       canceled_appointments: response.data.canceled_appointments,
       normal_appointments: response.data.normal_appointments
@@ -98,10 +67,10 @@ const fetchAvailableAppointments = async (doctorId) => {
     console.error(`Error fetching available appointments for doctor ${doctorId}:`, error);
   }
 };
+
 const formatClosestCanceledAppointment = (appointments) => {
   if (!appointments || appointments.length === 0) return 'No upcoming canceled appointments';
 
-  // Sort appointments by date, then by time for the closest one
   const sortedAppointments = appointments.sort((a, b) => {
     const dateA = new Date(a.date + 'T' + a.available_times[0] + ':00');
     const dateB = new Date(b.date + 'T' + b.available_times[0] + ':00');
@@ -110,6 +79,16 @@ const formatClosestCanceledAppointment = (appointments) => {
 
   const closest = sortedAppointments[0];
   return `${closest.date} at ${closest.available_times[0]}`;
+};
+
+const goToAppointmentPage = (doctor) => {
+  router.push({
+    name: 'admin.appointments',
+    params: {
+      id: doctor.id,
+      specializationId: doctor.specialization_id
+    },
+  });
 };
 
 onMounted(() => {
@@ -155,42 +134,46 @@ onMounted(() => {
             </div>
           </div>
         </div>
-        <div  class="row">
+        <div class="row">
           <div v-for="doctor in doctors" :key="doctor.id" class="col-md-3 mb-4 d-flex justify-content-center">
             <div class="card text-center shadow-lg" style="width: 100%; max-width: 250px; border-radius: 15px;"
               @click="goToAppointmentPage(doctor)">
-              <!-- Doctor Image -->
               <div class="p-3">
-                <div class=" mx-auto" style="width: 150px; height: 150px; overflow: hidden;">
-                  <img :src="`${doctor.avatar}`" alt="Specialization image" class="w-100 h-100" style="object-fit:contain" />
+                <div class="mx-auto rounded-circle overflow-hidden border " style="width: 150px; height: 150px;">
+                  <img :src="doctor.avatar" alt="Doctor image" class="w-100 h-100"
+                    style="object-fit: contain; border-radius: 50%;" />
                 </div>
               </div>
               <!-- Card Body -->
-              <div class="card-body bg-light">
+              <div class="card-body bg-light text-center p-3">
                 <!-- Doctor Name -->
-                <h5 class="  fw-bold text-dark ">{{ doctor.name }}</h5>
+                <h4 class="fw-bold text-dark mb-2">{{ doctor.name }}</h4>
 
-                <!-- Specialization -->
-                <p class="card-text mb-2 text-secondary">
-                  <strong>Specialization:</strong> {{ doctor.specialization }}
-                </p>
-                <p class="card-text text-primary fw-bold mb-0" v-if="availableAppointments[doctor.id]">
-                  <strong>Nest Appointment:</strong>
-                  {{ availableAppointments[doctor.id].normal_appointments
-                    && availableAppointments[doctor.id].normal_appointments.date ?
-                    availableAppointments[doctor.id].normal_appointments.date + ' at ' +
-                    availableAppointments[doctor.id].normal_appointments.time :
-                    'No upcoming appointments'
-                  }}
-                </p>
-                <!-- Soonest Appointment -->
-                <p class="card-text text-primary fw-bold mb-0" v-if="availableAppointments[doctor.id]">
-                  <strong>Soonest Appointment:</strong>
-                  {{ formatClosestCanceledAppointment(availableAppointments[doctor.id].canceled_appointments) }}
+                <!-- Next Appointment -->
+                <div v-if="availableAppointments[doctor.id]" class="mb-2 p-2 rounded bg-white shadow-sm">
+                  <p class="card-text text-success fw-bold mb-1">
+                    <i class="bi bi-calendar-check"></i> Next Appointment:
+                  </p>
+                  <p class="text-dark mb-0">
+                    {{ availableAppointments[doctor.id].normal_appointments &&
+                      availableAppointments[doctor.id].normal_appointments.date ?
+                      availableAppointments[doctor.id].normal_appointments.date + ' at ' +
+                      availableAppointments[doctor.id].normal_appointments.time :
+                    'No upcoming appointments' }}
+                  </p>
+                </div>
 
-                </p>
-
+                <!-- Soonest Canceled Appointment -->
+                <div v-if="availableAppointments[doctor.id]" class="p-2 rounded bg-white shadow-sm">
+                  <p class="card-text text-warning fw-bold mb-1">
+                    <i class="bi bi-clock"></i> Soonest Available Slot:
+                  </p>
+                  <p class="text-dark mb-0">
+                    {{ formatClosestCanceledAppointment(availableAppointments[doctor.id].canceled_appointments) }}
+                  </p>
+                </div>
               </div>
+
             </div>
           </div>
 

@@ -1,14 +1,15 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
-import { useRoute } from 'vue-router';
-
+import { useRouter, useRoute } from 'vue-router';
+const router = useRouter();
 const months = ref([]);
-  const schedules = ref([]);
+const schedules = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const route = useRoute();
 const doctorName = ref("");
+const patients_based_on_time = ref("");
 const doctorId = route.params.id;
 
 const monthNames = [
@@ -36,14 +37,15 @@ const fetchSchedules = async () => {
         doctor_id: doctorId,
       },
     });
-    
-    console.log(response.data);
-    
+
+
     // Store the fetched schedules in the reactive variable
     schedules.value = response.data.schedules;
 
     doctorName.value = response.data.doctor_name;
-    
+    patients_based_on_time.value = response.data.patients_based_on_time;
+    console.log(patients_based_on_time.value);
+
     // Process the schedules into the desired format
     let formattedSchedules = [];
     const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -64,12 +66,17 @@ const fetchSchedules = async () => {
         morning_end_time: morning?.end_time.slice(0, -3) || '-',
         afternoon_start_time: afternoon?.start_time.slice(0, -3) || '-',
         afternoon_end_time: afternoon?.end_time.slice(0, -3) || '-',
-        number_of_patients_per_day: morning?.number_of_patients_per_day ?? afternoon?.number_of_patients_per_day ?? 0
+        number_of_patients_per_day:
+          (morning?.number_of_patients_per_day || 0) +
+          (patients_based_on_time.value ? (afternoon?.number_of_patients_per_day || 0) : 0)
+
       });
     });
 
     // Update the schedules with the formatted data
     schedules.value = formattedSchedules;
+    console.log(schedules.value);
+
     loading.value = false;
   } catch (e) {
     // Handle error
@@ -79,12 +86,12 @@ const fetchSchedules = async () => {
 };
 
 const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-    });
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
 };
 
 onMounted(() => {
@@ -96,6 +103,9 @@ onMounted(() => {
 <template>
   <div class="container mt-4 premium-ui">
     <!-- Loading Spinner -->
+    <button class=" float-left btn btn-ligh bg-primary rounded-pill " @click="router.go(-1)">
+              <i class="fas fa-arrow-left"></i> Back
+            </button>
     <div v-if="loading" class="text-center">
       <div class="spinner-border text-primary" role="status">
         <span class="visually-hidden"></span>
@@ -144,25 +154,25 @@ onMounted(() => {
           No schedules found for this doctor.
         </div>
       </div>
-      
-    <!-- Available Months -->
-<div class="available-months mb-4">
-  <h4 class="mb-3">Available Months</h4>
-  <div class="row">
-    <div v-for="month in months" :key="month.month" class="col-md-4 mb-3">
-      <div class="card h-100 shadow-sm">
-        <div class="card-body">
-          <h5 class="card-title">{{ month.month_name }} {{ month.year }}</h5>
-          <p class="card-text">
-            <span :class="month.is_available ? 'text-success' : 'text-danger'">
-              {{ month.is_available ? 'Available' : 'Not Available' }}
-            </span>
-          </p>
+
+      <!-- Available Months -->
+      <div class="available-months mb-4">
+        <h4 class="mb-3">Available Months</h4>
+        <div class="row">
+          <div v-for="month in months" :key="month.month" class="col-md-4 mb-3">
+            <div class="card h-100 shadow-sm">
+              <div class="card-body">
+                <h5 class="card-title">{{ month.month_name }} {{ month.year }}</h5>
+                <p class="card-text">
+                  <span :class="month.is_available ? 'text-success' : 'text-danger'">
+                    {{ month.is_available ? 'Available' : 'Not Available' }}
+                  </span>
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  </div>
-</div>
 
     </div>
   </div>
@@ -172,6 +182,7 @@ onMounted(() => {
   font-family: 'Roboto', 'Helvetica Neue', sans-serif;
   color: #333;
 }
+
 .card {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
@@ -197,7 +208,7 @@ onMounted(() => {
   width: 100%;
   background: #fff;
   border-radius: 10px;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .thead-custom {
@@ -221,7 +232,7 @@ onMounted(() => {
 .schedule-row:hover {
   background: #e9ecef;
   transform: translateY(-2px);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .schedule-row td {
@@ -247,6 +258,7 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
+
   .table-custom th,
   .table-custom td {
     font-size: 14px;

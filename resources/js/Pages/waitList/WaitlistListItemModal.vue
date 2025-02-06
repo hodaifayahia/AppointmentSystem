@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { ref ,onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 import { useToastr } from '../../Components/toster';
@@ -179,20 +179,22 @@ onMounted(() => {
 
     <!-- Actions -->
     <td>
-      <button v-if="!isDoctor" class="btn btn-sm btn-outline-primary ml-2" @click="$emit('update', waitlist.id)">
+      <button v-if="(userRole !== 'admin' || userRole !== 'receptionist')" class="btn btn-sm btn-outline-primary ml-2" @click="$emit('update', waitlist.id)">
         <i class="fas fa-edit"></i>
       </button>
-      <button v-if="(!isDoctor || userRole)"  class="btn btn-sm btn-outline-danger ml-2" @click="$emit('delete', waitlist.id)">
+      <button v-if="(userRole =='admin')"  class="btn btn-sm btn-outline-danger ml-2" @click="$emit('delete', waitlist.id)">
         <i class="fas fa-trash"></i>
       </button>
 
-      <button class="btn btn-sm btn-outline-success ml-2" @click="$emit('move-to-appointments', waitlist)">
+      <button v-if="userRole =='doctor' " class="btn btn-sm btn-outline-success ml-2" @click="$emit('move-to-appointments', waitlist)">
         <i class="fas fa-calendar-check"></i>
       </button>
-      <button v-if="(isDaily && index === 0 && !isDoctor && waitlist.importance === null)" @click="openModal"
+      <button v-if="(isDaily && index === 0 && (!isDoctor) && waitlist.importance === null)" 
+        @click="openModal"
         class="btn btn-sm btn-outline-primary ml-2">
-        <i class="fas fa-edit"></i>
-      </button>
+    <i class="fas fa-calendar-alt"></i> <!-- Icon for changing appointment -->
+</button>
+
       <button v-if="isDaily && index === 0 && !isDoctor && waitlist.importance === null" @click="$emit('move-to-end', waitlist.id)"
         class="btn btn-sm btn-outline-primary ml-2">
         <i class="fas fa-forward"></i>

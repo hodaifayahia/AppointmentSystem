@@ -22,6 +22,8 @@ class DoctorResource extends JsonResource
             'frequency' => $this->frequency,
             'patients_based_on_time' => $this->patients_based_on_time,
             'specific_date' => $this->specific_date,
+            'total_patients_per_day' => $this->getTotalPatientsPerDay(), // Add this line
+
             'appointment_booking_window' => $this->formatAppointmentBookingWindow(),
             'schedules' => $this->formatSchedules(),
             'created_at' => $this->formatTimestamp($this->created_at),
@@ -36,6 +38,18 @@ class DoctorResource extends JsonResource
             : asset('storage/default.png');
     }
 
+    protected function getTotalPatientsPerDay()
+    {
+        $totalPatients = 0;
+        
+        foreach ($this->schedules as $schedule) {
+            if ($schedule->is_active) {
+                $totalPatients += $schedule->number_of_patients_per_day;
+            }
+        }
+    
+        return $totalPatients;
+    }
     protected function formatAppointmentBookingWindow()
     {
         // Ensure the relationship is loaded and not null

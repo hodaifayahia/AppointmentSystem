@@ -51,6 +51,8 @@ const fetchAvailableAppointments = async () => {
     const response = await axios.get('/api/appointments/available', {
       params: { doctor_id: props.doctorId }
     });
+    console.log('Available appointments:', response.data.data);
+    
 
     availableAppointments.value = {
       canceled_appointments: response.data.canceled_appointments,

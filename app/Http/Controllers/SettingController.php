@@ -72,7 +72,6 @@ class SettingController extends Controller
         try {
             // Find the user by ID
             $user = User::findOrFail(Auth::id());
-    
             // Update user details
             $user->name = $validated['name'];
             $user->email = $validated['email'];

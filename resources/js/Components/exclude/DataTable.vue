@@ -17,15 +17,15 @@
           <td>{{ index + 1 }}</td>
           <td>{{ date.doctor_name || 'All Doctors' }}</td>
           <td>{{ formatDate(date.start_date) }}</td>
-          <td>{{ formatDate(date.end_date) }}</td>
+          <td>{{ formattedEndDate(date.end_date) }}</td>
           <td>{{ date.reason || 'No reason provided' }}</td>
           <td>
             <span v-if="date.apply_for_all_years == '1'">Yes</span>
             <span v-else>No</span>
           </td>
           <td>
-            <button  class="btn btn-sm btn-outline-primary ml-1"@click="$emit('edit', date)">
-              <i class="fas fa-edit "></i>
+            <button  class="btn btn-sm btn-outline-primary ml-1" @click="$emit('edit', date)">
+              <i class="fas fa-edit"></i>
             </button>
             <button  class="btn btn-sm btn-outline-danger ml-1" @click="$emit('remove', date.id)">
               <i class="fas fa-trash-alt"></i>
@@ -36,8 +36,9 @@
     </table>
   </div>
 </template>
+
 <script setup>
-import { defineProps } from 'vue';
+import { defineProps, computed } from 'vue';
 
 const props = defineProps({
   dates: {
@@ -53,5 +54,10 @@ const formatDate = (dateString) => {
     month: 'short',
     day: 'numeric',
   });
+};
+
+// computed property to format end date
+const formattedEndDate = (endDate) => {
+  return endDate === null ? 'N/A' : formatDate(endDate);
 };
 </script>

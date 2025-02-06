@@ -19,6 +19,7 @@ const props = defineProps({
 const emitUpdate = (newPatient) => {
   emit('specUpdate', newPatient); // Pass the newly created patient data
 };
+console.log('PatientModel.vue', props.specData);
 
 const emit = defineEmits(['close', 'patientsUpdate']);
 const toastr = useToastr();
@@ -32,6 +33,7 @@ const Patient = ref({
     dateOfBirth: props.specData?.dateOfBirth || null,
 });
 
+
 const isEditMode = computed(() => !!props.specData?.id);
 
 watch(
@@ -39,8 +41,9 @@ watch(
     (newValue) => {
         Patient.value = {
             id: newValue?.id || null,
-            first_name: newValue?.first_name || '',
-            last_name: newValue?.last_name || '',
+            first_name: props.specData?.first_name || '',
+            last_name: props.specData?.last_name || '',
+
             phone: newValue?.phone || '',
             Idnum: newValue?.Idnum || '',
             dateOfBirth: newValue?.dateOfBirth || null,
@@ -48,14 +51,13 @@ watch(
     },
     { immediate: true, deep: true }
 );
-
 const PatientSchema = yup.object({
     first_name: yup
         .string()
         .required('First name is required')
         .min(2, 'First name must be at least 2 characters')
         .max(50, 'First name cannot exceed 50 characters'),
-    last_name: yup
+        last_name: yup
         .string()
         .required('Last name is required')
         .min(2, 'Last name must be at least 2 characters')
@@ -66,11 +68,19 @@ const PatientSchema = yup.object({
         .matches(/^[0-9]{10,15}$/, 'Phone number must be between 10 and 15 digits and contain only numbers'),
     Idnum: yup
         .string()
-        .matches(/^[A-Za-z0-9]{5,20}$/, 'ID Number must be 5-20 alphanumeric characters'),
+        .nullable()
+        .notRequired()
+        .matches(/^[A-Za-z0-9]{5,20}$/, 'ID Number must be 5-20 alphanumeric characters')
+        .transform((value, originalValue) => originalValue === '' ? null : value), // Allows empty string
     dateOfBirth: yup
         .date()
-        .max(new Date(), 'Date of Birth cannot be in the future'),
+        .nullable()
+        .notRequired()
+        .max(new Date(), 'Date of Birth cannot be in the future')
+        .transform((value, originalValue) => originalValue === '' ? null : value), // Allows empty string
 });
+
+
 const closeModal = () => {
     emit('close');
 };
@@ -86,26 +96,28 @@ const handleBackendErrors = (error) => {
         toastr.error('An unexpected error occurred');
     }
 };
-
 const submitForm = async (values) => {
+    
     try {
-        const submissionData = { ...Patient.value, ...values };
-
+        const submissionData = { ...values, id: Patient.value.id };
+        
         if (isEditMode.value) {
             await axios.put(`/api/patients/${submissionData.id}`, submissionData);
             toastr.success('Patient updated successfully');
         } else {
-          const response=  await axios.post('/api/patients', submissionData);
-          emitUpdate(response.data.data); // Pass the new patient data
+            const response = await axios.post('/api/patients', submissionData);
+            emitUpdate(response.data.data);
             toastr.success('Patient added successfully');
         }
 
-        emit('patientsUpdate');
+        emit('patientsUpdate'); // Notify parent component
         closeModal();
     } catch (error) {
         handleBackendErrors(error);
     }
 };
+
+
 </script>
 
 <template>

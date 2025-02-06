@@ -22,6 +22,7 @@ import Waitlist from "./Pages/waitList/Waitlist.vue";
 import AppointmentFormWaitlist from "./Components/appointments/appointmentFormWaitlist.vue";
 import SettingsDoctor from "./Pages/Setting/settingsDoctor.vue";
 import ExcludeDatesDoctor from "./Pages/Excludes/ExcludeDatesDoctor.vue";
+import AppointmentLIstDoctor from "./Pages/Users/AppointmentLIstDoctor.vue";
 // import Logout from "./auth/Logout.vue"; // Assuming you have a Logout component
 const adminRoutes = [
     {
@@ -135,7 +136,7 @@ const doctorRoutes = [
     {
         path: '/doctor/appointments',
         name: 'doctor.appointments',
-        component: ListAppointment,
+        component: AppointmentLIstDoctor,
     },
     {
         path: '/doctor/excludeDates',
@@ -146,11 +147,6 @@ const doctorRoutes = [
 
 // Combine all routes
 const routes = [
-    {
-        path: '/',
-        name: 'login',
-        component: Login,
-    },
     ...adminRoutes,
     ...doctorRoutes,
 ];

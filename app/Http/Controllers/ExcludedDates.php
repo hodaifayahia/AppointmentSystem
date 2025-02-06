@@ -29,7 +29,7 @@ class ExcludedDates extends Controller
         $request->validate([
             'doctor_id' => 'nullable|exists:doctors,id', // Ensure the doctor exists
             'start_date' => 'required|date',
-            'end_date' => 'required|date|after_or_equal:start_date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
             'reason' => 'nullable|string',
             'applyForAllYears' => 'nullable|boolean',
 

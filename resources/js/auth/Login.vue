@@ -41,7 +41,7 @@ const togglePasswordVisibility = () => {
                     <img src="/login.png" alt="Doctor image" class="w-100 h-100" style="object-fit: cover;" />
                 </div>
                 <h1 class="text-white text-2xl font-bold">Appointment System</h1>
-                <h2 class="text-white text-lg">Clinic Osis</h2>
+                <h2 class="text-white text-lg">Oasis Clinic</h2>
             </div>
 
             <!-- Login Form -->
@@ -92,9 +92,7 @@ const togglePasswordVisibility = () => {
                 </div>
 
                 <!-- Forgot Password -->
-                <p class="text-center text-sm text-gray-600">
-                    <a href="/forgot-password" class="text-primary hover:underline">I forgot my password</a>
-                </p>
+               
             </div>
         </div>
     </div>

@@ -49,7 +49,7 @@ class DoctorController extends Controller
     
     public function WorkingDates(Request $request)
     {
-        $id = $request->query('id'); // Get the id parameter (optional)
+        $doctorId = $request->query('doctorId'); // Get the doctorId parameter (optional)
         $month = $request->query('month'); // Get the month parameter (e.g., '2023-10')
     
         // Base query to fetch doctors
@@ -58,9 +58,9 @@ class DoctorController extends Controller
         })
         ->with(['user', 'specialization']);
     
-        // Apply id filter if provided
-        if ($id) {
-            $doctorsQuery->where('id', $id);
+        // Apply doctorId filter if provided
+        if ($doctorId) {
+            $doctorsQuery->where('id', $doctorId);
         }
     
         // Fetch the doctors
@@ -75,6 +75,8 @@ class DoctorController extends Controller
             'data' => $transformedDoctors,
         ]);
     }
+    
+
     
     private function transformDoctor($doctor, $month)
     {
@@ -152,7 +154,7 @@ class DoctorController extends Controller
         'specialization' => 'required|exists:specializations,id',
         'frequency' => 'required|string',
         'patients_based_on_time' => 'required|boolean',
-        'time_slot' => 'nullable|integer|required_if:patients_based_on_time,true',
+        'time_slot' => 'nullable|integer',
         'schedules' => 'array|required_without:customDates',
         'customDates' => 'array|required_without:schedules',
         'schedules.*.day_of_week' => 'required|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
@@ -197,10 +199,10 @@ class DoctorController extends Controller
             $doctor = Doctor::create([
                 'user_id' => $user->id,
                 'specialization_id' => $request->specialization,
-                'created_by' => 2,
+                'created_by' => Auth::id(),
                 'frequency' => $request->frequency,
                 'patients_based_on_time' => $request->patients_based_on_time,
-                'time_slot' => $request->time_slot,
+                'time_slots' => $request->time_slot,
             ]);
 
             // Prepare appointment available months data for bulk insertion
@@ -311,7 +313,7 @@ class DoctorController extends Controller
             'is_active' => true,
             'number_of_patients_per_day' => $patients ?? 
                 ($request->patients_based_on_time ? 
-                    $this->calculatePatientsPerShift($startTime, $endTime, $request->time_slot) : 
+                    $this->calculatePatientsPerShift($startTime, $endTime, $request->time_slots) : 
                     $request->number_of_patients_per_day),
             'created_at' => now(),
             'updated_at' => now(),
@@ -350,8 +352,9 @@ class DoctorController extends Controller
     }
 
     // Make sure your DoctorResource handles JSON days properly
-    public function update(Request $request, $doctor)
+    public function update(Request $request, $doctorid)
     {
+        // dd($request->all());
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email',
@@ -360,7 +363,7 @@ class DoctorController extends Controller
             'specialization' => 'required|exists:specializations,id',
             'frequency' => 'required|string',
             'patients_based_on_time' => 'required|boolean',
-            'time_slot' => 'nullable|integer|gt:0|required_if:patients_based_on_time,true',
+            'time_slot' => 'nullable|integer',
             'schedules' => 'array|required_without:customDates',
             'customDates' => 'array|required_without:schedules',
             'schedules.*.day_of_week' => 'required|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
@@ -381,10 +384,9 @@ class DoctorController extends Controller
         ]);
     
         try {
-            return DB::transaction(function () use ($request, $doctor) {
+            return DB::transaction(function () use ($request, $doctorid) {
                 // Find the doctor
-                $doctor = Doctor::findOrFail($doctor);
-    
+                $doctor = Doctor::findOrFail($doctorid);
                 // Check if the doctor has an associated user
                 if (!$doctor->user) {
                     throw new \Exception('Doctor user not found');
@@ -423,11 +425,13 @@ class DoctorController extends Controller
     
                 // Update doctor information
                 $doctor->update([
-                    'specialization_id' => $request->specialization,
+                    'specialization_id' => $request->specialization ,
                     'frequency' => $request->frequency,
-                    'patients_based_on_time' => $request->patients_based_on_time,
-                    'time_slot' => $request->time_slot,
+                    'patients_based_on_time' => $request->patients_based_on_time ,
+                    'time_slot' => $request->time_slot ,
                 ]);
+                
+                
     
                 // Handle appointment booking window
                 if ($request->has('appointmentBookingWindow')) {

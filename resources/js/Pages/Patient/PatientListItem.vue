@@ -1,14 +1,21 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import axios from 'axios';
 import { useToastr } from '../../Components/toster';
 import PatientModel from "../../Components/PatientModel.vue";
-
-import { useRouter } from 'vue-router';
-
+import { Bootstrap5Pagination } from 'laravel-vue-pagination';
 import { useSweetAlert } from '../../Components/useSweetAlert';
 const swal = useSweetAlert();
+import { useRouter } from 'vue-router';
 
+
+const props = defineProps({
+  role: {
+    type: String,
+    required: true,
+  },
+
+});
 const router = useRouter();
 const Patient = ref([])
 const loading = ref(false)
@@ -25,15 +32,17 @@ const fileInput = ref(null);
 
 const isModalOpen = ref(false);
 const selectedPatient = ref([]);
+const pagiante = ref([]);
 
-
-
+const emit = defineEmits(['import-complete', 'delete', 'close', 'patientsUpdate']);
 const getPatient = async (page = 1) => {
   try {
     loading.value = true;
-    const response = await axios.get('/api/patients'); // Changed endpoint to plural
+    const response = await axios.get(`/api/patients?page=${page}`); // Pass the page parameter
     Patient.value = response.data.data || response.data; // Adjust based on your API response structure
-    console.log(Patient.value);
+    pagiante.value = response.data.meta; // Ensure this matches the meta data from the backend
+
+    console.log('Pagination Meta:', pagiante.value); // Debugging: Check the meta data
   } catch (error) {
     console.error('Error fetching Patient:', error);
     error.value = error.response?.data?.message || 'Failed to load Patient';
@@ -41,6 +50,30 @@ const getPatient = async (page = 1) => {
     loading.value = false;
   }
 };
+
+// Debounced search function
+const debouncedSearch = (() => {
+  let timeout;
+  return () => {
+    clearTimeout(timeout);
+    timeout = setTimeout(async () => {
+      try {
+        const response = await axios.get('/api/patients/search', {
+          params: { query: searchQuery.value },
+        });
+        Patient.value = response.data.data;
+        pagiante.value = response.data.meta; // Update pagination on search
+      } catch (error) {
+        toaster.error('Failed to search users');
+        console.error('Error searching users:', error);
+      } finally {
+      }
+    }, 300); // 300ms delay
+  };
+})();
+
+// Watch for search query changes
+watch(searchQuery, debouncedSearch);
 
 
 const exportUsers = async () => {
@@ -93,7 +126,7 @@ const uploadFile = async () => {
   try {
     loading.value = true;
     const response = await axios.post('/api/import/Patients', formData, {
-      headers: { 
+      headers: {
         'Content-Type': 'multipart/form-data',
         'Accept': 'application/json',
         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
@@ -143,8 +176,14 @@ const refreshPatient = async () => {
   await getPatient();
 };
 
+const goToPatientAppointmentsPage = (PatientId) => {
+  // Navigate using the router
+  router.push({ name: 'admin.patient.appointments', params: { id: PatientId } });
+};
+
 
 const deletePatient = async (id) => {
+
   try {
     // Show SweetAlert confirmation dialog using the configured swal instance
     const result = await swal.fire({
@@ -158,7 +197,7 @@ const deletePatient = async (id) => {
 
     // If user confirms, proceed with deletion
     if (result.isConfirmed) {
-      await axios.delete(`/api/Patients/${id}`);
+      await axios.delete(`/api/patients/${id}`);
       toaster.success('Patient deleted successfully');
       refreshPatient(); // Refresh the list after deletion
       // Show success message
@@ -169,7 +208,7 @@ const deletePatient = async (id) => {
       );
 
       // Emit event to notify parent component
-      emit('doctorDeleted');
+      getPatients();
       closeModal();
     }
   } catch (error) {
@@ -180,19 +219,8 @@ const deletePatient = async (id) => {
         error.response.data.message,
         'error'
       );
-    } else {
-      swal.fire(
-        'Error!',
-        'Failed to delete Doctor.',
-        'error'
-      );
     }
   }
-};
-
-const goToPatientAppointmentsPage = (PatientId) => {
-  // Navigate using the router
-  router.push({ name: 'admin.patient.appointments', params: { id: PatientId } });
 };
 onMounted(() => {
   getPatient();
@@ -223,8 +251,15 @@ onMounted(() => {
       <div class="container-fluid">
         <h2 class="text-center mb-4">Patient Management</h2>
         <div class="row">
-          
+
           <div class="col-lg-12">
+            <div class="search-wrapper  mb-2">
+                <input type="text" class="form-control premium-search" v-model="searchQuery"
+                  placeholder="Search doctors" @focus="onSearchFocus" @blur="onSearchBlur" />
+                <button class="search-button" @click="performSearch">
+                  <i class="fas fa-search"></i> <!-- Assuming you're using Font Awesome for icons -->
+                </button>
+              </div>
             <div class="d-flex justify-content-between align-items-center mb-3">
 
               <!-- Actions -->
@@ -248,11 +283,10 @@ onMounted(() => {
               </div>
 
               <!-- Search and Import -->
+              
               <div class="d-flex flex-column align-items-end">
                 <!-- Search Bar -->
-                <div class="mb-2">
-                  <input type="text" class="form-control" v-model="searchQuery" placeholder="Search users" />
-                </div>
+
 
                 <!-- File Upload -->
                 <div class="d-flex flex-column align-items-center">
@@ -261,7 +295,7 @@ onMounted(() => {
                     <label for="fileUpload" class="btn btn-primary w-100 premium-file-button">
                       <i class="fas fa-file-upload mr-2"></i> Choose File
                     </label>
-                    <input ref="fileInput" type="file"  accept=".csv,.xlsx" @change="handleFileChange"
+                    <input ref="fileInput" type="file" accept=".csv,.xlsx" @change="handleFileChange"
                       class="custom-file-input d-none" id="fileUpload">
                   </div>
                   <div class="d-flex justify-content-between align-items-center ml-5 pl-5 ">
@@ -299,28 +333,34 @@ onMounted(() => {
                     </tr>
                   </thead>
                   <tbody>
+
                     <tr v-if="Patient.length === 0">
                       <td colspan="6" class="text-center">No Patient found</td>
                     </tr>
                     <tr v-for="(Patient, index) in Patient" :key="Patient.id"
                       @click="goToPatientAppointmentsPage(Patient.id)" style="cursor: pointer;">
                       <td>{{ index + 1 }}</td>
-                      <td>{{ Patient.Firstname }}</td>
-                      <td>{{ Patient.Lastname }}</td>
+                      <td>{{ Patient.first_name }}</td>
+                      <td>{{ Patient.last_name }}</td>
                       <td>{{ Patient.Idnum }}</td>
                       <td>{{ Patient.dateOfBirth }}</td>
                       <td>{{ Patient.phone }}</td>
                       <td>
-                        <button @click="openModal(Patient)" class="btn btn-sm btn-outline-primary me-2">
+                        <button @click.stop="openModal(Patient)" class="btn btn-sm btn-outline-primary me-2">
                           <i class="fas fa-edit"></i>
                         </button>
-                        <button @click.stop="deletePatient(Patient.id)" class="btn btn-sm btn-outline-danger">
+                        <button v-if="role === 'admin'" @click.stop="deletePatient(Patient.id)"
+                          class="btn btn-sm btn-outline-danger">
                           <i class="fas fa-trash-alt"></i>
                         </button>
                       </td>
                     </tr>
                   </tbody>
                 </table>
+              </div>
+              <div class="m-4">
+                <Bootstrap5Pagination :data="pagiante" :limit="5"
+                  @pagination-change-page="(page) => getPatient(page)" />
               </div>
             </div>
           </div>
@@ -336,4 +376,80 @@ onMounted(() => {
 
 <style scoped>
 /* ... Your existing styles ... */
+
+.search-wrapper {
+  display: flex;
+  align-items: center;
+  border: 2px solid #007BFF;
+  /* Blue border for a premium feel */
+  border-radius: 50px;
+  /* Rounded corners for a modern look */
+  overflow: hidden;
+  /* Ensures the border-radius applies to children */
+  transition: all 0.3s ease;
+  /* Smooth transition for focus/blur effects */
+}
+
+.premium-search {
+  border: none;
+  /* Remove default border */
+  border-radius: 50px 0 0 50px;
+  /* Round only left corners */
+  flex-grow: 1;
+  /* Expand to fill available space */
+  padding: 10px 15px;
+  /* Adequate padding for text */
+  font-size: 16px;
+  /* Clear, readable text size */
+  outline: none;
+  /* Remove the outline on focus */
+}
+
+.premium-search:focus {
+  box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+  /* Focus effect */
+}
+
+.search-button {
+  border: none;
+  background: #007BFF;
+  /* Blue background for the search button */
+  color: white;
+  padding: 10px 20px;
+  border-radius: 0 50px 50px 0;
+  /* Round only right corners */
+  cursor: pointer;
+  font-size: 16px;
+  transition: background 0.3s ease;
+  /* Smooth transition for hover effect */
+}
+
+.search-button:hover {
+  background: #0056b3;
+  /* Darker blue on hover */
+}
+
+.search-button i {
+  margin-right: 5px;
+  /* Space between icon and text */
+}
+
+/* Optional: Animation for focus */
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.7);
+  }
+
+  70% {
+    box-shadow: 0 0 0 10px rgba(0, 123, 255, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 123, 255, 0);
+  }
+}
+
+.search-wrapper:focus-within {
+  animation: pulse 1s;
+}
 </style>

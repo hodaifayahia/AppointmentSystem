@@ -55,10 +55,14 @@ class UserController extends Controller
     /**
      * Show the form for creating a new resource.
      */
+
+     
     public function role()
     {
         return response()->json([
             'role' => Auth::user()->role,
+            'id' => Auth::user()->doctor->id ?? null,
+            'specialization_id' => Auth::user()->doctor->specialization_id ?? null,
         ]);
     }
 

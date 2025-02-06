@@ -110,7 +110,6 @@ const updateAppointmentStatus = async (appointmentId, newStatus, reason = null) 
 
         await axios.patch(`/api/appointment/${appointmentId}/status`, payload);
         dropdownStates.value[appointmentId] = false;
-        emit('updateAppointment');
         emit('updateStatus');
         toastr.success('Appointment status updated successfully');
     } catch (err) {
@@ -208,6 +207,7 @@ const openAddModal = () => {
 
 const closeAddModal = () => {
     showAddModal.value = false;
+    ShowReasonModel.value = false;
     showAddModal.value = false;
     isEditMode.value = false;
     selectedWaitlist.value = null;
@@ -376,13 +376,13 @@ onMounted(() => {
                             <td>
                                 <div class="d-flex gap-2 justify-content-center">
                                     <button @click="goToEditAppointmentPage(appointment)"
-                                        class="btn btn-sm btn-outline-primary mr-2">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                    <button v-if="props.userRole !== 'doctor' || props.userRole !== 'receptionist'" @click="deleteAppointment(appointment.id)"
-                                        class="btn btn-sm btn-outline-danger mr-2">
-                                        <i class="fas fa-trash-alt"></i>
-                                    </button>
+                                    class="btn btn-sm btn-outline-primary mr-2">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button v-if="props.userRole === 'admin'" @click="deleteAppointment(appointment.id)"
+                                class="btn btn-sm btn-outline-danger mr-2">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
                                     <button @click="AddToWaitList(appointment)" class="btn btn-sm btn-outline-info">
                                         <i class="fas fa-clock"></i>
                                     </button>

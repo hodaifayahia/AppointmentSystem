@@ -27,7 +27,7 @@ const showPassword = ref(false);
 const patients_based_on_time = ref(props.doctorData.patients_based_on_time);
 const number_of_patients_per_day = ref();
 const selectedMonths = ref([]);
-const time_slot = ref(props.doctorData.time_slots);
+const time_slot = ref(props.doctorData.time_slot);
 const doctor = ref({
   id: props.doctorData?.id || null,
   name: props.doctorData?.name || '',
@@ -40,12 +40,13 @@ const doctor = ref({
   avatar: props.doctorData?.avatar || null,
   customDates: props.doctorData?.schedules,
   schedules: props.doctorData?.schedules || [],
-  appointmentBookingWindow: props.doctorData?.appointment_booking_window ,
+  appointmentBookingWindow: props.doctorData?.appointment_booking_window,
   password: '',
-  number_of_patients_per_day: props.doctorData?.number_of_patients_per_day || 0,
-  time_slots: props.doctorData?.time_slots || '',
+  number_of_patients_per_day: Array.isArray(props.doctorData?.schedules)
+    ? Math.max(0, ...props.doctorData.schedules.map(s => s.number_of_patients_per_day ?? 0))
+    : 0, // Get the highest number_of_patients_per_day
+  time_slot: props.doctorData?.time_slots || null,
 });
-
 
 
 const imagePreview = ref(props.doctorData?.avatar ? props.doctorData.avatar : null);
@@ -120,12 +121,14 @@ watch(
         specialization_id: newValue?.specialization_id || '',
         frequency: newValue?.frequency || '',
         avatar: newValue?.avatar || null,
-        appointmentBookingWindow: newValue?.appointment_booking_window ,
-        customDates: Array.isArray(newValue?.schedules) ? [...newValue.schedules] : [], // Update customDates
-        schedules: Array.isArray(newValue?.schedules) ? [...newValue.schedules] : [], // Update schedules
+        appointmentBookingWindow: newValue?.appointment_booking_window,
+        customDates: Array.isArray(newValue?.schedules) ? [...newValue.schedules] : [],
+        schedules: Array.isArray(newValue?.schedules) ? [...newValue.schedules] : [],
         password: '',
-        number_of_patients_per_day: newValue?.number_of_patients_per_day || 0,
-        time_slots: newValue?.time_slots || '',
+        number_of_patients_per_day: Array.isArray(newValue?.schedules)
+          ? Math.max(0, ...newValue.schedules.map(s => s.number_of_patients_per_day ?? 0))
+          : 0, // Get the highest number_of_patients_per_day
+        time_slot: newValue?.time_slots ?? '', // Ensure default value
       };
       
       if (newValue.avatar) {
@@ -145,8 +148,6 @@ watch(
   },
   { immediate: true, deep: true }
 );
-console.log(selectedMonths.value);
-
 
 const calculatePatientsPerDay = (startTime, endTime, timeSlot) => {
   const start = new Date(`2000-01-01 ${startTime}`);
@@ -237,12 +238,12 @@ const submitForm = async (values, { setErrors, resetForm }) => {
     });
 
     // Handle boolean value explicitly
-    formData.append('patients_based_on_time', patients_based_on_time.value ? '1' : '0');
+    formData.append('patients_based_on_time', doctor.value.patients_based_on_time ? 1 : 0);
 
     // Other fields
     formData.append('id', doctor.value.id);
     formData.append('specialization', doctor.value.specialization_id);
-    formData.append('time_slot', time_slot.value);
+    formData.append('time_slot', doctor.value.time_slot);
     formData.append('number_of_patients_per_day', doctor.value.number_of_patients_per_day);
 
     // Handle appointmentBookingWindow
@@ -315,6 +316,7 @@ const submitForm = async (values, { setErrors, resetForm }) => {
     await axios.post(url, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
+    watch
 
     toaster.success(`Doctor ${isEditMode.value ? 'updated' : 'added'} successfully`);
     handleUserUpdate();
@@ -337,8 +339,8 @@ onMounted(() => {
 </script>
 <template>
   <div class="modal fade overflow-auto" :class="{ show: showModal }" tabindex="-1" aria-labelledby="doctorModalLabel"
-    aria-hidden="true" v-if="showModal">
-    
+  aria-hidden="true" v-if="showModal">
+ 
     <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <div class="modal-header">
@@ -347,6 +349,7 @@ onMounted(() => {
             <i class="fas fa-times"></i>
           </button>
         </div>
+
         <div class="modal-body">
           <Form v-slot="{ errors: validationErrors }" @submit="submitForm"
             :validation-schema="getDoctorSchema(isEditMode)"> <!-- First Row: Name and Email -->
@@ -392,21 +395,21 @@ onMounted(() => {
             <div class="row">
               <div class="col-md-6 mb-4">
                 <label for="patients_based_on_time" class="form-label fs-5">Patients Based on Time</label>
-                <select v-model="patients_based_on_time" class="form-control form-control-md"
+                <select v-model="doctor.patients_based_on_time" class="form-control form-control-md"
                   @change="handlePatientSelectionChange">
                   <option :value="false">Fixed Number of Patients</option>
                   <option :value="true">Based on Time</option>
                 </select>
               </div>
-              <div v-if="!patients_based_on_time" class="col-md-6 mb-4">
+              <div v-if="!doctor.patients_based_on_time" class="col-md-6 mb-4">
                 <label for="number_of_patients_per_day" class="form-label fs-5">Number of Patients Per Day</label>
-                <input type="number" v-model="number_of_patients_per_day" class="form-control form-control-md"
+                <input type="number" v-model="doctor.number_of_patients_per_day" class="form-control form-control-md"
                   min="0" />
               </div>
-
-              <div v-if="patients_based_on_time" class="col-md-6 mb-4">
+              
+              <div v-if="doctor.patients_based_on_time" class="col-md-6 mb-4">
                 <label for="time_slot" class="form-label fs-5">Time Slot for Patients</label>
-                <input v-model="time_slot" class="form-control form-control-md" placeholder="Select time slot" />
+                <input v-model="doctor.time_slot" class="form-control form-control-md" placeholder="Select time slot" />
               </div>
             </div>
 
@@ -467,15 +470,14 @@ onMounted(() => {
             <div class="row">
               <div class="col-12" v-if="doctor.frequency === 'Daily' || doctor.frequency === 'Weekly'">
                 <DoctorSchedules :doctorId="doctor.id" :existingSchedules="doctor.schedules"
-                  :patients_based_on_time="patients_based_on_time" :time_slot="time_slot" v-model="doctor.schedules"
-                  :number_of_patients_per_day="number_of_patients_per_day" @schedulesUpdated="handleSchedulesUpdated" />
+                  :patients_based_on_time="doctor.patients_based_on_time" :time_slot="doctor.time_slot" v-model="doctor.schedules"
+                  :number_of_patients_per_day="doctor.number_of_patients_per_day" @schedulesUpdated="handleSchedulesUpdated" />
               </div>
               <div class="col-md-12 mb-4" v-if="doctor.frequency === 'Monthly'">
                 <label class="form-label fs-5">Custom Dates</label>
-                <pre>{{ doctor.customDates }}</pre>
                 <CustomDates :existingSchedules="doctor.schedules" v-model="doctor.customDates"
-                  :patients_based_on_time="patients_based_on_time" :time_slot="time_slot"
-                  :number_of_patients_per_day="number_of_patients_per_day"
+                  :patients_based_on_time="doctor.patients_based_on_time" :time_slot="doctor.time_slot"
+                  :number_of_patients_per_day="doctor.number_of_patients_per_day"
                   @schedulesUpdated="handlecustomDatesUpdated" />
               </div>
 

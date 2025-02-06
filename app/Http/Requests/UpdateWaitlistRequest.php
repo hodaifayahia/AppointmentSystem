@@ -28,8 +28,8 @@ class UpdateWaitlistRequest extends FormRequest
             'patient_id' => 'sometimes|required|exists:patients,id', // Ensure the patient exists
             'specialization_id' => 'sometimes|required|exists:specializations,id', // Ensure the specialization exists
             'is_Daily' => 'nullable|boolean', // Must be a boolean if provided
-            'importance' => 'sometimes|required|in:0,1', // Must be one of the allowed values
-            'notes' => 'sometimes|required|string', // Must be a string if provided
+            'importance' => 'nullable|in:0,1', // Must be one of the allowed values
+            'notes' => 'sometimes|nullable|string', // Must be a string if provided
         ];
     }
 }

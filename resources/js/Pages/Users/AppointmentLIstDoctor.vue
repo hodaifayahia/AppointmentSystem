@@ -2,7 +2,7 @@
 import { ref, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
-import AppointmentListItem from './AppointmentListItem.vue';
+import AppointmentListItem from '../Appointments/AppointmentListItem.vue';
 import headerDoctorAppointment from '@/Components/Doctor/headerDoctorAppointment.vue';
 import DoctorWaitlist from '@/Components/Doctor/DoctorWaitlist.vue';
 import { Bootstrap5Pagination } from 'laravel-vue-pagination';
@@ -15,8 +15,8 @@ const error = ref(null);
 const currentFilter = ref(0);
 const route = useRoute();
 const router = useRouter();
-const doctorId =route.params.id;
-const specializationId =route.params.specializationId;
+const doctorId =ref();
+const specializationId =ref();
 const file = ref(null);
 const countWithDoctor = ref(0);
 const countWithoutDoctor = ref(0);
@@ -24,17 +24,18 @@ const todaysAppointmentsCount = ref(0);
 const NotForYou = ref(false);
 const WaitlistDcotro = ref(false);
 const isDcotro = ref(false);
-const userRole = ref("");
+const userRole = ref(null);
 
 const initializeRole = async () => {
   try {
-   const   user = await axios.get('/api/role');
-   userRole.value = user.data.role;
+    const user = await axios.get('/api/role');
+      userRole.value = user.data.role;
+      doctorId.value = user.data.id;
+      specializationId.value = user.data.specialization_id;
   } catch (err) {
     console.error('Error fetching user role:', err);
   }
 };
-
 const getAppointments = (() => {
   let timeout;
   return async (page = 1, status = null, filter = null, date = null) => {
@@ -75,7 +76,7 @@ const handleGetAppointments = (data) => {
 };
 // Fetch today's appointments
 
-// Optimized file upload using Axios
+// Optimized file upload
 const uploadFile = async () => {
   if (!file.value) return;
 
@@ -84,15 +85,8 @@ const uploadFile = async () => {
 
   try {
     loading.value = true;
-
-    await axios.post(`/api/import/appointment/${doctorId}`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-
+    await api.post(`import/appointment/${doctorId.value}`, formData);
     await getAppointments(currentFilter.value);
-    getAppointmentsStatus();
     file.value = null;
   } catch (error) {
     console.error('Error uploading file:', error);
@@ -103,7 +97,7 @@ const uploadFile = async () => {
 
 const exportAppointments = async () => {
   try {
-    const response = await axios.get('/api/export/appointment', { responseType: 'blob' });
+    const response = await axios.get('/api/import/appointment', { responseType: 'blob' });
     const url = window.URL.createObjectURL(new Blob([response.data]));
     const link = document.createElement('a');
     link.href = url;
@@ -114,7 +108,7 @@ const exportAppointments = async () => {
     console.error('Error exporting appointments:', error);
   }
 };
-// Fetch appointment statuses
+
 const getAppointmentsStatus = async () => {
   try {
     loading.value = true; // Set loading state
@@ -134,12 +128,11 @@ const getAppointmentsStatus = async () => {
   }
 };
 
-
 const fetchWaitlists = async (filters = {}) => {
   try {
     const params = { ...filters, is_Daily: 1 };
-    params.doctor_id = NotForYou.value ? "null" : doctorId; // Set doctor_id based on NotForYou
-    params.specialization_id = specializationId;
+    params.doctor_id = NotForYou.value ? "null" : doctorId.value; // Set doctor_id based on NotForYou
+    params.specialization_id = specializationId.value;
 
     const response = await axios.get('/api/waitlists', { params });
 
@@ -175,14 +168,6 @@ watch(
   { immediate: false }
 );
 
-const statuses = ref([
-  { name: 'ALL', value: null, color: 'secondary', icon: 'fas fa-list', count: 0 },
-  { name: 'SCHEDULED', value: 0, color: 'primary', icon: 'fa fa-calendar-check', count: 0 },
-  { name: 'CONFIRMED', value: 1, color: 'success', icon: 'fa fa-check', count: 0 },
-  { name: 'CANCELED', value: 2, color: 'danger', icon: 'fa fa-ban', count: 0 },
-  { name: 'PENDING', value: 3, color: 'warning', icon: 'fa fa-hourglass-half', count: 0 },
-  { name: 'DONE', value: 4, color: 'info', icon: 'fa fa-check-circle', count: 0 },
-]);
 
 // Update the status filter handler
 const handleStatusFilter = (status) => {
@@ -190,7 +175,8 @@ const handleStatusFilter = (status) => {
 };
 const handleFileChange = (event) => {
   file.value = event.target.files[0];
-  
+  errorMessage.value = '';
+  successMessage.value = '';
 };
 
 // Update other methods to use the new getAppointments signature
@@ -206,12 +192,21 @@ const handleSearchResults = (searchData) => {
   appointments.value = searchData.data;
   pagination.value = searchData.meta;
 };
+const statuses = ref([
+  { name: 'ALL', value: null, color: 'secondary', icon: 'fas fa-list', count: 0 },
+  { name: 'SCHEDULED', value: 0, color: 'primary', icon: 'fa fa-calendar-check', count: 0 },
+  { name: 'CONFIRMED', value: 1, color: 'success', icon: 'fa fa-check', count: 0 },
+  { name: 'CANCELED', value: 2, color: 'danger', icon: 'fa fa-ban', count: 0 },
+  { name: 'PENDING', value: 3, color: 'warning', icon: 'fa fa-hourglass-half', count: 0 },
+  { name: 'DONE', value: 4, color: 'info', icon: 'fa fa-check-circle', count: 0 },
+]);
+
 
 // Navigate to create appointment page
 const goToAddAppointmentPage = () => {
   router.push({
     name: 'admin.appointments.create',
-    params: { doctorId }
+    params: {id : doctorId }
   });
 };
 const getTodaysAppointments = async () => {
@@ -228,8 +223,8 @@ watch(
   }
 );
 
-onMounted(  ()=>{
-  initializeRole();
+onMounted(async  ()=>{
+   await initializeRole();
   getAppointmentsStatus();
   getAppointments();
   fetchWaitlists();
@@ -303,7 +298,7 @@ onMounted(  ()=>{
                   <i class="fas fa-user-times me-2"></i> Waitlist Not for You ({{ countWithoutDoctor }})
                 </button>
               </div>
-              <div v-if="userRole === 'admin'" class="d-flex flex-column align-items-center sm:w-100 w-md-auto">
+              <div v-if="role == 'admin'" class="d-flex flex-column align-items-center sm:w-100 w-md-auto">
                 <!-- File Upload -->
                 <div class="custom-file mb-3 w-100">
                   <label for="fileUpload" class="btn btn-primary sm:w-100 premium-file-button">
@@ -328,7 +323,7 @@ onMounted(  ()=>{
             </div>
 
             <!-- Appointments list -->
-            <AppointmentListItem :appointments="appointments" :userRole="userRole" :error="error" :doctor-id="doctorId"
+            <AppointmentListItem :appointments="appointments" :userRole="role" :error="error" :doctor-id="doctorId"
               @update-appointment="getAppointments(currentFilter)" @update-status="getAppointmentsStatus"
               @get-appointments="handleSearchResults" @filterByDate="handleFilterByDate" />
           </div>

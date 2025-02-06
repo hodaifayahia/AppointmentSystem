@@ -6,170 +6,221 @@ import axios from 'axios';
 import { useToastr } from './toster';
 
 const props = defineProps({
-  showModal: {
-    type: Boolean,
-    required: true,
-  },
+  showModal: Boolean,
   specData: {
     type: Object,
-    default: () => ({}),
-  },
+    default: () => ({})
+  }
 });
 
 const emit = defineEmits(['close', 'specUpdate']);
 const toastr = useToastr();
-const errors = ref({});
 
 const specialization = ref({
   id: props.specData?.id || null,
   name: props.specData?.name || '',
   description: props.specData?.description || '',
-  photo: props.specData?.photo || null, // Add photo field
+  photo: props.specData?.photo || null
 });
 
-const isEditMode = computed(() => !!props.specData?.id);
+const isEditMode = computed(() => !!specialization.value.id);
 
-watch(
-  () => props.specData,
-  (newValue) => {
-    specialization.value = {
-      id: newValue?.id || null,
-      name: newValue?.name || '',
-      description: newValue?.description || '',
-      photo: newValue?.photo || null, // Update photo field
-    };
-  },
-  { immediate: true, deep: true }
-);
-
-const specializationSchema = computed(() => yup.object({
+// Schema validation
+const specializationSchema = yup.object({
   name: yup.string().required('Name is required'),
   description: yup.string().nullable(),
-  photo: yup.mixed().nullable().test('fileSize', 'The file is too large', (value) => {
-    if (value) {
-      return value.size <= 2000000; // 2 MB size limit
-    }
-    return true;
+  photo: yup.mixed().nullable().test('fileSize', 'File must be less than 2MB', (value) => {
+    if (!value || !(value instanceof File)) return true;
+    return value.size <= 2000000;
   })
-}));
+});
+
+const handleFileChange = (event) => {
+  const file = event.target.files[0];
+  if (file) {
+    specialization.value.photo = file;
+  }
+};
+watch(() => props.specData, (newVal) => {
+  specialization.value = {
+    id: newVal?.id || null,
+    name: newVal?.name || '',
+    description: newVal?.description || '',
+    photo: newVal?.photo || null
+  };
+}, { immediate: true , deep: true });
 
 const closeModal = () => {
-  errors.value = {};
+  specialization.value = {
+    id: null,
+    name: '',
+    description: '',
+    photo: null
+  };
   emit('close');
 };
 
-const handleBackendErrors = (error) => {
-  if (error.response?.data?.errors) {
-    Object.keys(error.response.data.errors).forEach(field => {
-      toastr.error(error.response.data.errors[field][0]);
-    });
-  } else if (error.response?.data?.message) {
-    toastr.error(error.response.data.message);
-  } else {
-    toastr.error('An unexpected error occurred');
-  }
-};
-
-// Helper function to create FormData
 const createFormData = (values) => {
   const formData = new FormData();
-  Object.keys(values).forEach(key => {
-    if (key === 'photo' && values[key] instanceof File) {
-      formData.append(key, values[key], values[key].name);
-    } else if (values[key] !== null && values[key] !== undefined) {
-      formData.append(key, values[key]);
-    }
-  });
+  
+  // Add basic fields
+  formData.append('name', values.name || '');
+  formData.append('description', values.description || '');
+  
+  // Handle photo field
+  if (values.photo instanceof File) {
+    formData.append('photo', values.photo);
+  }
+  // Don't append anything if it's an existing photo URL
+  // The backend will keep the existing photo
+  
+  // Add the ID for edit mode
+  if (specialization.value.id) {
+    formData.append('id', specialization.value.id);
+  }
+
   return formData;
 };
 const submitForm = async (values) => {
-  try {    
-    const submissionData = ({
+  try {
+    const formData = createFormData({
       ...specialization.value,
       ...values
     });
 
+      const config = {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        'Accept': 'application/json'
+      }
+    };
+
     if (isEditMode.value) {
-      console.log(submissionData.val);
-      
-      await axios.put(`/api/specializations/${specialization.value.id}`, submissionData, {
+      await axios.post(`/api/specializations/${specialization.value.id}`, formData, {
+        ...config,
         headers: {
-          'Content-Type': 'multipart/form-data'
-        }
+            ...config.headers,
+            'X-HTTP-Method-Override': 'PUT'
+          }
       });
       toastr.success('Specialization updated successfully');
     } else {
-      await axios.post('/api/specializations', submissionData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
-      toastr.success('Specialization added successfully');
+      await axios.post('/api/specializations', formData, config);
+      toastr.success('Specialization created successfully');
     }
 
     emit('specUpdate');
     closeModal();
   } catch (error) {
-    handleBackendErrors(error);
+    if (error.response?.data?.errors) {
+      Object.entries(error.response.data.errors).forEach(([_, messages]) => {
+        messages.forEach(message => toastr.error(message));
+      });
+    } else {
+      toastr.error(error.response?.data?.message || 'An unexpected error occurred');
+    }
   }
 };
 </script>
+
 <template>
-  <div class="modal fade" :class="{ show: showModal }" tabindex="-1" aria-labelledby="specializationModalLabel" aria-hidden="true" v-if="showModal">
-    <div class="modal-dialog">
+  <div 
+    v-if="showModal"
+    class="modal fade show" 
+    role="dialog"
+    aria-modal="true"
+    tabindex="-1"
+  >
+    <div class="modal-dialog" role="document">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">{{ isEditMode ? 'Edit Specialization' : 'Add Specialization' }}</h5>
-          <button type="button" class="btn btn-danger" @click="closeModal" aria-label="Close">
+          <h5 class="modal-title">
+            {{ isEditMode ? 'Edit' : 'Add' }} Specialization
+          </h5>
+          <button 
+            type="button" 
+            class="btn btn-danger" 
+            @click="closeModal"
+            aria-label="Close"
+          >
             <i class="fas fa-times"></i>
           </button>
         </div>
-        <div class="modal-body">
-          <Form v-slot="{ errors: validationErrors }" @submit="submitForm" :validation-schema="specializationSchema">
-            <!-- Existing fields -->
+
+        <Form 
+          @submit="submitForm" 
+          :validation-schema="specializationSchema" 
+          v-slot="{ errors }"
+        >
+          <div class="modal-body">
             <div class="mb-3">
               <label for="name" class="form-label">Name</label>
-              <Field type="text" id="name" name="name" 
-                :class="{ 'is-invalid': validationErrors.name || errors.name }" 
+              <Field 
+                type="text"
+                id="name"
+                name="name"
                 v-model="specialization.name"
-                class="form-control" />
-              <span class="text-sm invalid-feedback">
-                {{ validationErrors.name || (errors.name && errors.name[0]) }}
-              </span>
+                class="form-control"
+                :class="{ 'is-invalid': errors.name }"
+              />
+              <div class="invalid-feedback" v-if="errors.name">
+                {{ errors.name }}
+              </div>
             </div>
+
             <div class="mb-3">
               <label for="description" class="form-label">Description</label>
-              <Field as="textarea" id="description" name="description" 
-                :class="{ 'is-invalid': validationErrors.description || errors.description }" 
+              <Field 
+                as="textarea"
+                id="description"
+                name="description"
                 v-model="specialization.description"
-                class="form-control" />
-              <span class="text-sm invalid-feedback">
-                {{ validationErrors.description || (errors.description && errors.description[0]) }}
-              </span>
+                class="form-control"
+                :class="{ 'is-invalid': errors.description }"
+              />
+              <div class="invalid-feedback" v-if="errors.description">
+                {{ errors.description }}
+              </div>
             </div>
-            <!-- New Photo Field -->
+
             <div class="mb-3">
               <label for="photo" class="form-label">Photo</label>
-              <Field type="file" id="photo" name="photo" 
-                :class="{ 'is-invalid': validationErrors.photo || errors.photo }" 
-                class="form-control" 
-                @change="(event) => specialization.value.photo = event.target.files[0]" />
-              <span class="text-sm invalid-feedback">
-                {{ validationErrors.photo || (errors.photo && errors.photo[0]) }}
-              </span>
+              <input 
+                type="file"
+                id="photo"
+                name="photo"
+                class="form-control"
+                :class="{ 'is-invalid': errors.photo }"
+                @change="handleFileChange"
+                accept="image/*"
+              />
+              <div class="invalid-feedback" v-if="errors.photo">
+                {{ errors.photo }}
+              </div>
             </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-outline-secondary" @click="closeModal">Cancel</button>
-              <button type="submit" class="btn btn-outline-primary">
-                {{ isEditMode ? 'Update Specialization' : 'Add Specialization' }}
-              </button>
-            </div>
-          </Form>
-        </div>
+          </div>
+
+          <div class="modal-footer">
+            <button 
+              type="button" 
+              class="btn btn-outline-secondary" 
+              @click="closeModal"
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit" 
+              class="btn btn-outline-primary"
+            >
+              {{ isEditMode ? 'Update' : 'Add' }} Specialization
+            </button>
+          </div>
+        </Form>
       </div>
     </div>
   </div>
 </template>
+
 <style scoped>
 .modal.show {
   display: block;
@@ -178,7 +229,5 @@ const submitForm = async (values) => {
 
 .invalid-feedback {
   display: block;
-  color: red;
-  font-size: 0.875rem;
 }
 </style>

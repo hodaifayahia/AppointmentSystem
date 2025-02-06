@@ -20,7 +20,6 @@ const props = defineProps({
     },
     mode: {
         type: String,
-        default: 'single',
         validator: (value) => ['single', 'range'].includes(value),
     },
     editData: {
@@ -111,7 +110,7 @@ const saveExcludedDate = async () => {
         const payload = {
             doctor_id: selectedDoctor.value || null,
             start_date: isSingleMode.value ? new Date(newDate.value).toISOString().split('T')[0] : new Date(dateRange.value.from).toISOString().split('T')[0],
-            end_date: isSingleMode.value ? new Date(new Date(newDate.value).setDate(new Date(newDate.value).getDate() + 1)).toISOString().split('T')[0] : new Date(dateRange.value.to).toISOString().split('T')[0],
+            end_date: isSingleMode.value ? null : new Date(dateRange.value.to).toISOString().split('T')[0],
             reason: reason.value, // Include the reason field
             applyForAllYears: applyForAllYears.value, // Include the applyForAllYears field
         };

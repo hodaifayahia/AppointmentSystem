@@ -10,6 +10,9 @@ const pagination = ref(null);
 const currentDate = ref(new Date());
 const selectedDate = ref(new Date());
 const doctors = ref([]);
+const doctor_id = ref(null);
+const role = ref(null);
+
 
 const filters = ref({
   patientName: '',
@@ -19,10 +22,24 @@ const filters = ref({
   status: '',
   doctorName: '',
 });
+const initializeRole = async () => {
+  try {
+    const user = await axios.get('/api/role');
+    if (user.data.role === 'doctor') {
+      role.value = user.data.role;
+      doctor_id.value = user.data.id;
+          
+      // Immediately fetch appointments after setting doctor_id
+      await getAppointments();
+    }
+  } catch (err) {
+    console.error('Error fetching user role:', err);
+  }
+};
+
 
 const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-// Fetch appointments
 const getAppointments = async (status = null, filter = null, date = null) => {
   try {
     loading.value = true;
@@ -33,9 +50,13 @@ const getAppointments = async (status = null, filter = null, date = null) => {
     const params = {
       status: status === 'ALL' ? null : status,
       filter: filter,
-      date: date || filters.value.date, // Apply the selected date
-      doctorName: filters.value.doctorName, // Apply the selected doctor name
+      date: date || filters.value.date,
+      doctorName: filters.value.doctorName,
+      // Add doctor_id to params if it exists
+      ...(doctor_id.value && { doctor_id: doctor_id.value })
+
     };
+    
 
     const response = await axios.get(`/api/appointments`, { params });
     pagination.value = response.data.meta;
@@ -53,34 +74,72 @@ const getAppointments = async (status = null, filter = null, date = null) => {
     loading.value = false;
   }
 };
-
 const fetchDoctorsworkingDates = async (month) => {
   try {
     loading.value = true;
     error.value = null;
 
+    // Make the API call with or without doctorId
     const response = await axios.get('/api/doctors/WorkingDates', {
-      params: { month },
+      params: {
+        month,
+        doctorId: doctor_id.value
+      }
     });
 
-    if (response.data) {
-      // Assign a unique color to each doctor
+    if (response.data.data) {
       const colors = ['#FF6B6B', '#4ECDC4', '#FFD166', '#06D6A0', '#118AB2', '#073B4C', '#EF476F'];
-      doctors.value = response.data.data.map((doctor, index) => ({
-        ...doctor,
-        working_dates: doctor.working_dates.map(date => formatLocalDate(new Date(date))),
-        color: colors[index % colors.length], // Assign a color from the palette
-      }));
+      console.log(doctor_id);
+      
+      if (doctor_id.value) {
+        // If doctor_id exists, we expect a single doctor's data
+        // Even if it comes in an array, we only take the first item
+        const doctorData = Array.isArray(response.data.data) ? response.data.data[0] : response.data.data;
+        doctors.value = [{
+          ...doctorData,
+          working_dates: doctorData.working_dates.map(date => formatLocalDate(new Date(date))),
+          color: colors[0]
+        }];
+      } else {
+        // If no doctor_id, handle multiple doctors as before
+        doctors.value = response.data.data.map((doctor, index) => ({
+          ...doctor,
+          working_dates: doctor.working_dates.map(date => formatLocalDate(new Date(date))),
+          color: colors[index % colors.length]
+        }));
+      }
     } else {
       throw new Error('Failed to fetch doctors');
     }
   } catch (err) {
     console.error('Error fetching doctors:', err);
     error.value = err.message || 'Failed to load doctors';
+    doctors.value = [];
   } finally {
     loading.value = false;
   }
 };
+
+// Update the getDoctorsWorkingOnDate function to handle single doctor case
+const getDoctorsWorkingOnDate = (date) => {
+  const dateStr = formatLocalDate(date);
+
+  // Filter doctors whose working_dates include the formatted date
+  const workingDoctors = doctors.value
+    .filter(doctor => {
+      return doctor.working_dates.some(workingDate => {
+        const formattedWorkingDate = formatLocalDate(new Date(workingDate));
+        return formattedWorkingDate === dateStr;
+      });
+    })
+    .map(doctor => ({
+      name: doctor.name,
+      color: doctor.color,
+    }));
+
+  return workingDoctors;
+};
+
 const hasAppointments = (date) => {
   const dateStr = formatLocalDate(date);
   return appointments.value.some(apt => {
@@ -199,27 +258,7 @@ const filterByDoctor = (doctorName) => {
   filters.value.doctorName = doctorName;
   getAppointments(null, null, filters.value.date); // Pass the selected date
 };
-const getDoctorsWorkingOnDate = (date) => {
-  const dateStr = formatLocalDate(date);
-  console.log('Checking date:', dateStr);
 
-  // Filter doctors whose working_dates include the formatted date
-  const workingDoctors = doctors.value
-    .filter(doctor => {
-      return doctor.working_dates.some(workingDate => {
-        const formattedWorkingDate = formatLocalDate(new Date(workingDate));
-        return formattedWorkingDate === dateStr;
-      });
-    })
-    .map(doctor => ({
-      name: doctor.name,
-      color: doctor.color,
-    }));
-
-  console.log('Working Doctors on', dateStr, ':', workingDoctors);
-  return workingDoctors;
-};
-// Formatted selected date
 const formattedSelectedDate = computed(() => {
   return new Intl.DateTimeFormat('en-US', {
     weekday: 'long',
@@ -230,18 +269,6 @@ const formattedSelectedDate = computed(() => {
 });
 
 
-// Clear all filters
-const clearFilters = () => {
-  filters.value = {
-    patientName: '',
-    phone: '',
-    dateOfBirth: '',
-    time: '',
-    date: '',
-    status: '',
-    doctorName: '',
-  };
-};
 
 // Format date
 const formatDate = (date) => {
@@ -283,10 +310,11 @@ const statusOptions = ref([
   { value: 4, label: 'Done' },
 ]);
 
-// Filtered appointments
+// Modified filteredAppointments computed property
 const filteredAppointments = computed(() => {
   return appointments.value.filter(appointment => {
-    return (
+    // Base filtering conditions
+    const baseConditions = 
       (!filters.value.patientName ||
         `${appointment.patient_first_name} ${appointment.patient_last_name}`
           .toLowerCase()
@@ -298,16 +326,25 @@ const filteredAppointments = computed(() => {
       (!filters.value.time ||
         appointment.appointment_time.includes(filters.value.time)) &&
       (!filters.value.status ||
-        appointment.status.value === filters.value.status) &&
+        appointment.status.value === filters.value.status);
+
+    // Additional doctor name filter only if user is not a doctor
+    const doctorNameCondition = role.value === 'doctor' ? true :
       (!filters.value.doctorName ||
-        appointment.doctor_name.toLowerCase().includes(filters.value.doctorName.toLowerCase()))
-    );
+        appointment.doctor_name.toLowerCase().includes(filters.value.doctorName.toLowerCase()));
+
+    return baseConditions && doctorNameCondition;
   });
 });
 
-// Fetch data on mount
-onMounted(() => {
-  getAppointments();
+// Modified onMounted to ensure role is initialized first
+onMounted(async () => {
+  console.log(role.value);
+  
+  await initializeRole(); // This will also trigger getAppointments if user is a doctor
+  if (role.value !== 'doctor') {
+    await getAppointments(); // Only fetch all appointments if user is not a doctor
+  }
   fetchDoctorsworkingDates(formatMonthYear(currentDate.value));
 });
 </script>

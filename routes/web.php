@@ -3,6 +3,7 @@ use App\Http\Controllers\ApplicationController;
 use App\Http\Controllers\AppointmentAvailableMonthController;
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\AppointmentStatus;
+use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\DoctorController;
 use App\Http\Controllers\ExcludedDates;
 use App\Http\Controllers\ExportController;
@@ -24,6 +25,11 @@ use Illuminate\Support\Facades\Route;
 
 
 
+
+// Redirect root URL to the login page if the user is not authenticated
+Route::get('/', function () {
+    return redirect('/login');
+})->middleware('guest');
 // Routes for all authenticated users
 Route::middleware(['auth'])->group(function () {
 
@@ -82,10 +88,11 @@ Route::middleware(['auth'])->group(function () {
     // Patient Routes
     Route::get('/api/patients', [PatientController::class, 'index']);
     Route::post('/api/patients', [PatientController::class, 'store']);
-    Route::post('/api/patients/{patientid}', [PatientController::class, 'update']);
+    Route::put('/api/patients/{patientid}', [PatientController::class, 'update']);
     Route::get('/api/patient/{PatientId}', [PatientController::class, 'PatientAppointments']);
     Route::get('/api/patients/search', [PatientController::class, 'search']);
     Route::get('/api/patients/{parentid}', [PatientController::class, 'SpecificPatient']);
+    Route::delete('/api/patients/{patientid}', [PatientController::class, 'destroy']);
     
     
     Route::get('/api/setting/user', [SettingController::class, 'index']);
@@ -104,6 +111,9 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/api/waitlists/{waitlistid}/move-to-end', [WaitListController::class, 'moveToend']);
     Route::delete('/api/waitlists/{waitlist}', [WaitListController::class, 'destroy']); 
     Route::patch('/api/waitlists/{waitlist}/importance', [WaitlistController::class, 'updateImportance']);
+    Route::get('/api/waitlist/empty', [WaitListController::class, 'isempty']);
+
+
     Route::get('/api/importance-enum', [ImportanceEnumController::class, 'index']);
 
     // Alternatively, define routes manually
@@ -122,11 +132,12 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/api/export/Patients', [ExportController::class, 'ExportPatients']);
 
     Route::post('/api/import/appointment/{doctorid}', [ImportController::class, 'ImportAppointment']);
-    Route::get('/api/import/appointment', [ExportController::class, 'ExportAppointment']);
+    Route::get('/api/export/appointment', [ExportController::class, 'ExportAppointment']);
 
+    // Catch-all route for views
+    Route::get('{view}', [ApplicationController::class, '__invoke'])
+        ->where('view', '(.*)');
 
 });
+Route::post('/logout', [LogoutController::class, 'logout'])->name('logout');
 
-// Catch-all route for views
-Route::get('{view}', [ApplicationController::class, '__invoke'])
-    ->where('view', '(.*)');
