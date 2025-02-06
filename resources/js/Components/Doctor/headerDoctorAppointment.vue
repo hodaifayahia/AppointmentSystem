@@ -100,9 +100,10 @@ onMounted(() => {
       <!-- Left Section: Photo and Doctor Details -->
       <div class="d-flex align-items-center">
         <!-- Doctor Photo -->
-        <div class="rounded-circle overflow-hidden shadow-lg border border-4 border-white" style="width: 150px; height: 150px;">
-          <img src="/doctor.png" alt="Doctor image" class="w-100 h-100 object-fit-cover" />
-        </div>
+        <div class="mx-auto rounded-circle overflow-hidden border " style="width: 150px; height: 150px;">
+                  <img :src="doctor.avatar" alt="Doctor image" class="w-100 h-100"
+                    style="object-fit: contain; border-radius: 50%;" />
+                </div>
         <!-- Doctor Info -->
         <div class="ml-4">
           <h2 class="h4 font-weight-bold text-white mb-2">{{ doctor.name }}</h2>
