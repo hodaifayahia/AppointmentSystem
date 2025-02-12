@@ -35,7 +35,7 @@ const months = ref([
 ]);
 
 const isDropdownOpen = ref(false);
-const selectedMonths = ref([]); // Initialize as empty
+const selectedMonths = ref([]);
 const validationErrors = ref({
   selectedMonths: '',
 });
@@ -50,10 +50,8 @@ const toggleDropdown = () => {
 
 const toggleMonthSelection = (month) => {
   if (!isMonthDisabled(month.value)) {
-    // Toggle the is_available status
     month.is_available = !month.is_available;
 
-    // Update the selectedMonths array
     if (month.is_available) {
       selectedMonths.value.push(month);
     } else {
@@ -61,7 +59,6 @@ const toggleMonthSelection = (month) => {
       selectedMonths.value.splice(index, 1);
     }
 
-    // Emit the updated selected months
     emit('update:modelValue', selectedMonths.value);
     validationErrors.value.selectedMonths = '';
   }
@@ -69,9 +66,9 @@ const toggleMonthSelection = (month) => {
 
 const removeMonth = (index) => {
   const removedMonth = selectedMonths.value[index];
-  removedMonth.is_available = false; // Mark as unavailable
+  removedMonth.is_available = false;
   selectedMonths.value.splice(index, 1);
-  emit('update:modelValue', selectedMonths.value); // Emit updated value
+  emit('update:modelValue', selectedMonths.value);
 };
 
 const validateMonths = () => {
@@ -83,111 +80,83 @@ const validateMonths = () => {
   return true;
 };
 
-// Initialize selected months based on edit mode
+// Updated onMounted logic to properly handle month names
 onMounted(() => {
   if (props.isEditMode && props.appointmentBookingWindow.length > 0) {
-    // Map the appointmentBookingWindow to the months array
-    months.value.forEach((month) => {
-      const isSelected = props.appointmentBookingWindow.some(
-        (booking) => booking.month === month.value && booking.is_available
-      );
-      month.is_available = isSelected;
-      if (isSelected) {
-        selectedMonths.value.push(month);
+    props.appointmentBookingWindow.forEach((booking) => {
+      const monthObj = months.value.find((m) => m.value === booking.month);
+      if (monthObj && booking.is_available) {
+        monthObj.is_available = true;
+        selectedMonths.value.push({
+          name: monthObj.name,
+          value: monthObj.value,
+          is_available: true
+        });
       }
     });
   }
 });
 
-// Watch for changes in modelValue prop
 watch(
   () => props.modelValue,
   (newValue) => {
-    selectedMonths.value = [...newValue]; // Sync selectedMonths with modelValue
-    // Update is_available status for all months
+    selectedMonths.value = newValue.map(month => {
+      const monthObj = months.value.find(m => m.value === month.value);
+      return {
+        ...month,
+        name: monthObj ? monthObj.name : '' // Ensure name is included
+      };
+    });
+
     months.value.forEach((month) => {
       month.is_available = newValue.some((m) => m.value === month.value);
     });
   },
-  { deep: true } // Ensure deep watching for nested objects
+  { deep: true }
 );
 </script>
 
 <template>
-    <div class="mb-3">
-      <!-- Label and Description -->
-      <label for="monthDropdown" class="form-label">
-        Appointment Booking Window
-      </label>
-      <p class="form-text text-muted">
-        Select the months when appointments can be booked
-      </p>
-  
-      <!-- Dropdown -->
-      <div class="dropdown">
-        <!-- Dropdown Button -->
-        <button
-          @click="toggleDropdown"
-          class="btn btn-secondary dropdown-toggle w-100 d-flex justify-content-between align-items-center"
-          type="button"
-          id="monthDropdown"
-          :aria-expanded="isDropdownOpen"
-        >
-          <span>
-            {{ selectedMonths.length ? `${selectedMonths.length} months selected` : 'Select Months' }}
-          </span>
-        </button>
-  
-        <!-- Dropdown Menu -->
-        <ul
-          v-if="isDropdownOpen"
-          class="dropdown-menu w-100 show"
-          aria-labelledby="monthDropdown"
-        >
-          <li v-for="month in months" :key="month.value">
-            <a
-              class="dropdown-item d-flex justify-content-between align-items-center"
-              href="#"
-              @click.prevent="toggleMonthSelection(month)"
-              :class="{
-                'disabled text-muted': isMonthDisabled(month.value),
-                'active': month.is_available,
-              }"
-            >
-              <span>{{ month.name }}</span>
-              <span
-                v-if="month.is_available"
-                class="badge bg-primary rounded-pill"
-              >✓</span>
-            </a>
-          </li>
-        </ul>
-      </div>
-  
-      <!-- Selected Months Chips -->
-      <div class="mt-2 d-flex flex-wrap gap-2">
-        <div
-          v-for="(month, index) in selectedMonths"
-          :key="index"
-          class="badge bg-primary d-flex align-items-center p-2 ml-1 mb-2 gap-2"
-        >
-          <span>{{ month.name }}</span>
-          <button               
-            @click="removeMonth(index)"
-            class="fas fa-times text-white"
-            aria-label="Remove"
-            style="background: none; border: none; cursor: pointer; font-size: 0.875rem;"
-          ></button>
-        </div>
-      </div>
-  
-      <!-- Error Message -->
-      <div
-        v-if="validationErrors.selectedMonths"
-        class="invalid-feedback d-block"
-      >
-        {{ validationErrors.selectedMonths }}
+  <div class="mb-3">
+    <label for="monthDropdown" class="form-label">
+      Appointment Booking Window
+    </label>
+
+
+    <div class="dropdown">
+      <button @click="toggleDropdown"
+        class="btn btn-secondary dropdown-toggle w-100 d-flex justify-content-between align-items-center" type="button"
+        id="monthDropdown" :aria-expanded="isDropdownOpen">
+        <span>
+          {{ selectedMonths.length ? `${selectedMonths.length} months selected` : 'Select Months' }}
+        </span>
+      </button>
+
+      <ul v-if="isDropdownOpen" class="dropdown-menu w-100 show" aria-labelledby="monthDropdown">
+        <li v-for="month in months" :key="month.value">
+          <a class="dropdown-item d-flex justify-content-between align-items-center" href="#"
+            @click.prevent="toggleMonthSelection(month)" :class="{
+              'disabled text-muted': isMonthDisabled(month.value),
+              'active': month.is_available,
+            }">
+            <span>{{ month.name }}</span>
+            <span v-if="month.is_available" class="badge bg-primary rounded-pill">✓</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+
+    <div class="mt-2 d-flex flex-wrap gap-2">
+      <div v-for="(month, index) in selectedMonths" :key="index"
+        class="badge bg-primary d-flex align-items-center p-2 ml-1 mb-2 gap-2">
+        <span>{{ month.name }}</span>
+        <button @click="removeMonth(index)" class="fas fa-times text-white" aria-label="Remove"
+          style="background: none; border: none; cursor: pointer; font-size: 0.875rem;"></button>
       </div>
     </div>
-  </template>
-  
+
+    <div v-if="validationErrors.selectedMonths" class="invalid-feedback d-block">
+      {{ validationErrors.selectedMonths }}
+    </div>
+  </div>
+</template>

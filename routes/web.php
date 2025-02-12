@@ -55,8 +55,9 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/api/doctors', [DoctorController::class, 'bulkDelete'])->name('users.bulkDelete');
     Route::get('/api/doctors/search', [DoctorController::class, 'search'])->name('users.search');
     Route::get('/api/doctors/WorkingDates', [DoctorController::class, 'WorkingDates']);
-    Route::get('/api/doctors/{doctorId}', [DoctorController::class, 'getDoctor'])->name('users.update');
+    Route::get('/api/doctors/{doctorId}', [DoctorController::class, 'getDoctor']);
     Route::get('/api/doctors/specializations/{specialization_id}', [DoctorController::class, 'GetDoctorsBySpecilaztion']);
+    Route::get('/api/doctors/handel/specific', [DoctorController::class, 'getspecific']);
     
     // Specializations Routes
     Route::get('/api/specializations', [specializationsController::class, 'index']);
@@ -86,6 +87,7 @@ Route::middleware(['auth'])->group(function () {
     
     // Schedule Routes
     Route::get('/api/schedules/{doctorid}', [ScheduleController::class, 'index']);
+    Route::put('/api/schedules/{doctorid}', [ScheduleController::class, 'updateSchedule']);
 
     // Patient Routes
     Route::get('/api/patients', [PatientController::class, 'index']);

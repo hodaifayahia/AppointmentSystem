@@ -236,7 +236,7 @@ onMounted(() => {
                 <th>#</th>
                 <th>Photo</th>
                 <th>Name</th>
-                <th>Email</th>
+                <th>Username</th>
                 <th>Phone</th>
                 <th>Specialization</th>
                 <th>Frequency</th>

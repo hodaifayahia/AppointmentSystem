@@ -157,7 +157,7 @@ onMounted(() => {
     <!-- Add/Edit Waitlist Modal -->
     <AddWaitlistModal
       :show="showAddModal"
-      :editMode="isEditMode"
+      :editMode="false"
       :specializationId="specializationId"
       @close="closeAddModal"
       @save="handleSave"

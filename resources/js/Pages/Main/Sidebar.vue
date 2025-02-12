@@ -27,7 +27,7 @@ const logout = async () => {
             <a href="#" class="brand-link d-flex align-items-center">
                 <img src="{{ asset('images/login.png') }}" class="img-circle elevation-2 me-2" alt="User Image">
               
-                <span class="brand-text font-weight-light ms-2">Clinc Oasis</span>
+                <span class="brand-text font-weight-light ms-2">Clinic Oasis</span>
             </a>
 
             <!-- Sidebar -->
@@ -52,7 +52,7 @@ const logout = async () => {
                         <li class="nav-item">
                             <router-link to="/dashboard" active-class="active" class="nav-link">
                                 <i class="nav-icon fas fa-tachometer-alt"></i>
-                                <p>Dashboard</p>
+                                <p>Calander</p>
                             </router-link>
                         </li>
 
@@ -61,7 +61,7 @@ const logout = async () => {
                             <li class="nav-item">
                                 <router-link to="/admin/users" active-class="active" class="nav-link">
                                     <i class="nav-icon fas fa-users"></i>
-                                    <p>Admins</p>
+                                    <p>Users</p>
                                 </router-link>
                             </li>
                             <li class="nav-item">
@@ -120,20 +120,35 @@ const logout = async () => {
                         <!-- Doctor-specific links -->
                         <!-- @if(Auth::user()->role === 'doctor') -->
                         <template v-if="user.role === 'doctor'">
-                            <li class="nav-item">
-                                <router-link to="/doctor/appointments" active-class="active" class="nav-link">
-                                    <i class="nav-icon fas fa-calendar-alt"></i>
-                                    <p>Appointment</p>
-                                </router-link>
-                            </li>
+    <li class="nav-item">
+        <router-link to="/doctor/appointments" active-class="active" class="nav-link">
+            <i class="nav-icon fas fa-calendar-check"></i> 
+            <p>Appointments</p>
+        </router-link>
+    </li>
 
-                            <li class="nav-item">
-                                <router-link to="/doctor/excludeDates" active-class="active" class="nav-link">
-                                    <i class="nav-icon fas fa-calendar-times"></i>
-                                    <p>Day Offs</p>
-                                </router-link>
-                            </li>
-                        </template>
+    <li class="nav-item">
+        <router-link to="/doctor/excludeDates" active-class="active" class="nav-link">
+            <i class="nav-icon fas fa-ban"></i> 
+            <p>Day Offs</p>
+        </router-link>
+    </li>
+
+    <li class="nav-item">
+        <router-link to="/doctor/avilability" active-class="active" class="nav-link">
+            <i class="nav-icon fas fa-user-clock"></i> 
+            <p>Availability</p>
+        </router-link>
+    </li>
+
+    <li class="nav-item">
+        <router-link to="/admin/doctors/schedule" active-class="active" class="nav-link">
+            <i class="nav-icon fas fa-calendar-alt"></i> 
+            <p>Schedule</p>
+        </router-link>
+    </li>
+</template>
+
                         <!-- @endif -->
 
                         <!-- Settings and Logout (Common for all roles) -->

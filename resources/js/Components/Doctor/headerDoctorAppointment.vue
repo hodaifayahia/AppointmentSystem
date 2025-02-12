@@ -91,7 +91,7 @@ onMounted(() => {
   <!-- Doctor Details Section -->
   <div class="header p-4 rounded-lg d-flex flex-column position-relative bg-primary">
     <!-- Back Button at the top of the card -->
-    <button v-if="!isDcotro" class="btn btn-light bg-primary rounded-pill shadow-sm position-absolute"
+    <button v-if="isDcotro" class="btn btn-light bg-primary rounded-pill shadow-sm position-absolute"
       style="top: 20px; left: 20px;" @click="router.go(-1)">
       <i class="fas fa-arrow-left"></i> Back
     </button>

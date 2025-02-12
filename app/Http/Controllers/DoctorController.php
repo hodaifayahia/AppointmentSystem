@@ -104,6 +104,26 @@ class DoctorController extends Controller
     /**
      * Show the form for creating a new resource.
      */
+
+     public function getspecific()
+     {
+
+         try {
+             // Ensure the authenticated user has a doctor profile
+             if (!Auth::user() || !Auth::user()->doctor) {
+                 return response()->json(['message' => 'Unauthorized'], 401);
+             }
+     
+             $doctor = Doctor::with(['user', 'specialization', 'schedules'])
+                 ->where('id', Auth::user()->doctor->id)
+                 ->firstOrFail(); // Automatically returns 404 if doctor is not found
+     
+             return new DoctorResource($doctor);
+         } catch (\Exception $e) {
+             return response()->json(['message' => 'An error occurred'], 500);
+         }
+     }
+     
     public function getDoctor(Request $request, $id = null)
 {
     // If an ID is provided, return the specific doctor
@@ -149,7 +169,7 @@ class DoctorController extends Controller
 {
     $validated = $request->validate([
         'name' => 'required|string|max:255',
-        'email' => 'required|unique:users,email',
+        'email' => 'required',
         'phone' => 'required|string',
         'password' => 'required|min:8',
         'specialization' => 'required|exists:specializations,id',
@@ -370,7 +390,7 @@ class DoctorController extends Controller
         // dd($request->all());
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|unique:users,email',
+            'email' => 'required',
             'phone' => 'required|string',
             'password' => 'nullable|min:8',
             'specialization' => 'required|exists:specializations,id',

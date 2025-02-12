@@ -211,6 +211,7 @@ const closeAddModal = () => {
     showAddModal.value = false;
     isEditMode.value = false;
     selectedWaitlist.value = null;
+    ShowReasonModel.value = false;
 };
 
 const handleSave = (newWaitlist) => {

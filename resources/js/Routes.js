@@ -24,6 +24,8 @@ import Waitlist from "./Pages/waitList/Waitlist.vue";
 import AppointmentFormWaitlist from "./Components/appointments/appointmentFormWaitlist.vue";
 import SettingsDoctor from "./Pages/Setting/settingsDoctor.vue";
 import ExcludeDatesDoctor from "./Pages/Excludes/ExcludeDatesDoctor.vue";
+import DoctorAvilibilte from "./Components/Doctor/DoctorAvilibilte.vue";
+import DoctorListScheduleDForDoctor from "./Components/Doctor/DoctorListScheduleDForDoctor.vue";
 // import Logout from "./auth/Logout.vue"; // Assuming you have a Logout component
 const adminRoutes = [
     {
@@ -116,6 +118,7 @@ const adminRoutes = [
         name: 'admin.doctors.schedule',
         component: DoctorListSchedule,
     },
+  
     {
         path: '/admin/settings',
         name: 'admin.settings',
@@ -150,10 +153,20 @@ const doctorRoutes = [
         component: AppointmentLIstDoctor,
     },
     {
+        path: '/admin/doctors/schedule',
+        name: 'doctors.schedule',
+        component: DoctorListScheduleDForDoctor,
+    },
+    {
+        path: '/doctor/avilability',
+        name: 'doctor.avilability',
+        component: DoctorAvilibilte,
+    },
+    {
         path: '/doctor/excludeDates',
         name: 'doctor.excludeDates',
         component: ExcludeDatesDoctor,
-    },
+    }
 ];
 
 // Combine all routes
