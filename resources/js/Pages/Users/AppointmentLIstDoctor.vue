@@ -32,10 +32,12 @@ const initializeRole = async () => {
       userRole.value = user.data.role;
       doctorId.value = user.data.id;
       specializationId.value = user.data.specialization_id;
+
   } catch (err) {
     console.error('Error fetching user role:', err);
   }
 };
+
 const getAppointments = (() => {
   let timeout;
   return async (page = 1, status = null, filter = null, date = null) => {
@@ -51,16 +53,13 @@ const getAppointments = (() => {
           date
         };
 
-        const { data } = await axios.get(`/api/appointments/${doctorId}`, { params });
+        const { data } = await axios.get(`/api/appointments/${doctorId.value}`, { params });
 
         if (data.success) {
           appointments.value = data.data;
           pagination.value = data.meta;
 
-          // Update status counts
-          statuses.value.forEach(s => {
-            s.count = data.status_counts[s.value] || 0;
-          });
+         
         }
       } catch (err) {
         console.error('Error fetching appointments:', err);
@@ -70,7 +69,6 @@ const getAppointments = (() => {
     }, 300); // Wait 300ms before making API request
   };
 })();
-
 const handleGetAppointments = (data) => {
   appointments.value = data.data; // Update the appointments list
 };
@@ -108,13 +106,13 @@ const exportAppointments = async () => {
     console.error('Error exporting appointments:', error);
   }
 };
-
+// Fetch appointment statuses
 const getAppointmentsStatus = async () => {
   try {
     loading.value = true; // Set loading state
     error.value = null; // Clear any previous errors
 
-    const response = await axios.get(`/api/appointmentStatus/${doctorId}`);
+    const response = await axios.get(`/api/appointmentStatus/${doctorId.value}`);
 
     statuses.value = [
       { name: 'ALL', value: null, color: 'secondary', icon: 'fas fa-list' }, // Default "ALL" option
@@ -131,14 +129,17 @@ const getAppointmentsStatus = async () => {
 const fetchWaitlists = async (filters = {}) => {
   try {
     const params = { ...filters, is_Daily: 1 };
-    params.doctor_id = NotForYou.value ? "null" : doctorId.value; // Set doctor_id based on NotForYou
-    params.specialization_id = specializationId.value;
+    console.log(NotForYou.value);
+    
+   params.doctorId = NotForYou.value ? doctorId : "null" ; // Set doctor_id based on NotForYou
+   params.specializationId = specializationId;
 
     const response = await axios.get('/api/waitlists', { params });
-
+    
     countWithDoctor.value = response.data.count_with_doctor; // Assign count where doctor_id is not null
     countWithoutDoctor.value = response.data.count_without_doctor; // Assign count where doctor_id is null
-
+    console.log();
+    
   } catch (error) {
     console.error('Error fetching waitlists:', error);
   }
@@ -206,8 +207,9 @@ const statuses = ref([
 const goToAddAppointmentPage = () => {
   router.push({
     name: 'admin.appointments.create',
-    params: {id : doctorId }
+    params: {id : doctorId.value }
   });
+  
 };
 const getTodaysAppointments = async () => {
   getAppointments(1, 'TODAY', 'today');
@@ -289,13 +291,13 @@ onMounted(async  ()=>{
               <!-- Waitlist Buttons -->
               <div class="d-flex gap-2">
                 <!-- Button for "Waitlist for You" Modal -->
-                <button class="btn btn-outline-success mr-2" type="button" @click="openWaitlistForYouModal">
-                  <i class="fas fa-user-clock me-2"></i> Waitlist for You ({{ countWithDoctor }})
+                <button class="btn btn-outline-success mr-2 position-relative" type="button" @click="openWaitlistForYouModal">
+                  <i class="fas fa-user-clock me-2 "></i> Waitlist for You <span v-if="countWithDoctor > 0" class="custom-time">{{ countWithDoctor }}</span>
                 </button>
 
                 <!-- Button for "Waitlist Not for You" Modal -->
-                <button class="btn btn-outline-warning" type="button" @click="openWaitlistNotForYouModal">
-                  <i class="fas fa-user-times me-2"></i> Waitlist Not for You ({{ countWithoutDoctor }})
+                <button class="btn btn-outline-warning position-relative" type="button" @click="openWaitlistNotForYouModal">
+                  <i class="fas fa-user-times me-2"></i>  Waitlist Not for You <span v-if="countWithoutDoctor > 0" class="custom-time"> {{ countWithoutDoctor }}</span>
                 </button>
               </div>
               <div v-if="role == 'admin'" class="d-flex flex-column align-items-center sm:w-100 w-md-auto">
@@ -349,6 +351,16 @@ onMounted(async  ()=>{
 .custom-file-label {
   padding: 0.5rem 1rem;
   font-size: 1rem;
+}
+.custom-time{
+  position: absolute;
+    top: -8px;
+    right: -7px;
+    background-color: red;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    color: white;
 }
 
 /* Adjust spacing for mobile */

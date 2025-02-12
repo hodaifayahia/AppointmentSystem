@@ -30,6 +30,8 @@ const props = defineProps({
   }
 });
 
+console.log(props.number_of_patients_per_day);
+
 // Initialize schedules with reactive
 const schedules = reactive(
   daysOfWeek.reduce((acc, day) => ({
@@ -97,6 +99,7 @@ const { values, errors } = useForm({
   }),
 });
 
+
 // Calculate patients per shift
 const calculatePatientsPerDay = (startTime, endTime, slot) => {
   if (!startTime || !endTime || !slot) return 0;
@@ -106,51 +109,66 @@ const calculatePatientsPerDay = (startTime, endTime, slot) => {
   return Math.floor(totalMinutes / slot);
 };
 
-// Watch for schedule changes and emit updates
-watch(
-  schedules,
-  (newSchedules) => {
-    const schedulesData = Object.entries(newSchedules)
-      .flatMap(([day, shifts]) => {
-        const records = [];
-        if (shifts.morning.isActive) {
-          records.push({
-            day_of_week: day.toLowerCase(),
-            shift_period: 'morning',
-            start_time: shifts.morning.startTime.slice(0, 5), // Remove seconds
-            end_time: shifts.morning.endTime.slice(0, 5), // Remove seconds
-            is_active: true,
-            number_of_patients_per_day: props.patients_based_on_time
-              ? calculatePatientsPerDay(shifts.morning.startTime, shifts.morning.endTime, props.time_slot) // Fallback to 30 minutes
-              : props.number_of_patients_per_day,
-          });
-        }
-        if (shifts.afternoon.isActive) {
-          records.push({
-            day_of_week: day.toLowerCase(),
-            shift_period: 'afternoon',
-            start_time: shifts.afternoon.startTime.slice(0, 5), // Remove seconds
-            end_time: shifts.afternoon.endTime.slice(0, 5), // Remove seconds
-            is_active: true,
-            number_of_patients_per_day: props.patients_based_on_time
-              ? calculatePatientsPerDay(shifts.afternoon.startTime, shifts.afternoon.endTime, props.time_slot || 30) // Fallback to 30 minutes
-              : props.number_of_patients_per_day,
-          });
-        }
-        return records;
-      })
-      .filter(record => record !== null);
+// Function to update schedules data
+const updateSchedulesData = () => {
+  const schedulesData = Object.entries(schedules)
+    .flatMap(([day, shifts]) => {
+      const records = [];
+      if (shifts.morning.isActive) {
+        records.push({
+          day_of_week: day.toLowerCase(),
+          shift_period: 'morning',
+          start_time: shifts.morning.startTime.slice(0, 5),
+          end_time: shifts.morning.endTime.slice(0, 5),
+          is_active: true,
+          number_of_patients_per_day: props.patients_based_on_time
+            ? calculatePatientsPerDay(shifts.morning.startTime, shifts.morning.endTime, props.time_slot)
+            : props.number_of_patients_per_day,
+        });
+      }
+      if (shifts.afternoon.isActive) {
+        records.push({
+          day_of_week: day.toLowerCase(),
+          shift_period: 'afternoon',
+          start_time: shifts.afternoon.startTime.slice(0, 5),
+          end_time: shifts.afternoon.endTime.slice(0, 5),
+          is_active: true,
+          number_of_patients_per_day: props.patients_based_on_time
+            ? calculatePatientsPerDay(shifts.afternoon.startTime, shifts.afternoon.endTime, props.time_slot)
+            : props.number_of_patients_per_day,
+        });
+      }
+      return records;
+    })
+    .filter(record => record !== null);
 
-    emit('schedulesUpdated', schedulesData);
-    emit('update:modelValue', { schedules: schedulesData });
-  },
-  { deep: true }
+  emit('schedulesUpdated', schedulesData);
+  emit('update:modelValue', { schedules: schedulesData });
+};
+
+
+// Watch for changes in schedules
+watch(schedules, () => {
+  updateSchedulesData();
+}, { deep: true });
+
+// Watch for changes in props that affect patient numbers
+watch(
+  [
+    () => props.patients_based_on_time,
+    () => props.time_slot,
+    () => props.number_of_patients_per_day
+  ],
+  () => {
+    updateSchedulesData();
+  }
 );
 
 // Handle time input changes
 const handleTimeChange = (day, shift, type, event) => {
-  const time = event.target.value; // Get the raw value from the input
-  schedules[day][shift][type] = time; // Update the schedules object
+  const time = event.target.value;
+  schedules[day][shift][type] = time;
+  updateSchedulesData(); // Trigger update when time changes
 };
 </script>
 

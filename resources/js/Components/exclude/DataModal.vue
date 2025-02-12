@@ -107,6 +107,8 @@ const saveExcludedDate = async () => {
     }
 
     try {
+        console.log(selectedDoctor.value);
+        
         const payload = {
             doctor_id: selectedDoctor.value || null,
             start_date: isSingleMode.value ? new Date(newDate.value).toISOString().split('T')[0] : new Date(dateRange.value.from).toISOString().split('T')[0],
@@ -127,8 +129,8 @@ const saveExcludedDate = async () => {
         }
 
         excludedDates.value.push(response.data);
-        closeModal();
         emit('updateDATA');
+        closeModal();
     } catch (error) {
         toast.error(isSingleMode.value ? 'Failed to save excluded date' : 'Failed to save excluded date range');
         console.error('Error:', error);
@@ -146,7 +148,7 @@ const saveExcludedDate = async () => {
                     <ModalHeader :mode="mode" :isEditMode="isEditMode" @close="closeModal" />
 
                     <!-- Doctor Select -->
-                    <DoctorSelect v-model="selectedDoctor"  :doctors="doctors" />
+                    <DoctorSelect v-model="selectedDoctor" v-if="!props.doctorId"  :doctors="doctors" />
 
                     <!-- Modal Body -->
                     <div class="modal-body">

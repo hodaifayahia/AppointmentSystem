@@ -14,14 +14,19 @@ class ExcludedDates extends Controller
     public function index()
     {
         $excludedDates = ExcludedDate::with('doctor')->get();
-    return ExcludedDateResource::collection($excludedDates);
+        return ExcludedDateResource::collection($excludedDates);
     }
     public function GetExcludedDates($doctorId)
     {
-        // Fetch all excluded date ranges
-        $excludedDates =ExcludedDate::where('doctor_id',$doctorId)->get();
-    return ExcludedDateResource::collection($excludedDates);
+
+        // Fetch all excluded date ranges and eager load the 'doctor' relationship
+        $excludedDates = ExcludedDate::where('doctor_id', $doctorId)
+            ->with('doctor')  // Eager load the 'doctor' relationship
+            ->get();
+    
+        return ExcludedDateResource::collection($excludedDates);
     }
+    
 
     public function store(Request $request)
     {

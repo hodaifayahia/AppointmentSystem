@@ -52,7 +52,7 @@ const fetchAvailableAppointments = async () => {
       params: { doctor_id: props.doctorId }
     });
     console.log('Available appointments:', response.data.data);
-    
+
 
     availableAppointments.value = {
       canceled_appointments: response.data.canceled_appointments,
@@ -80,9 +80,9 @@ const formatClosestCanceledAppointment = (appointments) => {
 onMounted(() => {
   // Ensure both functions are called with the current doctorId
 
-    getDoctorsInfo();
-    fetchAvailableAppointments();
-  
+  getDoctorsInfo();
+  fetchAvailableAppointments();
+
 });
 </script>
 
@@ -91,7 +91,8 @@ onMounted(() => {
   <!-- Doctor Details Section -->
   <div class="header p-4 rounded-lg d-flex flex-column position-relative bg-primary">
     <!-- Back Button at the top of the card -->
-    <button v-if="!isDcotro" class="btn btn-light bg-primary rounded-pill shadow-sm position-absolute" style="top: 20px; left: 20px;" @click="router.go(-1)">
+    <button v-if="!isDcotro" class="btn btn-light bg-primary rounded-pill shadow-sm position-absolute"
+      style="top: 20px; left: 20px;" @click="router.go(-1)">
       <i class="fas fa-arrow-left"></i> Back
     </button>
 
@@ -101,13 +102,14 @@ onMounted(() => {
       <div class="d-flex align-items-center">
         <!-- Doctor Photo -->
         <div class="mx-auto rounded-circle overflow-hidden border " style="width: 150px; height: 150px;">
-                  <img :src="doctor.avatar" alt="Doctor image" class="w-100 h-100"
-                    style="object-fit: contain; border-radius: 50%;" />
-                </div>
+          <img :src="doctor.avatar" alt="Doctor image" class="w-100 h-100"
+            style="object-fit: contain; border-radius: 50%;" />
+        </div>
         <!-- Doctor Info -->
         <div class="ml-4">
           <h2 class="h4 font-weight-bold text-white mb-2">{{ doctor.name }}</h2>
-          <p class="mb-1 text-white font-weight-bold">{{ doctor.specialization }} <span class="font-weight-bold">{{ doctor.credentials }}</span></p>
+          <p class="mb-1 text-white font-weight-bold">{{ doctor.specialization }} <span class="font-weight-bold">{{
+            doctor.credentials }}</span></p>
           <p class="mb-0 text-white-50">
             <span class="font-weight-bold"><i class="fas fa-phone"></i> {{ doctor.phone }}</span>
           </p>
@@ -120,9 +122,10 @@ onMounted(() => {
         <div class="mb-4">
           <p class="mb-1 small text-white-50">Next Appointment:</p>
           <p class="h5 font-weight-bold text-white mb-2">
-            {{ availableAppointments.normal_appointments ? availableAppointments.normal_appointments.date + ' at ' + availableAppointments.normal_appointments.time : 'No upcoming appointments' }}
+            {{ availableAppointments.normal_appointments ? availableAppointments.normal_appointments.date + ' at ' +
+              availableAppointments.normal_appointments.time : 'No upcoming appointments' }}
           </p>
-        
+
         </div>
         <!-- Last Appointment -->
         <div>
@@ -130,7 +133,7 @@ onMounted(() => {
           <p class="h5 font-weight-bold text-white mb-2">
             {{ formatClosestCanceledAppointment(availableAppointments.canceled_appointments) }}
           </p>
-         
+
         </div>
       </div>
     </div>

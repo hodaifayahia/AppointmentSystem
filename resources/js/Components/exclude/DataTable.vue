@@ -4,7 +4,7 @@
       <thead class="bg-light">
         <tr>
           <th>#</th>
-          <th>Doctor Name</th>
+          <th v-if="role !== 'doctor'">Doctor Name</th>
           <th>Start Date</th>
           <th>End Date</th>
           <th>Reason</th>
@@ -15,7 +15,7 @@
       <tbody>
         <tr v-for="(date, index) in dates" :key="date.id">
           <td>{{ index + 1 }}</td>
-          <td>{{ date.doctor_name || 'All Doctors' }}</td>
+          <td v-if="role !== 'doctor'">{{ date.doctor_name || 'All Doctors' }}</td>
           <td>{{ formatDate(date.start_date) }}</td>
           <td>{{ formattedEndDate(date.end_date) }}</td>
           <td>{{ date.reason || 'No reason provided' }}</td>
@@ -44,6 +44,9 @@ const props = defineProps({
   dates: {
     type: Array,
     required: true,
+  },
+  role:{
+    type:String
   },
 });
 

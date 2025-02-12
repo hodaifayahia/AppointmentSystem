@@ -18,7 +18,7 @@ class ExcludedDateResource extends JsonResource
         return [
             'id' => $this->id,
             'doctor_id' => $this->doctor_id,
-            'doctor_name' => $this->doctor->name ?? "ALL DOCTORS",
+            'doctor_name' => $this->doctor->user->name ?? "ALL DOCTORS",
             'start_date' => $this->start_date ? $this->start_date->format('Y-m-d') : null,
             'end_date' => $this->end_date ? $this->end_date->format('Y-m-d') : null,
             'apply_for_all_years' => $this->apply_for_all_years,

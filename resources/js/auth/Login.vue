@@ -52,7 +52,7 @@ const togglePasswordVisibility = () => {
                     <div class="mb-3">
                         <label for="email" class="form-label">Email</label>
                         <div class="input-group">
-                            <input v-model="form.email" type="email" id="email" class="form-control"
+                            <input v-model="form.email" type="text" id="email" class="form-control"
                                 placeholder="Enter your email" required>
                             <span class="input-group-text">
                                 <i class="fas fa-envelope"></i>

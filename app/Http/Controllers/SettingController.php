@@ -62,48 +62,45 @@ class SettingController extends Controller
 
     public function update(Request $request)
     {
-        // Validate the request data
         $validated = $request->validate([
             'name' => 'string|max:255',
             'email' => 'email|max:255',
-            'avatar' => 'nullable|string',  // Avatar as base64 string
+            'avatar' => 'nullable|string', // Avatar as base64 string
         ]);
-    
+
         try {
-            // Find the user by ID
             $user = User::findOrFail(Auth::id());
+
             // Update user details
-            $user->name = $validated['name'];
-            $user->email = $validated['email'];
-    
+            $user->name = $validated['name'] ?? $user->name;
+            $user->email = $validated['email'] ?? $user->email;
+
             // Handle avatar if passed as base64 string
-            if ($request->has('avatars')) {
-                // Decode the base64 string
+            if ($request->has('avatar')) {
                 $avatarData = $validated['avatar'];
-                $image = str_replace('data:image/png;base64,', '', $avatarData); // Handle PNG format
+                $image = str_replace('data:image/png;base64,', '', $avatarData);
                 $image = str_replace(' ', '+', $image);
-                $imageName = 'avatar_' . time() . '.png';  // You can modify the file name here
-                $path = public_path('storage/avatars/' . $imageName);
-    
-                // Save the avatar image to the storage
-                file_put_contents($path, base64_decode($image));
-    
-                // Update the avatar path in the database
-                $user->avatar = 'storage/avatars/' . $imageName;
+                $imageName = 'avatar_' . time() . '.png';
+
+                // Save in storage/app/public/avatars/
+                Storage::disk('public')->put('avatars/' . $imageName, base64_decode($image));
+
+                // Delete old avatar if exists
+                if ($user->avatar) {
+                    Storage::disk('public')->delete($user->avatar);
+                }
+
+                // Save new avatar path
+                $user->avatar = 'avatars/' . $imageName;
             }
-    
-            // Save the updated user
+
             $user->save();
-    
-            // Return success response
-            return response()->json(['message' => 'User updated successfully', 'user' => $user], 200);
-    
+
+            return response()->json(['message' => 'User updated successfully', 'user' => new UserResource($user)], 200);
         } catch (\Exception $e) {
-            // Handle error (e.g., user not found or other issues)
             return response()->json(['error' => 'Failed to update user: ' . $e->getMessage()], 500);
         }
     }
-    
     
     public function updatePassword(Request $request)
 {

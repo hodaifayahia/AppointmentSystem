@@ -18,12 +18,20 @@ const isEditMode = ref(false);
 const selectedWaitlist = ref(null);
 const doctors = ref([]);
 
-// Fetch all waitlists
 const fetchWaitlists = async (filters = {}) => {
-  const params = { ...filters, specialization_id: specializationId, is_Daily: isDaily };
-  const response = await axios.get(`/api/waitlists`, { params });
-  waitlists.value = response.data.data;
+  try {
+    const params = {
+      ...filters,
+      specialization_id: specializationId || null,
+      is_Daily: isDaily !== undefined ? isDaily : 0,
+    };
+    const response = await axios.get(`/api/waitlists`, { params });
+    waitlists.value = response.data.data;
+  } catch (error) {
+    console.error("Error fetching waitlists:", error);
+  }
 };
+
 
 // Fetch importance options
 const fetchImportanceOptions = async () => {
@@ -110,6 +118,7 @@ const filterWaitlists = (importance = null, doctor_id = null) => {
   fetchWaitlists(currentFilter.value);
 };
 
+
 // Clear all filters
 const clearFilters = () => {
   currentFilter.value = { importance: null, doctor_id: null, is_Daily: isDaily };
@@ -155,36 +164,24 @@ onMounted(() => {
             <div class="card-header ">
               <div class="d-flex justify-content-between align-items-center">
                 <div class="mb-3">
-                  <button
-                    @click="filterWaitlists(null, doctor.id)"
-                    v-for="doctor in doctors"
-                    :key="doctor.id"
+                  <button v-for="doctor in doctors" :key="doctor.id" @click="filterWaitlists(null, doctor.id)"
                     :class="{ 'active': currentFilter.doctor_id === doctor.id }"
-                    class="btn btn-sm btn-outline-primary ml-2"
-                  >
+                    class="btn btn-sm btn-outline-primary ml-2">
                     {{ doctor.name }}
                   </button>
-                  <button
-                    @click="filterWaitlists(null, null)"
-                    class="btn btn-sm btn-outline-primary ml-2"
-                    :class="{ 'active': currentFilter.doctor_id === null }"
-                  >
+                  <button @click="filterWaitlists(null, null)" class="btn btn-sm btn-outline-primary ml-2"
+                    :class="{ 'active': currentFilter.doctor_id === null }">
                     All Doctors
                   </button>
-                  <button
-                    @click="filterWaitlists(null, 'null')"
-                    class="btn btn-sm btn-outline-primary ml-2"
-                    :class="{ 'active': currentFilter.doctor_id === 'null' }"
-                  >
+                  <button @click="filterWaitlists(null, 'null')" class="btn btn-sm btn-outline-primary ml-2"
+                    :class="{ 'active': currentFilter.doctor_id === 'null' }">
                     No Doctor Assigned
                   </button>
+
                 </div>
                 <div class="btn-group" role="group">
-                  <button
-                    class="btn btn-sm btn-primary text-n"
-                    @click="filterWaitlists(null)"
-                    :class="{ 'btn-primary': isImportanceFilterActive(null) }"
-                  >
+                  <button class="btn btn-sm btn-primary text-n" @click="filterWaitlists(null)"
+                    :class="{ 'btn-primary': isImportanceFilterActive(null) }">
                     All
                   </button>
                   <button class="btn btn-primary mr-2" @click="openAddModal()">
@@ -207,19 +204,10 @@ onMounted(() => {
                     </tr>
                   </thead>
                   <tbody>
-                    <WaitlistListItem
-                      v-for="(waitlist, index) in waitlists"
-                      :key="waitlist.id"
-                      :waitlist="waitlist"
-                      :isDaily="isDaily"
-                      :index="index"
-                      @move-to-end="moveToEnd"
-                      :importance-options="importanceOptions"
-                      @update="openAddModal(waitlist)"
-                      @update-importance="updateImportance"
-                      @delete="deleteWaitlist"
-                      @move-to-appointments="moveToAppointments"
-                    />
+                    <WaitlistListItem v-for="(waitlist, index) in waitlists" :key="waitlist.id" :waitlist="waitlist"
+                      :isDaily="isDaily" :index="index" @move-to-end="moveToEnd" :importance-options="importanceOptions"
+                      @update="openAddModal(waitlist)" @update-importance="updateImportance" @delete="deleteWaitlist"
+                      @move-to-appointments="moveToAppointments" />
                   </tbody>
                 </table>
               </div>
@@ -231,16 +219,9 @@ onMounted(() => {
   </div>
 
   <!-- Add/Edit Waitlist Modal -->
-  <AddWaitlistModal
-    :show="showAddModal"
-    :editMode="isEditMode"
-    :waitlist="selectedWaitlist"
-    :specializationId="specializationId"
-    :isDaily="isDaily"
-    @close="closeAddModal"
-    @save="handleSave"
-    @update="handleUpdate"
-  />
+  <AddWaitlistModal :show="showAddModal" :editMode="isEditMode" :waitlist="selectedWaitlist"
+    :specializationId="specializationId" :isDaily="isDaily" @close="closeAddModal" @save="handleSave"
+    @update="handleUpdate" />
 </template>
 
 <style scoped>

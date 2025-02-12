@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch , onMounted } from 'vue'
 import axios from 'axios';
 import { useToastr } from '../../Components/toster';
 import PatientModel from "../../Components/PatientModel.vue";
@@ -14,7 +14,7 @@ const props = defineProps({
     type: String,
     required: true,
   },
-
+  
 });
 const router = useRouter();
 const Patient = ref([])
@@ -32,16 +32,16 @@ const fileInput = ref(null);
 
 const isModalOpen = ref(false);
 const selectedPatient = ref([]);
-const pagiante = ref([]);
+  const pagiante = ref([]);
 
-const emit = defineEmits(['import-complete', 'delete', 'close', 'patientsUpdate']);
+const emit = defineEmits(['import-complete', 'delete' , 'close', 'patientsUpdate']);
 const getPatient = async (page = 1) => {
   try {
     loading.value = true;
     const response = await axios.get(`/api/patients?page=${page}`); // Pass the page parameter
     Patient.value = response.data.data || response.data; // Adjust based on your API response structure
     pagiante.value = response.data.meta; // Ensure this matches the meta data from the backend
-
+    
     console.log('Pagination Meta:', pagiante.value); // Debugging: Check the meta data
   } catch (error) {
     console.error('Error fetching Patient:', error);
@@ -126,7 +126,7 @@ const uploadFile = async () => {
   try {
     loading.value = true;
     const response = await axios.post('/api/import/Patients', formData, {
-      headers: {
+      headers: { 
         'Content-Type': 'multipart/form-data',
         'Accept': 'application/json',
         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
@@ -183,7 +183,7 @@ const goToPatientAppointmentsPage = (PatientId) => {
 
 
 const deletePatient = async (id) => {
-
+  
   try {
     // Show SweetAlert confirmation dialog using the configured swal instance
     const result = await swal.fire({
@@ -251,15 +251,8 @@ onMounted(() => {
       <div class="container-fluid">
         <h2 class="text-center mb-4">Patient Management</h2>
         <div class="row">
-
+          
           <div class="col-lg-12">
-            <div class="search-wrapper  mb-2">
-                <input type="text" class="form-control premium-search" v-model="searchQuery"
-                  placeholder="Search doctors" @focus="onSearchFocus" @blur="onSearchBlur" />
-                <button class="search-button" @click="performSearch">
-                  <i class="fas fa-search"></i> <!-- Assuming you're using Font Awesome for icons -->
-                </button>
-              </div>
             <div class="d-flex justify-content-between align-items-center mb-3">
 
               <!-- Actions -->
@@ -283,10 +276,11 @@ onMounted(() => {
               </div>
 
               <!-- Search and Import -->
-              
               <div class="d-flex flex-column align-items-end">
                 <!-- Search Bar -->
-
+                <div class="mb-2">
+                  <input type="text" class="form-control" v-model="searchQuery" placeholder="Search users" />
+                </div>
 
                 <!-- File Upload -->
                 <div class="d-flex flex-column align-items-center">
@@ -295,7 +289,7 @@ onMounted(() => {
                     <label for="fileUpload" class="btn btn-primary w-100 premium-file-button">
                       <i class="fas fa-file-upload mr-2"></i> Choose File
                     </label>
-                    <input ref="fileInput" type="file" accept=".csv,.xlsx" @change="handleFileChange"
+                    <input ref="fileInput" type="file"  accept=".csv,.xlsx" @change="handleFileChange"
                       class="custom-file-input d-none" id="fileUpload">
                   </div>
                   <div class="d-flex justify-content-between align-items-center ml-5 pl-5 ">
@@ -333,7 +327,7 @@ onMounted(() => {
                     </tr>
                   </thead>
                   <tbody>
-
+                    
                     <tr v-if="Patient.length === 0">
                       <td colspan="6" class="text-center">No Patient found</td>
                     </tr>
@@ -349,8 +343,7 @@ onMounted(() => {
                         <button @click.stop="openModal(Patient)" class="btn btn-sm btn-outline-primary me-2">
                           <i class="fas fa-edit"></i>
                         </button>
-                        <button v-if="role === 'admin'" @click.stop="deletePatient(Patient.id)"
-                          class="btn btn-sm btn-outline-danger">
+                        <button v-if="role === 'admin'" @click.stop="deletePatient(Patient.id)" class="btn btn-sm btn-outline-danger">
                           <i class="fas fa-trash-alt"></i>
                         </button>
                       </td>
@@ -358,10 +351,13 @@ onMounted(() => {
                   </tbody>
                 </table>
               </div>
-              <div class="m-4">
-                <Bootstrap5Pagination :data="pagiante" :limit="5"
-                  @pagination-change-page="(page) => getPatient(page)" />
-              </div>
+              <!-- <div class="mt-4">
+                <Bootstrap5Pagination 
+  :data="pagiante" 
+  :limit="5"
+  @pagination-change-page="(page) => getPatient(page)" 
+/>
+          </div> -->
             </div>
           </div>
         </div>
@@ -376,80 +372,4 @@ onMounted(() => {
 
 <style scoped>
 /* ... Your existing styles ... */
-
-.search-wrapper {
-  display: flex;
-  align-items: center;
-  border: 2px solid #007BFF;
-  /* Blue border for a premium feel */
-  border-radius: 50px;
-  /* Rounded corners for a modern look */
-  overflow: hidden;
-  /* Ensures the border-radius applies to children */
-  transition: all 0.3s ease;
-  /* Smooth transition for focus/blur effects */
-}
-
-.premium-search {
-  border: none;
-  /* Remove default border */
-  border-radius: 50px 0 0 50px;
-  /* Round only left corners */
-  flex-grow: 1;
-  /* Expand to fill available space */
-  padding: 10px 15px;
-  /* Adequate padding for text */
-  font-size: 16px;
-  /* Clear, readable text size */
-  outline: none;
-  /* Remove the outline on focus */
-}
-
-.premium-search:focus {
-  box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
-  /* Focus effect */
-}
-
-.search-button {
-  border: none;
-  background: #007BFF;
-  /* Blue background for the search button */
-  color: white;
-  padding: 10px 20px;
-  border-radius: 0 50px 50px 0;
-  /* Round only right corners */
-  cursor: pointer;
-  font-size: 16px;
-  transition: background 0.3s ease;
-  /* Smooth transition for hover effect */
-}
-
-.search-button:hover {
-  background: #0056b3;
-  /* Darker blue on hover */
-}
-
-.search-button i {
-  margin-right: 5px;
-  /* Space between icon and text */
-}
-
-/* Optional: Animation for focus */
-@keyframes pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.7);
-  }
-
-  70% {
-    box-shadow: 0 0 0 10px rgba(0, 123, 255, 0);
-  }
-
-  100% {
-    box-shadow: 0 0 0 0 rgba(0, 123, 255, 0);
-  }
-}
-
-.search-wrapper:focus-within {
-  animation: pulse 1s;
-}
 </style>

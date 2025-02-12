@@ -81,6 +81,8 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/api/appointments/{appointmentid}', [AppointmentController::class, 'update']);
     Route::get('/api/appointments/{doctorId}/{appointmentId}', [AppointmentController::class, 'getAppointment']);
     Route::delete('/api/appointments/{appointmentid}', [AppointmentController::class, 'destroy']);
+    Route::post('/api/appointment/nextappointment/{appointmentid}', [AppointmentController::class, 'nextAppointment']);
+    Route::get('/api/appointment/pending', [AppointmentController::class, 'getPendingAppointment']);
     
     // Schedule Routes
     Route::get('/api/schedules/{doctorid}', [ScheduleController::class, 'index']);
@@ -102,6 +104,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Waitlist Routes
     Route::post('/api/waitlists', [WaitListController::class, 'store']);
+    Route::post('/api/waitlists/count/{doctorid}', [WaitListController::class, 'countForYouAndNotForYou']);
     Route::put('/api/waitlists/{waitlist}', [WaitListController::class, 'update']);
     Route::get('/api/waitlists', [WaitListController::class, 'index']);
     Route::get('/api/waitlists/ForDoctor', [WaitListController::class, 'GetForDoctor']);

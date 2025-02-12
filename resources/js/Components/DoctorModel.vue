@@ -25,7 +25,12 @@ const errors = ref({});
 const specializations = ref({});
 const showPassword = ref(false);
 const patients_based_on_time = ref(props.doctorData.patients_based_on_time);
-const number_of_patients_per_day = ref();
+const numberOfPatients = ref(
+  Array.isArray(props.doctorData?.schedules)
+    ? Math.max(0, ...props.doctorData.schedules.map(s => s.number_of_patients_per_day ?? 0))
+    : 0
+);
+
 const selectedMonths = ref([]);
 const time_slot = ref(props.doctorData.time_slot);
 const doctor = ref({
@@ -84,7 +89,7 @@ const handleUserUpdate = () => {
 const getDoctorSchema = (isEditMode) => {
   const baseSchema = {
     name: yup.string().required('Name is required'),
-    email: yup.string().email('Invalid email format').required('Email is required'),
+    email: yup.string(),
     phone: yup
       .string()
       .matches(/^[0-9]{10,15}$/, 'Phone number must be between 10 and 15 digits')
@@ -110,6 +115,11 @@ watch(
   () => props.doctorData,
   (newValue) => {
     if (newValue) {
+      // Compute the number from schedules
+      const computedNumber = Array.isArray(newValue?.schedules)
+        ? Math.max(0, ...newValue.schedules.map(s => s.number_of_patients_per_day ?? 0))
+        : 0;
+      
       doctor.value = {
         ...doctor.value,
         id: newValue?.id || null,
@@ -125,17 +135,17 @@ watch(
         customDates: Array.isArray(newValue?.schedules) ? [...newValue.schedules] : [],
         schedules: Array.isArray(newValue?.schedules) ? [...newValue.schedules] : [],
         password: '',
-        number_of_patients_per_day: Array.isArray(newValue?.schedules)
-          ? Math.max(0, ...newValue.schedules.map(s => s.number_of_patients_per_day ?? 0))
-          : 0, // Get the highest number_of_patients_per_day
-        time_slot: newValue?.time_slots ?? '', // Ensure default value
+        // Only update number_of_patients_per_day if it is currently undefined
+        number_of_patients_per_day: (doctor.value.number_of_patients_per_day === undefined)
+          ? computedNumber
+          : doctor.value.number_of_patients_per_day,
+        time_slot: newValue?.time_slots ?? '',
       };
-      
+
       if (newValue.avatar) {
         imagePreview.value = newValue.avatar;
       }
 
-      // Initialize selectedMonths for appointmentBookingWindow
       if (newValue.appointment_booking_window) {
         selectedMonths.value = newValue.appointment_booking_window
           .filter(month => month.is_available)
@@ -148,6 +158,7 @@ watch(
   },
   { immediate: true, deep: true }
 );
+
 
 const calculatePatientsPerDay = (startTime, endTime, timeSlot) => {
   const start = new Date(`2000-01-01 ${startTime}`);
@@ -308,11 +319,7 @@ const submitForm = async (values, { setErrors, resetForm }) => {
 
     const url = isEditMode.value ? `/api/doctors/${doctor.value.id}` : '/api/doctors';
 
-    // Debugging: Log FormData before sending
-    for (let [key, value] of formData.entries()) {
-      console.log(key, value);
-    }
-
+   
     await axios.post(url, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
@@ -361,8 +368,8 @@ onMounted(() => {
                 <span class="text-sm invalid-feedback">{{ validationErrors.name }}</span>
               </div>
               <div class="col-md-6 mb-4">
-                <label for="email" class="form-label fs-5">Email</label>
-                <Field type="email" id="email" name="email" :class="{ 'is-invalid': validationErrors.email }"
+                <label for="email" class="form-label fs-5">Username</label>
+                <Field type="text" id="email" name="email" :class="{ 'is-invalid': validationErrors.email }"
                   v-model="doctor.email" class="form-control form-control-md" />
                 <span class="text-sm invalid-feedback">{{ validationErrors.email }}</span>
               </div>
@@ -402,10 +409,10 @@ onMounted(() => {
                 </select>
               </div>
               <div v-if="!doctor.patients_based_on_time" class="col-md-6 mb-4">
-                <label for="number_of_patients_per_day" class="form-label fs-5">Number of Patients Per Day</label>
-                <input type="number" v-model="doctor.number_of_patients_per_day" class="form-control form-control-md"
-                  min="0" />
-              </div>
+  <label for="number_of_patients_per_day" class="form-label fs-5">Number of Patients Per Day</label>
+  <input type="number" v-model="doctor.number_of_patients_per_day" class="form-control form-control-md" min="0" />
+</div>
+
               
               <div v-if="doctor.patients_based_on_time" class="col-md-6 mb-4">
                 <label for="time_slot" class="form-label fs-5">Time Slot for Patients</label>

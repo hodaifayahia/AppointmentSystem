@@ -10,8 +10,10 @@ import specializationList from "./Pages/Specialization/specializationList.vue";
 import settings from "./Pages/Setting/settings.vue";
 import ExcludeDates from "./Pages/Excludes/ExcludeDates.vue";
 import DoctorListAppointment from "./Pages/Appointments/DoctorListAppointment.vue";
+import AppointmentLIstDoctor from "./Pages/Users/AppointmentLIstDoctor.vue";
 import SpecializationListAppointment from "./Pages/Appointments/SpecializationListAppointment.vue";
 import AppointmentPage from "./Pages/Appointments/AppointmentPage.vue";
+import PendingList from "./Pages/Pending/PendingList.vue";
 import Login from "./auth/Login.vue";
 import AppointmentsLIst from "./Pages/Appointments/AppointmentsLIst.vue";
 import GeneralWaitlist from "./Components/waitList/GeneralWaitlist.vue";
@@ -22,13 +24,17 @@ import Waitlist from "./Pages/waitList/Waitlist.vue";
 import AppointmentFormWaitlist from "./Components/appointments/appointmentFormWaitlist.vue";
 import SettingsDoctor from "./Pages/Setting/settingsDoctor.vue";
 import ExcludeDatesDoctor from "./Pages/Excludes/ExcludeDatesDoctor.vue";
-import AppointmentLIstDoctor from "./Pages/Users/AppointmentLIstDoctor.vue";
 // import Logout from "./auth/Logout.vue"; // Assuming you have a Logout component
 const adminRoutes = [
     {
-        path: '/admin/dashboard',
+        path: '/dashboard',
         name: 'admin.dashboard',
         component: Dashboard,
+    },
+    {
+        path: '/login',
+        name: 'auth.login',
+        component: Login,
     },
     {
         path: '/admin/appointments/specialization',
@@ -54,6 +60,11 @@ const adminRoutes = [
         path: '/admin/appointments/:id',
         name: 'admin.appointments',
         component: ListAppointment,
+    },
+    {
+        path: '/admin/pending',
+        name: 'admin.pending',
+        component: PendingList,
     },
     {
         path: '/admin/Waitlist/:id',
@@ -96,7 +107,7 @@ const adminRoutes = [
         component: ExcludeDates,
     },
     {
-        path: '/admin/docters',
+        path: '/admin/doctors',
         name: 'admin.doctors',
         component: ListDoctors,
     },

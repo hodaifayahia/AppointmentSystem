@@ -7,11 +7,9 @@ use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\WaitList;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Appointment extends Model
 {
-    use SoftDeletes;
 
     protected $fillable = [
         'doctor_id',

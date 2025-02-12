@@ -78,6 +78,52 @@ class AppointmentController extends Controller
           ], 500);
       }
   }
+  public function getPendingAppointment(Request $request)
+  {
+      try {
+          // Build a query to return only pending appointments (status = 3)
+          $query = Appointment::query()
+              ->with(['patient', 'doctor:id,user_id,specialization_id', 'doctor.user:id,name', 'waitlist'])
+              ->whereHas('doctor', function ($query) {
+                  $query->whereNull('deleted_at')
+                        ->whereHas('user');
+              })
+              ->whereNull('deleted_at')
+              ->where('status', 3) // Only return pending appointments (status PENDING = 3)
+              ->orderBy('appointment_date', 'asc');
+
+          // Correctly access doctorId from the request query parameters
+          $doctorId = $request->query('doctorId');
+          if ($doctorId) {
+              $query->where('doctor_id', $doctorId);
+          }
+          $date = $request->query('date');
+if ($date) {
+    $query->whereDate('appointment_date', $date);
+}
+
+          // Paginate the results
+          $appointments = $query->paginate(50);
+
+
+          return response()->json([
+              'success' => true,
+              'data' => AppointmentResource::collection($appointments),
+              'meta' => [
+                  'current_page' => $appointments->currentPage(),
+                  'per_page' => $appointments->perPage(),
+                  'total' => $appointments->total(),
+                  'last_page' => $appointments->lastPage(),
+              ]
+          ]);
+      } catch (\Exception $e) {
+          return response()->json([
+              'success' => false,
+              'message' => 'Failed to fetch appointments',
+              'error' => $e->getMessage()
+          ], 500);
+      }
+  }
 public function GetAllAppointments(Request $request)
 {
     try {
@@ -173,7 +219,7 @@ public function search(Request $request)
 
     return AppointmentResource::collection($appointments);
 }
-private function getDoctorWorkingHours($doctorId, $date)
+public function getDoctorWorkingHours($doctorId, $date)
 {
     $dayOfWeek = DayOfWeekEnum::cases()[Carbon::parse($date)->dayOfWeek]->value;
     
@@ -211,7 +257,6 @@ private function getDoctorWorkingHours($doctorId, $date)
                     // Patient count based calculation
                     $totalMinutes = $endTime->diffInMinutes($startTime);
                     $patientsPerShift = (int) $schedule->number_of_patients_per_day;
-
                     // Ensure we have valid numbers to work with
                     if (abs($totalMinutes) > 0 && abs($patientsPerShift) > 0) {
                         // Split the patients into two periods: morning and afternoon
@@ -256,8 +301,6 @@ private function getDoctorWorkingHours($doctorId, $date)
 
     return array_unique($workingHours);
 }
-
-
 
     private function getBookedSlots($doctorId, $date)
 {
@@ -684,10 +727,11 @@ private function isDateAvailableforthisdate($doctorId, Carbon $date, $doctorHasS
         return false;
     }
 
-    // Check if the date is excluded
     $isExcluded = $excludedDates->contains(function ($excludedDate) use ($date) {
-        return $date->between($excludedDate->start_date, $excludedDate->end_date);
+        $endDate = $excludedDate->end_date ?? $excludedDate->start_date; // Use start_date if end_date is null
+        return $date->between($excludedDate->start_date, $endDate);
     });
+    
 
     if ($isExcluded) {
         return false;
@@ -860,6 +904,7 @@ private function findAllCanceledAppointments($doctorId, $excludedDates)
     {
         // Retrieve available slots for the given doctor on the specified date
         $workingHours = $this->getDoctorWorkingHours($doctorId, $date->format('Y-m-d'));
+        
         $bookedSlots = $this->getBookedSlots($doctorId, $date->format('Y-m-d'));
 
         // If there are any available slots, the date is available
@@ -965,6 +1010,70 @@ private function findAllCanceledAppointments($doctorId, $excludedDates)
  
      return new AppointmentResource($appointment);
  }
+ public function nextAppointment(Request $request, $appointmentId)
+{
+    // Find the existing appointment and mark it as done
+    $existingAppointment = Appointment::findOrFail($appointmentId);
+    $existingAppointment->update(['status' => 4]); // Mark as DONE
+
+    // Validate the request for the new appointment
+    $validated = $request->validate([
+        'patient_id' => 'required|exists:patients,id',
+        'doctor_id' => 'required|exists:doctors,id',
+        'appointment_date' => 'required|date_format:Y-m-d',
+        'appointment_time' => 'required|date_format:H:i',
+        'description' => 'nullable|string|max:1000',
+        'addToWaitlist' => 'nullable|boolean',
+    ]);
+
+    // Check if the new slot is already booked
+    $excludedStatuses = [AppointmentSatatusEnum::CANCELED->value];
+
+    $isSlotBooked = Appointment::where('doctor_id', $validated['doctor_id'])
+        ->whereDate('appointment_date', $validated['appointment_date'])
+        ->where('appointment_time', $validated['appointment_time'])
+        ->whereNotIn('status', $excludedStatuses)
+        ->exists();
+
+    if ($isSlotBooked) {
+        return response()->json([
+            'message' => 'This time slot is already booked.',
+            'errors' => ['appointment_time' => ['The selected time slot is no longer available.']]
+        ], 422);
+    }
+
+    // Create the new appointment
+    $newAppointment = Appointment::create([
+        'patient_id' => $validated['patient_id'],
+        'doctor_id' => $validated['doctor_id'],
+        'appointment_date' => $validated['appointment_date'],
+        'appointment_time' => $validated['appointment_time'],
+        'add_to_waitlist' => $validated['addToWaitlist'] ?? false,
+        'notes' => $validated['description'] ?? null,
+        'status' => 0,  // Default to pending
+        'created_by' => 1, // Assuming created_by is the user ID
+    ]);
+
+    // Handle waitlist addition if necessary
+    if ($validated['addToWaitlist'] ?? false) {
+        $doctor = Doctor::find($validated['doctor_id']);
+        $specialization_id = $doctor->specialization_id;
+
+        WaitList::create([
+            'doctor_id' => $validated['doctor_id'],
+            'patient_id' => $validated['patient_id'],
+            'is_Daily' => false,
+            'specialization_id' => $specialization_id,
+            'importance' => null,
+            'appointmentId' => $newAppointment->id ?? null,
+            'notes' => $validated['description'] ?? null,
+            'created_by' => 1,
+        ]);
+    }
+
+    return new AppointmentResource($newAppointment);
+}
+
     public function show($id)
     {
         $appointment = Appointment::findOrFail($id);
@@ -1079,12 +1188,12 @@ private function findAllCanceledAppointments($doctorId, $excludedDates)
     
         // Find the closest available non-canceled appointment, excluding excluded dates and unavailable months
         $closestAvailableAppointment = $this->findClosestAvailableAppointment($doctorId, $excludedDates);
-    
         // Prepare result for normal available appointments (closest)
         $normalAppointmentsResult = $closestAvailableAppointment ? [
             'date' => $closestAvailableAppointment['date'],
             'time' => $closestAvailableAppointment['time'],
         ] : null;
+
     
         return response()->json([
             'canceled_appointments' => $canceledAppointmentsResult,
@@ -1233,24 +1342,22 @@ private function findAllCanceledAppointments($doctorId, $excludedDates)
             ->where('is_available', true)
             ->exists();
     }
-    
-    
+  
     public function changeAppointmentStatus(Request $request, $id)
     {
         $validated = $request->validate([
             'status' => 'required|integer|in:' . implode(',', array_column(AppointmentSatatusEnum::cases(), 'value')),
-            'reason' => 'nullable|string|required_if:status,2|max:255'
+            'reason' => 'nullable|string'
         ]);
     
         $appointment = Appointment::findOrFail($id);
-    
         $appointment->status = $validated['status'];
-        
-        // Set reason to null if status is not 2
-        if ($validated['status'] != 2) {
-            $appointment->reason = null;
-        } else if (isset($validated['reason'])) {
-            $appointment->reason = $validated['reason'];
+    
+        // Ensure 'reason' is never NULL
+        if ($validated['status'] == 2) {
+            $appointment->reason = $validated['reason'] ?? '--'; // Use provided reason or default '--'
+        } else {
+            $appointment->reason = '--'; // Default when status is not 2
         }
     
         $appointment->save();
@@ -1321,6 +1428,7 @@ private function findAllCanceledAppointments($doctorId, $excludedDates)
             'doctor_id' => $validated['doctor_id'] ?? $appointment->doctor_id,
             'appointment_date' => $validated['appointment_date'] ?? $appointment->appointment_date,
             'appointment_time' => $validated['appointment_time'] ?? $appointment->appointment_time,
+            'status' => 0 ,
             'add_to_waitlist' => $validated['addToWaitlist'] ?? $appointment->add_to_waitlist,
             'notes' => $validated['description'] ?? $appointment->notes,
         ]);
@@ -1340,6 +1448,7 @@ private function findAllCanceledAppointments($doctorId, $excludedDates)
                     ],
                     [
                         'specialization_id' => $specialization_id,
+                        'status' => 0 ,
                         'importance' => $validated['importance'] ?? null, // Use importance from the request
                         'notes' => $validated['description'] ?? null, // Use notes from the appointment
                         'created_by' => 1, // Assuming created_by is the user ID

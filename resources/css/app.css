@@ -51,11 +51,3 @@
   .nav-icon.fas.fa-cog {
     color: #28a745; /* Green */
   }
-
-  .search-container {
-    width: 100%;
-    /* Ensure full width */
-    position: relative;
-    /* For positioning the search button */
-  }
- 

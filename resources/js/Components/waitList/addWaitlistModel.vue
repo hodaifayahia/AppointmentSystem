@@ -175,6 +175,7 @@ watch(() => form.specialization_id, (newSpecializationId) => {
             <div class="form-group mb-4">
               <label for="doctor_id" class="form-label">Doctor</label>
               <select id="doctor_id" v-model="form.doctor_id" class="form-control" required>
+                <option value="">ALL Doctors</option>
                 <option v-for="doctor in doctors" :key="doctor.id" :value="doctor.id">
                   {{ doctor.name }}
                 </option>

@@ -110,6 +110,7 @@ const updateAppointmentStatus = async (appointmentId, newStatus, reason = null) 
 
         await axios.patch(`/api/appointment/${appointmentId}/status`, payload);
         dropdownStates.value[appointmentId] = false;
+        emit('updateAppointment');
         emit('updateStatus');
         toastr.success('Appointment status updated successfully');
     } catch (err) {
@@ -207,7 +208,6 @@ const openAddModal = () => {
 
 const closeAddModal = () => {
     showAddModal.value = false;
-    ShowReasonModel.value = false;
     showAddModal.value = false;
     isEditMode.value = false;
     selectedWaitlist.value = null;

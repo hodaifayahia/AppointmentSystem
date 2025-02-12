@@ -1,9 +1,9 @@
 <script setup>
 import AppointmentForm from './AppointmentForm.vue';
+import { useRoute } from 'vue-router';
 import { computed, ref, onMounted } from 'vue';
 import axios from 'axios';
-import { useRouter, useRoute } from 'vue-router';
-const router = useRouter();
+
 const route = useRoute();
 const doctorId = route.params.id;
 const editMode = computed(() => route.name === 'admin.appointments.edit');
@@ -21,9 +21,6 @@ const appointmentData = ref(null);
         <div class="row mb-2">
           <div class="col-sm-6">
             <h1 class="m-0">{{ editMode ? 'Edit' : 'Create' }} Appointment</h1>
-            <button class=" float-left btn btn-ligh bg-primary rounded-pill " @click="router.go(-1)">
-              <i class="fas fa-arrow-left"></i> Back
-            </button>
           </div>
           <div class="col-sm-6 text-right">
             <ol class="breadcrumb float-sm-right breadcrumb-dark">

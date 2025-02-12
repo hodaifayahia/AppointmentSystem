@@ -14,6 +14,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 class DoctorController extends Controller
@@ -148,7 +149,7 @@ class DoctorController extends Controller
 {
     $validated = $request->validate([
         'name' => 'required|string|max:255',
-        'email' => 'required|email|unique:users,email',
+        'email' => 'required|unique:users,email',
         'phone' => 'required|string',
         'password' => 'required|min:8',
         'specialization' => 'required|exists:specializations,id',
@@ -161,7 +162,7 @@ class DoctorController extends Controller
         'schedules.*.shift_period' => 'required|in:morning,afternoon',
         'schedules.*.start_time' => 'required',
         'schedules.*.end_time' => 'required|after:schedules.*.start_time',
-        'schedules.*.number_of_patients_per_day' => 'required|integer|min:1',
+        'number_of_patients_per_day' => 'required|integer|min:1',
         'customDates.*.date' => 'required|date|after_or_equal:today',
         'customDates.*.morningStartTime' => 'nullable|required_with:customDates.*.morningEndTime|date_format:H:i',
         'customDates.*.morningEndTime' => 'nullable|required_with:customDates.*.morningStartTime|date_format:H:i',
@@ -300,9 +301,23 @@ class DoctorController extends Controller
     
         Schedule::insert($schedules);
     }
+   
     
     private function prepareScheduleData(Doctor $doctor, Carbon $date, string $shift, string $startTime, string $endTime, string $dayOfWeek, ?int $patients, Request $request): array
     {
+        // Determine the number of patients for this schedule:
+        // 1. If a number is provided (for example, in customDates), use it.
+        // 2. Else if the doctor is set to use patients based on time and a time slot is provided,
+        //    calculate the number of patients based on the available minutes divided by the time slot duration.
+        // 3. Otherwise, use the provided 'number_of_patients_per_day' from the request.
+        if ($patients !== null) {
+            $numberOfPatients = $patients;
+        } elseif ($request->patients_based_on_time && !empty($request->time_slot)) {
+            $numberOfPatients = $this->calculatePatientsPerShift($startTime, $endTime, $request->time_slot);
+        } else {
+            $numberOfPatients = $request->number_of_patients_per_day;
+        }
+        
         return [
             'doctor_id' => $doctor->id,
             'date' => $date->format('Y-m-d'),
@@ -311,14 +326,12 @@ class DoctorController extends Controller
             'end_time' => $endTime,
             'day_of_week' => $dayOfWeek,
             'is_active' => true,
-            'number_of_patients_per_day' => $patients ?? 
-                ($request->patients_based_on_time ? 
-                    $this->calculatePatientsPerShift($startTime, $endTime, $request->time_slots) : 
-                    $request->number_of_patients_per_day),
+            'number_of_patients_per_day' => $numberOfPatients,
             'created_at' => now(),
             'updated_at' => now(),
         ];
     }
+    
     
     private function calculatePatientsPerShift($startTime, $endTime, $timeSlot)
     {
@@ -357,7 +370,7 @@ class DoctorController extends Controller
         // dd($request->all());
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email',
+            'email' => 'required|unique:users,email',
             'phone' => 'required|string',
             'password' => 'nullable|min:8',
             'specialization' => 'required|exists:specializations,id',
@@ -370,7 +383,7 @@ class DoctorController extends Controller
             'schedules.*.shift_period' => 'required|in:morning,afternoon',
             'schedules.*.start_time' => 'required',
             'schedules.*.end_time' => 'required|after:schedules.*.start_time',
-            'schedules.*.number_of_patients_per_day' => 'required|integer|min:1',
+            'number_of_patients_per_day' => 'required|integer|min:1',
             'customDates.*.morningStartTime' => 'nullable|required_with:customDates.*.morningEndTime|date_format:H:i',
             'customDates.*.morningEndTime' => 'nullable|required_with:customDates.*.morningStartTime|date_format:H:i|after:customDates.*.morningStartTime',
             'customDates.*.afternoonStartTime' => 'nullable|required_with:customDates.*.afternoonEndTime|date_format:H:i',
@@ -382,7 +395,7 @@ class DoctorController extends Controller
             'appointmentBookingWindow.*.month' => 'required|integer|between:1,12',
             'appointmentBookingWindow.*.is_available' => 'required|boolean',
         ]);
-    
+
         try {
             return DB::transaction(function () use ($request, $doctorid) {
                 // Find the doctor

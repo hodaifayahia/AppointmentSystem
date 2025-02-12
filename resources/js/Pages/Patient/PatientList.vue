@@ -88,6 +88,10 @@ onMounted(() => {
               @edit="openModal"
              
             />
+            <!-- Pagination Component -->
+           
+             
+            
           </div>
         </div>
       </div>

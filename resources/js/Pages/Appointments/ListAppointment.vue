@@ -6,6 +6,8 @@ import AppointmentListItem from './AppointmentListItem.vue';
 import headerDoctorAppointment from '@/Components/Doctor/headerDoctorAppointment.vue';
 import DoctorWaitlist from '@/Components/Doctor/DoctorWaitlist.vue';
 import { Bootstrap5Pagination } from 'laravel-vue-pagination';
+import { useAuthStore } from '../../stores/auth';
+import { storeToRefs } from 'pinia';
 const pagination = ref({});
 
 // Initialize all refs
@@ -26,14 +28,25 @@ const WaitlistDcotro = ref(false);
 const isDcotro = ref(false);
 const userRole = ref("");
 
-const initializeRole = async () => {
-  try {
-   const   user = await axios.get('/api/role');
-   userRole.value = user.data.role;
-  } catch (err) {
-    console.error('Error fetching user role:', err);
-  }
-};
+
+const authStore = useAuthStore();
+// const { user, isLoading } = storeToRefs(authStore);
+
+onMounted(async () => {
+    await authStore.getUser();
+    
+});
+
+
+userRole.value = authStore.user.role;
+// const initializeRole = async () => {
+//   try {
+//    const   user = await axios.get('/api/role');
+//    userRole.value = user.data.role;
+//   } catch (err) {
+//     console.error('Error fetching user role:', err);
+//   }
+// };
 
 const getAppointments = (() => {
   let timeout;
@@ -56,10 +69,7 @@ const getAppointments = (() => {
           appointments.value = data.data;
           pagination.value = data.meta;
 
-          // Update status counts
-          statuses.value.forEach(s => {
-            s.count = data.status_counts[s.value] || 0;
-          });
+         
         }
       } catch (err) {
         console.error('Error fetching appointments:', err);
@@ -142,7 +152,8 @@ const fetchWaitlists = async (filters = {}) => {
     params.specialization_id = specializationId;
 
     const response = await axios.get('/api/waitlists', { params });
-
+    console.log(response.data);
+    
     countWithDoctor.value = response.data.count_with_doctor; // Assign count where doctor_id is not null
     countWithoutDoctor.value = response.data.count_without_doctor; // Assign count where doctor_id is null
 
@@ -224,12 +235,13 @@ watch(
   (newDoctorId) => {
     if (newDoctorId) {
       getAppointments(currentFilter.value);
+      
     }
   }
 );
 
 onMounted(  ()=>{
-  initializeRole();
+  // initializeRole();
   getAppointmentsStatus();
   getAppointments();
   fetchWaitlists();
@@ -294,13 +306,13 @@ onMounted(  ()=>{
               <!-- Waitlist Buttons -->
               <div class="d-flex gap-2">
                 <!-- Button for "Waitlist for You" Modal -->
-                <button class="btn btn-outline-success mr-2" type="button" @click="openWaitlistForYouModal">
-                  <i class="fas fa-user-clock me-2"></i> Waitlist for You ({{ countWithDoctor }})
+                <button class="btn btn-outline-success mr-2 position-relative" type="button" @click="openWaitlistForYouModal">
+                  <i class="fas fa-user-clock me-2 "></i> Waitlist for You <span class="custom-time">{{ countWithDoctor }}</span>
                 </button>
 
                 <!-- Button for "Waitlist Not for You" Modal -->
-                <button class="btn btn-outline-warning" type="button" @click="openWaitlistNotForYouModal">
-                  <i class="fas fa-user-times me-2"></i> Waitlist Not for You ({{ countWithoutDoctor }})
+                <button class="btn btn-outline-warning position-relative" type="button" @click="openWaitlistNotForYouModal">
+                  <i class="fas fa-user-times me-2"></i>  Waitlist Not for You <span  class="custom-time"> {{ countWithoutDoctor }}</span>
                 </button>
               </div>
               <div v-if="userRole === 'admin'" class="d-flex flex-column align-items-center sm:w-100 w-md-auto">
@@ -348,7 +360,16 @@ onMounted(  ()=>{
 .bg-gradient {
   background: linear-gradient(90deg, rgba(131, 189, 231, 0.7), rgba(86, 150, 202, 0.7));
 }
-
+.custom-time{
+  position: absolute;
+    top: -8px;
+    right: -7px;
+    background-color: red;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    color: white;
+}
 /* Ensure buttons and inputs are touch-friendly */
 .btn,
 .custom-file-label {

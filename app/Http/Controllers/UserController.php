@@ -20,7 +20,7 @@ class UserController extends Controller
     {
         // Fetch all users that are not soft-deleted
         $users = User::where('deleted_at',null)
-        ->paginate(2);
+        ->paginate();
     
         // Return the collection wrapped in a resource
         return UserResource::collection($users);  // Wrap collection with resource transformation
@@ -73,91 +73,93 @@ class UserController extends Controller
     {
         $validatedData = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
+            'email' => 'required|unique:users,email',
             'phone' => 'required|string',
             'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', // Max 2MB file size
             'role' => 'required|string|in:admin,doctor,receptionist', 
             'password' => 'required|string|min:8',
         ]);
-        
-        
-            // Handle file upload
-            $avatarPath = null;
-            if ($request->hasFile('avatar')) {
-                $avatar = $request->file('avatar');
-                $fileName = $validatedData['name'] . '-' . time() . '.' . $avatar->getClientOriginalExtension();
-                $avatarPath = $avatar->storeAs('Users', $fileName, 'public');
+    
+        // Handle file upload for avatar (only if a new avatar is uploaded)
+        $avatarPath = null;
+        if ($request->hasFile('avatar')) {
+            // Check if the user has an existing avatar and delete it
+            if ($request->user() && $request->user()->avatar) {
+                Storage::disk('public')->delete($request->user()->avatar);
             }
-            
-            // Create the user
-            $user = User::create([
+    
+            $avatar = $request->file('avatar');
+            $fileName = $validatedData['name'] . '-' . time() . '.' . $avatar->getClientOriginalExtension();
+            $avatarPath = $avatar->storeAs('Users', $fileName, 'public');
+        }
+    
+        // Create or update the user
+        $user = User::updateOrCreate(
+            ['id' => $request->id], // This ensures you can update an existing user
+            [
                 'name' => $validatedData['name'],
                 'email' => $validatedData['email'],
                 'phone' => $validatedData['phone'],
                 'role' => $validatedData['role'],
                 'password' => Hash::make($validatedData['password']),
-                'avatar' => $avatarPath,
-            ]);
-       
-        
-  
-        
+                'avatar' => $avatarPath ?? $request->user()->avatar, // Keep old avatar if none uploaded
+            ]
+        );
     
         return new UserResource($user);
     }
+   /**
+ * Show the form for editing the specified resource.
+ */
+public function update(Request $request, string $id)
+{
+    // Find the user by their ID
+    $user = User::findOrFail($id);
 
-    
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function update(Request $request, string $id)
-    {
-        $user = User::findOrFail($id);
-    
-        // Validate input data, including avatar
-        $validatedData = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . $id,
-            'phone' => 'required|string|min:10|max:15',
-            'password' => 'nullable|string|min:8',
-            'role' => 'required|string|in:admin,doctor,receptionist',
-            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', // Avatar validation
-        ]);
-    
-        // Prepare data for updating
-        $updateData = [
-            'name' => $validatedData['name'],
-            'email' => $validatedData['email'],
-            'phone' => $validatedData['phone'],
-            'role' => $validatedData['role'],
-        ];
-    
-        // Handle avatar upload if present
-        if ($request->hasFile('avatar')) {
-            // Delete old avatar if exists
-            if ($user->avatar) {
-                Storage::delete($user->avatar);
-            }
-    
-            // Store new avatar and save its path
-            $updateData['avatar'] = $request->file('users')->store('users', 'public');
+    // Validate input data, including avatar
+    $validatedData = $request->validate([
+        'name' => 'required|string|max:255',
+        'email' => 'required|unique:users,email,' . $id,
+        'phone' => 'required|string|min:10|max:15',
+        'password' => 'nullable|string|min:8',
+        'role' => 'required|string|in:admin,doctor,receptionist',
+        'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', // Avatar validation
+    ]);
+
+    // Prepare data for updating
+    $updateData = [
+        'name' => $validatedData['name'],
+        'email' => $validatedData['email'],
+        'phone' => $validatedData['phone'],
+        'role' => $validatedData['role'],
+    ];
+
+    // Handle avatar upload if present
+    if ($request->hasFile('avatar')) {
+        // Delete old avatar if exists
+        if ($user->avatar) {
+            Storage::delete($user->avatar);
         }
-    
-        // Handle password update if provided
-        if ($request->filled('password')) {
-            $updateData['password'] = Hash::make($request->input('password'));
-        }
-    
-        // Update user data
-        $user->update($updateData);
-    
-        // Respond with the updated user data
-        return response()->json([
-            'success' => true,
-            'user' => new UserResource($user),
-        ]);
+
+        // Store new avatar and save its path
+        $updateData['avatar'] = $request->file('avatar')->store('users', 'public');
     }
-    
+
+    // Handle password update if provided
+    if ($request->filled('password')) {
+        $updateData['password'] = Hash::make($request->input('password'));
+    }
+
+    // Update user data
+    $user->update($updateData);
+
+    // Respond with the updated user data
+    return response()->json([
+        'success' => true,
+        'user' => new UserResource($user),
+    ]);
+}
+
     public function ChangeRole($userId, Request $request)
     {
         $user = User::findOrFail($userId);

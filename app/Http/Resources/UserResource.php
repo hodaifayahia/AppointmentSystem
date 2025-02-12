@@ -22,11 +22,12 @@ public function toArray(Request $request): array
         'email' => $this->email,
         'phone' => $this->phone,
         'role' => $this->role,
-    'avatar' => $this->avatar
-? asset('storage/' . $this->avatar) // Directly reference storage path
-: asset('storage/default.png'), // Use the correct storage path for the default file
-    'created_at' => $this->created_at ? $this->created_at->format(config('app.date_format', 'Y-m-d H:i:s')) : null,
+        'avatar' => $this->avatar
+            ? asset(Storage::url($this->avatar)) // Use Storage::url() for proper storage path resolution
+            : asset('storage/default.png'), // Default avatar
+        'created_at' => $this->created_at ? $this->created_at->format(config('app.date_format', 'Y-m-d H:i:s')) : null,
         'updated_at' => $this->updated_at ? $this->updated_at->format(config('app.date_format', 'Y-m-d H:i:s')) : null,
     ];
 }
+
 }

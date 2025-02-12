@@ -19,71 +19,65 @@ class WaitListController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request)
-    {
-        $importance = $request->query('importance');
-        $specializationId = $request->query('specialization_id');
-        $doctor_id = $request->query('doctor_id');
-        $isDaily = $request->query('is_Daily');
-        $today = Carbon::today();
-    
-        $query = WaitList::with(['doctor.user', 'patient', 'specialization']);
-    
-        // Filter by is_Daily if provided
-        if ($isDaily !== null) {
-            $query->where('is_Daily', $isDaily);
-    
-            // If is_Daily is true, filter by today's date
-            if ($isDaily == 1) {
-                $query->whereDate('created_at', $today);
-            }
+  /**
+ * Display a listing of the resource.
+ */
+public function index(Request $request)
+{
+    $importance = $request->query('importance');
+    $specializationId = $request->query('specialization_id');
+    $doctor_id = $request->query('doctor_id');
+    $isDaily = $request->query('is_Daily', 0); // Default to 0 if not provided
+    $today = Carbon::today();
+
+    $query = WaitList::with(['doctor.user', 'patient', 'specialization']);
+
+    // Filter by is_Daily if provided
+    if ($isDaily !== null) {
+        $query->where('is_Daily', (int)$isDaily);
+        if ((int)$isDaily === 1) {
+            $query->whereDate('created_at', $today);
         }
-    
-        // Filter by importance if provided
-        if ($importance !== null) {
-            $query->where('importance', $importance);
-        }
-    
-        // Handle doctor_id filter (including null case)
-        if ($doctor_id !== null) {
-            if ($doctor_id === "null") {
-                $query->whereNull('doctor_id');
-            } else {
-                $query->where('doctor_id', $doctor_id);
-            }
-        }
-    
-        // Filter by specialization ID if provided
-        if ($specializationId) {
-            $query->where('specialization_id', $specializationId);
-        }
-    
-        // Sorting logic
-        if ($importance !== null) {
-            $query->orderBy('importance', 'asc');
-        }
-    
-        // Sort by appropriate timestamp
-        $query->orderBy($isDaily == 1 ? 'created_at' : 'updated_at', 'asc');
-    
-        // Get the filtered waitlists
-        $waitlists = $query->get();
-    
-        // Get the count of waitlists where doctor_id is not null
-        $countWithDoctor = $waitlists->whereNotNull('doctor_id')->count();
-    
-        // Get the count of waitlists where doctor_id is null
-        $countWithoutDoctor = $waitlists->whereNull('doctor_id')->count();
-    
-        // Return the response with waitlists and counts
-        return response()->json([
-            'data' => WaitListResource::collection($waitlists),
-            'count' => $waitlists->count(), // Total count of filtered waitlists
-            'count_with_doctor' => $countWithDoctor, // Count where doctor_id is not null
-            'count_without_doctor' => $countWithoutDoctor, // Count where doctor_id is null
-        ]);
     }
-   
+
+    // Filter by importance if provided
+    if ($importance !== null) {
+        $query->where('importance', $importance);
+    }
+
+    // Handle doctor_id filtering
+    if ($doctor_id === "null") {
+        $query->whereNull('doctor_id');
+    } elseif (!empty($doctor_id)) {
+        $query->where('doctor_id', $doctor_id);
+    }
+
+    // Filter by specialization ID if provided
+    if (!empty($specializationId)) {
+        $query->where('specialization_id', $specializationId);
+    }
+
+    // Sorting logic
+    if ($importance !== null) {
+        $query->orderBy('importance', 'asc');
+    }
+
+    if ((int)$isDaily === 0) {
+        $query->orderBy('updated_at', 'asc'); // Ascending when isDaily = 1
+    } 
+
+    // Get filtered waitlists
+    $waitlists = $query->get();
+
+    return response()->json([
+        'data' => WaitListResource::collection($waitlists),
+        'count' => $waitlists->count(),
+        'count_with_doctor' => $waitlists->whereNotNull('doctor_id')->count(),
+        'count_without_doctor' => $waitlists->whereNull('doctor_id')->count()
+    ]);
+}
+
+
     /**
      * Store a newly created resource in storage.
      */

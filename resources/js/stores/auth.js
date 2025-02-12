@@ -1,41 +1,31 @@
 import { defineStore } from 'pinia';
+import { ref } from 'vue';
 import axios from 'axios';
 
-export const useAuthStore = defineStore('auth', {
-  state: () => ({
-    user: null, // Store the authenticated user's data
-  }),
+export const useAuthStore = defineStore('auth', () => {
+    const user = ref({
+        name: '',
+        role: '',
+        email: '',
+        avatar: '',
+        phone: '',
+    });
+    const isLoading = ref(true);
 
-  getters: {
-    // Getter to access the authenticated user's ID
-    userId: (state) => state.user?.id || null,
-  },
-
-  actions: {
-    // Fetch the authenticated user's data
-    async fetchUser() {
-      try {
-        const response = await axios.get('/api/user', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`, // Add authorization header if needed
-          },
-        });
-
-        if (response.data) {
-          this.user = response.data; // Update the user state
-        } else {
-          this.user = null; // Clear user if no data is returned
+    const getUser = async () => {
+        try {
+            const response = await axios.get('/api/setting/user');
+            user.value = response.data.data;
+            isLoading.value = false;
+        } catch (error) {
+            if (error.response && error.response.status === 401) {
+                user.value = { name: '', role: '', email: '', avatar: '', phone: '' };
+                isLoading.value = false;
+                throw error; // Throw the error to be handled by the router.beforeEach guard
+            }
+            isLoading.value = false;
         }
-      } catch (error) {
-        console.error('Failed to fetch user:', error);
-        this.user = null; // Clear user on error
-      }
-    },
+    };
 
-    // Clear the user data (e.g., on logout)
-    clearUser() {
-      this.user = null;
-      localStorage.removeItem('token'); // Clear token from localStorage if applicable
-    },
-  },
+    return { user, isLoading, getUser };
 });

@@ -28,7 +28,7 @@ const initializeRole = async () => {
     if (user.data.role === 'doctor') {
       role.value = user.data.role;
       doctor_id.value = user.data.id;
-          
+
       // Immediately fetch appointments after setting doctor_id
       await getAppointments();
     }
@@ -56,7 +56,7 @@ const getAppointments = async (status = null, filter = null, date = null) => {
       ...(doctor_id.value && { doctor_id: doctor_id.value })
 
     };
-    
+
 
     const response = await axios.get(`/api/appointments`, { params });
     pagination.value = response.data.meta;
@@ -90,7 +90,7 @@ const fetchDoctorsworkingDates = async (month) => {
     if (response.data.data) {
       const colors = ['#FF6B6B', '#4ECDC4', '#FFD166', '#06D6A0', '#118AB2', '#073B4C', '#EF476F'];
       console.log(doctor_id);
-      
+
       if (doctor_id.value) {
         // If doctor_id exists, we expect a single doctor's data
         // Even if it comes in an array, we only take the first item
@@ -278,28 +278,28 @@ const formatDate = (date) => {
 
 
 function formatTime(time) {
-    // Handle undefined or null input
-    if (!time) {
-        console.error("Invalid time input:", time);
-        return "00:00"; // Return a default value or handle the error as needed
+  // Handle undefined or null input
+  if (!time) {
+    console.error("Invalid time input:", time);
+    return "00:00"; // Return a default value or handle the error as needed
+  }
+
+  try {
+    // Check if the time is in ISO format (e.g., "2023-10-02T10:00:00")
+    if (time.includes('T')) {
+      const [, timePart] = time.split('T');
+      if (timePart.length === 6) return timePart; // Handle cases like "T10:00"
+      const [hours, minutes] = timePart.split(':');
+      return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
     }
 
-    try {
-        // Check if the time is in ISO format (e.g., "2023-10-02T10:00:00")
-        if (time.includes('T')) {
-            const [, timePart] = time.split('T');
-            if (timePart.length === 6) return timePart; // Handle cases like "T10:00"
-            const [hours, minutes] = timePart.split(':');
-            return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
-        }
-
-        // Handle plain time strings (e.g., "10:00")
-        const [hours, minutes] = time.split(':');
-        return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
-    } catch (error) {
-        console.error("Error formatting time:", error);
-        return "00:00"; // Return a default value or handle the error as needed
-    }
+    // Handle plain time strings (e.g., "10:00")
+    const [hours, minutes] = time.split(':');
+    return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+  } catch (error) {
+    console.error("Error formatting time:", error);
+    return "00:00"; // Return a default value or handle the error as needed
+  }
 }
 // Status options
 const statusOptions = ref([
@@ -314,7 +314,7 @@ const statusOptions = ref([
 const filteredAppointments = computed(() => {
   return appointments.value.filter(appointment => {
     // Base filtering conditions
-    const baseConditions = 
+    const baseConditions =
       (!filters.value.patientName ||
         `${appointment.patient_first_name} ${appointment.patient_last_name}`
           .toLowerCase()
@@ -340,7 +340,7 @@ const filteredAppointments = computed(() => {
 // Modified onMounted to ensure role is initialized first
 onMounted(async () => {
   console.log(role.value);
-  
+
   await initializeRole(); // This will also trigger getAppointments if user is a doctor
   if (role.value !== 'doctor') {
     await getAppointments(); // Only fetch all appointments if user is not a doctor
@@ -371,34 +371,24 @@ onMounted(async () => {
             {{ day }}
           </div>
           <!-- Calendar Days -->
-          <div
-            v-for="{ date, isCurrentMonth, isToday, doctors } in calendarDays"
-            :key="date.toISOString()"
-            class="calendar-day"
-            :class="{
+          <div v-for="{ date, isCurrentMonth, isToday, doctors } in calendarDays" :key="date.toISOString()"
+            class="calendar-day" :class="{
               'current-month': isCurrentMonth,
               'other-month': !isCurrentMonth,
               'today': isToday,
               'selected': isSelectedDate(date)
-            }"
-            @click="selectDate(date)"
-          >
+            }" @click="selectDate(date)">
             <span class="date-number">{{ date.getDate() }}</span>
             <div class="appointment-indicator" v-if="hasAppointments(date)">
               {{ getAppointmentCount(date) }}
             </div>
             <!-- Display doctors working on this day -->
             <div class="doctor-names" v-if="doctors.length > 0">
-  <div
-    v-for="doctor in doctors"
-    :key="doctor.name"
-    class="doctor-name"
-    :style="{ backgroundColor: doctor.color }"
-    @click.stop="filterByDoctor(doctor.name)"
-  >
-    {{ doctor.name }}
-  </div>
-</div>
+              <div v-for="doctor in doctors" :key="doctor.name" class="doctor-name"
+                :style="{ backgroundColor: doctor.color }" @click.stop="filterByDoctor(doctor.name)">
+                {{ doctor.name }}
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Doctor;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -21,8 +22,9 @@ class ExcludedDate extends Model
     ];
     
 
-    public function doctor(): BelongsTo
+   
+    public function doctor()
     {
-        return $this->belongsTo(User::class, 'doctor_id', 'id');
+        return $this->belongsTo(Doctor::class);
     }
 }
