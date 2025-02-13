@@ -26,7 +26,7 @@ const getAppointments = async (status = null) => {
         };
         
 
-        const response = await axios.get(`/api/appointments/${Patientid}`, { params });
+        const response = await axios.get(`/api/appointments/patient/${Patientid}`, { params });
         
         if (response.data.success === false) {
             // Handle the case where no appointments are found
@@ -48,7 +48,7 @@ const getAppointments = async (status = null) => {
 // Fetch appointment statuses
 const getAppointmentsStatus = async () => {
     try {
-        const response = await axios.get(`/api/appointmentStatus/${Patientid}`);
+        const response = await axios.get(`/api/appointmentStatus/patient/${Patientid}`);
         statuses.value = [
             { name: 'ALL', value: null, color: 'secondary', icon: 'fas fa-list' },
             ...response.data

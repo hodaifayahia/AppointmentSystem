@@ -2,7 +2,7 @@
 import { ref, watch, onMounted } from 'vue';
 import axios from 'axios';
 import AddWaitlistModal from '../../Components/waitList/addWaitlistModel.vue';
-import WaitlistListItem from '../../Pages/waitList/WaitlistListItemModal.vue';
+import WaitlistListItemModal from '../../Pages/waitList/WaitlistListItemModal.vue';
 import { useRoute } from 'vue-router';
 import { useSweetAlert } from '../../Components/useSweetAlert';
 
@@ -225,7 +225,7 @@ onMounted(() => {
                           </tr>
                         </thead>
                         <tbody>
-                          <WaitlistListItem v-for="waitlist in waitlists" :key="waitlist.id" :waitlist="waitlist"
+                          <WaitlistListItemModal v-for="waitlist in waitlists" :key="waitlist.id" :waitlist="waitlist"
                             :importance-options="importanceOptions" :isDoctor="true" @update="openAddModal(waitlist)"
                             @update-importance="updateImportance" @delete="deleteWaitlist"
                             @move-to-appointments="moveToAppointments" />

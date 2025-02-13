@@ -2,6 +2,7 @@
 use App\Http\Controllers\ApplicationController;
 use App\Http\Controllers\AppointmentAvailableMonthController;
 use App\Http\Controllers\AppointmentController;
+use App\Http\Controllers\AppointmentForcerController;
 use App\Http\Controllers\AppointmentStatus;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\DoctorController;
@@ -26,6 +27,7 @@ use Illuminate\Support\Facades\Route;
 
 
 
+
 // Redirect root URL to the login page if the user is not authenticated
 Route::get('/', function () {
     return redirect('/login');
@@ -35,6 +37,7 @@ Route::middleware(['auth'])->group(function () {
 
     // User Routes
     Route::get('/api/users', [UserController::class, 'index']);
+    Route::get('/api/users/receptionist', [UserController::class, 'GetReceptionists']);
     Route::post('/api/users', [UserController::class, 'store']);
     
     Route::delete('/api/users', [UserController::class, 'bulkDelete'])->name('users.bulkDelete');
@@ -71,10 +74,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/api/appointments/canceledappointments', [AppointmentController::class, 'getAllCanceledAppointments']);
     Route::get('/api/appointments/available', [AppointmentController::class, 'AvailableAppointments']);
     Route::get('/api/appointmentStatus/{doctorid}', [AppointmentStatus::class, 'appointmentStatus']);
-    Route::get('/api/appointmentStatus/{patientid}', [AppointmentStatus::class, 'appointmentStatusPatient']);
+    Route::get('/api/appointmentStatus/patient/{patientid}', [AppointmentStatus::class, 'appointmentStatusPatient']);
     Route::get('/api/todaysAppointments/{doctorid}', [AppointmentStatus::class, 'todaysAppointments']);
     Route::get('/api/appointments/ForceSlots', [AppointmentController::class, 'ForceAppointment']);
     Route::get('/api/appointments/{doctorid}', [AppointmentController::class, 'index']);
+    Route::get('/api/appointments/patient/{Patientid}', [AppointmentController::class, 'ForPatient']);
     Route::get('/api/appointments/{doctorId}/filter-by-date', [AppointmentController::class, 'filterByDate']);
     Route::patch('/api/appointment/{appointmentId}/status', [AppointmentController::class, 'changeAppointmentStatus']);
     Route::post('/api/appointments', [AppointmentController::class, 'store']);
@@ -120,6 +124,13 @@ Route::middleware(['auth'])->group(function () {
 
 
     Route::get('/api/importance-enum', [ImportanceEnumController::class, 'index']);
+
+
+    // api for the permisson for forceappontment
+    Route::get('/api/doctor-user-permissions', [AppointmentForcerController::class, 'getPermissions']);
+    Route::get('/api/doctor-user-permissions/ability', [AppointmentForcerController::class, 'IsAbleToForce']);
+    Route::post('/api/doctor-user-permissions', [AppointmentForcerController::class, 'updateOrCreatePermission']);
+
 
     // Alternatively, define routes manually
     Route::get('/api/excluded-dates', [ExcludedDates::class, 'index']);

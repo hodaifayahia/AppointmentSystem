@@ -4,6 +4,7 @@ import axios from 'axios';
 import { useToastr } from '../../Components/toster';
 import { useRouter } from 'vue-router';
 import appointmentWaitlist from '../../Components/appointments/appointmentWaitlist.vue';
+import AppointmentModal from '../../Components/appointments/AppointmentModal.vue';
 import { useSweetAlert } from '../../Components/useSweetAlert';
 import ReasonModel from '../../Components/appointments/ReasonModel.vue';
 
@@ -17,9 +18,9 @@ const props = defineProps({
         type: String,
         default: null
     },
-   totalPages: {
-      type: Number,
-      required: true, // This makes the prop required
+    totalPages: {
+        type: Number,
+        required: true, // This makes the prop required
     },
     userRole: {
         type: String,
@@ -48,6 +49,8 @@ const selectedDate = ref();
 const showAddModal = ref(false); // Add this line
 const ShowReasonModel = ref(false);
 const selectedAppointment = ref(null);
+const isModalVisible = ref(false);
+const appointmentId = ref(null);
 
 const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -58,6 +61,20 @@ const formatDate = (dateString) => {
     });
 };
 
+// Group related state
+const uiState = ref({
+  dropdownStates: {},
+  searchQuery: "",
+  isLoading: false,
+  isEditMode: false,
+  selectedWaitlist: null,
+  selectedDate: null,
+  showAddModal: false,
+  ShowReasonModel: false,
+  selectedAppointment: null,
+  isModalVisible: false,
+  appointmentId: null
+});
 const formatTime = (time) => {
     if (!time) return "00:00";
     try {
@@ -110,8 +127,8 @@ const updateAppointmentStatus = async (appointmentId, newStatus, reason = null) 
 
         await axios.patch(`/api/appointment/${appointmentId}/status`, payload);
         dropdownStates.value[appointmentId] = false;
-        emit('updateAppointment');
         emit('updateStatus');
+        emit('update-appointment');
         toastr.success('Appointment status updated successfully');
     } catch (err) {
         console.error('Error updating status:', err);
@@ -150,6 +167,19 @@ const goToEditAppointmentPage = (appointment) => {
         name: 'admin.appointments.edit',
         params: { id: props.doctorId, appointmentId: appointment.id }
     });
+};
+const openModal = (appointment) => {
+    isModalVisible.value = true;
+    
+    appointmentId.value = appointment.id;
+    emit('updateStatus');
+    emit('update-appointment');
+};
+
+const closeModal = () => {
+    isModalVisible.value = false;
+    emit('updateStatus');
+    emit('update-appointment');
 };
 
 const getStatusOption = (statusName) => {
@@ -208,10 +238,10 @@ const openAddModal = () => {
 
 const closeAddModal = () => {
     showAddModal.value = false;
+    ShowReasonModel.value = false;
     showAddModal.value = false;
     isEditMode.value = false;
     selectedWaitlist.value = null;
-    ShowReasonModel.value = false;
 };
 
 const handleSave = (newWaitlist) => {
@@ -250,7 +280,6 @@ const applyDateFilter = async () => {
         emit('filterByDate', null);
     }
 };
-
 const debouncedSearch = (() => {
     let timeout;
     return () => {
@@ -258,24 +287,49 @@ const debouncedSearch = (() => {
         timeout = setTimeout(async () => {
             try {
                 isLoading.value = true;
+                
+                // If search query is empty or null, fetch appointments with current status
+                if (searchQuery.value == null || searchQuery.value.trim() === '') {
+                    emit('update-appointment');
+                    return;
+                }
+                
+                // Otherwise, perform the search
                 const response = await axios.get(`/api/appointments/search`, {
                     params: {
                         query: searchQuery.value,
-                        doctorId: props.doctorId,
+                        doctor_id: props.doctorId,
                     },
                 });
-                localAppointments.value = response.data.data;
-                localPagination.value = response.data.meta;
-                emit('getAppointments', response.data);
+                
+                if (response.data) {
+                    localAppointments.value = response.data.data;
+                    localPagination.value = response.data.meta;
+                    emit('getAppointments', response.data);
+                }
             } catch (error) {
-                toastr.error('Failed to search appointments');
                 console.error('Error searching appointments:', error);
+                toastr.error('Failed to search appointments');
+                // On error, revert to current status appointments
+                emit('getAppointments');
             } finally {
                 isLoading.value = false;
             }
         }, 300);
     };
 })();
+
+// Add a watch effect that handles empty query explicitly
+watch(searchQuery, (newValue) => {
+    if (!newValue || newValue.trim() === '') {
+        // Clear timeout if exists
+        if (timeout) clearTimeout(timeout);
+        // Immediately fetch current status appointments
+        emit('getAppointments');
+    } else {
+        debouncedSearch();
+    }
+});
 
 watch(searchQuery, debouncedSearch);
 onMounted(() => {
@@ -312,10 +366,10 @@ onMounted(() => {
                 </div>
             </div>
 
-        
+
 
             <!-- Appointment Table -->
-            <div  class="">
+            <div class="">
                 <table class="table table-hover text-center align-middle">
                     <thead>
                         <tr>
@@ -344,7 +398,6 @@ onMounted(() => {
                             <td>{{ formatTime(appointment.appointment_time) }}</td>
                             <td>{{ appointment.description ?? "Null" }}</td>
                             <td>
-                                <!-- Dropdown for Status -->
                                 <div class="dropdown" :class="{ 'show': dropdownStates[appointment.id] }">
                                     <button class="btn dropdown-toggle status-button" type="button"
                                         @click="toggleDropdown(appointment.id)">
@@ -360,15 +413,30 @@ onMounted(() => {
                                     <ul class="dropdown-menu dropdown-menu-end" style="z-index: 100;"
                                         :class="{ 'show': dropdownStates[appointment.id] }">
                                         <li v-for="status in statuses" :key="status.name">
-                                            <a class="dropdown-item d-flex align-items-center" href="#"
-                                                @click.prevent="updateAppointmentStatus(appointment.id, status.value)">
-                                                <span class="status-indicator" :class="status.color"></span>
-                                                <i :class="[`text-${status.color}`, status.icon]"></i>
-                                                <span class="status-text rounded-pill fw-bold"
-                                                    :class="[`text-${status.color}`, 'fs-6']">
-                                                    {{ status.name }}
-                                                </span>
-                                            </a>
+                                            <!-- Only show the status if it's "Done" (status.value === 4) and the user role is "doctor" -->
+                                            <template v-if="props.userRole === 'doctor' && status.value === 4">
+                                                <a class="dropdown-item d-flex align-items-center" href="#"
+                                                    @click.prevent="updateAppointmentStatus(appointment.id, status.value)">
+                                                    <span class="status-indicator" :class="status.color"></span>
+                                                    <i :class="[`text-${status.color}`, status.icon]"></i>
+                                                    <span class="status-text rounded-pill fw-bold"
+                                                        :class="[`text-${status.color}`, 'fs-6']">
+                                                        {{ status.name }}
+                                                    </span>
+                                                </a>
+                                            </template>
+                                            <!-- Show all statuses for other roles -->
+                                            <template v-else-if="props.userRole !== 'doctor'">
+                                                <a class="dropdown-item d-flex align-items-center" href="#"
+                                                    @click.prevent="updateAppointmentStatus(appointment.id, status.value)">
+                                                    <span class="status-indicator" :class="status.color"></span>
+                                                    <i :class="[`text-${status.color}`, status.icon]"></i>
+                                                    <span class="status-text rounded-pill fw-bold"
+                                                        :class="[`text-${status.color}`, 'fs-6']">
+                                                        {{ status.name }}
+                                                    </span>
+                                                </a>
+                                            </template>
                                         </li>
                                     </ul>
                                 </div>
@@ -377,13 +445,18 @@ onMounted(() => {
                             <td>
                                 <div class="d-flex gap-2 justify-content-center">
                                     <button @click="goToEditAppointmentPage(appointment)"
-                                    class="btn btn-sm btn-outline-primary mr-2">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button v-if="props.userRole === 'admin'" @click="deleteAppointment(appointment.id)"
-                                class="btn btn-sm btn-outline-danger mr-2">
-                                <i class="fas fa-trash-alt"></i>
-                            </button>
+                                        class="btn btn-sm btn-outline-primary mr-2">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button 
+                                        @click="openModal(appointment)" class="btn btn-sm btn-outline-primary mr-2">
+                                        <i class="fas fa-calendar-plus"></i>
+                                    </button>
+
+                                    <button v-if="props.userRole === 'admin'" @click="deleteAppointment(appointment.id)"
+                                        class="btn btn-sm btn-outline-danger mr-2">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
                                     <button @click="AddToWaitList(appointment)" class="btn btn-sm btn-outline-info">
                                         <i class="fas fa-clock"></i>
                                     </button>
@@ -401,6 +474,8 @@ onMounted(() => {
             <appointmentWaitlist :show="showAddModal" :editMode="isEditMode" :waitlist="selectedWaitlist"
                 :add_to_waitlist="selectedWaitlist?.add_to_waitlist ?? false" @close="closeAddModal" @save="handleSave"
                 @update="handleUpdate" />
+            <AppointmentModal v-if="isModalVisible" :doctorId="props.doctorId" :appointmentId="appointmentId"
+                :editMode="true" @close="closeModal" />
         </div>
     </div>
 </template>

@@ -4,6 +4,7 @@ import axios from 'axios';
 import { formatDateHelper } from '@/Components/helper.js';
 import TimeSlotSelector from './TimeSlotSelector.vue';  // Assuming you have this component
 import SimpleCalendar from './SimpleCalendar.vue';
+import { useAuthStore } from '../../stores/auth';
 
 // Props passed from parent component
 const props = defineProps({
@@ -27,6 +28,31 @@ const forceAppointment = () => {
 };
 
 
+const authStore = useAuthStore();
+const is_able_tO_force = ref(false);
+onMounted(async () => {
+  IsAbleToForce();
+
+});
+
+
+const IsAbleToForce = async () => {
+
+  try {
+    const response = await axios.get('/api/doctor-user-permissions/ability', {
+      params: {
+        doctor_id: props.doctorId,
+        user_id: authStore.user.id,
+      }
+    });
+
+    is_able_tO_force.value = response.data.data.is_able_to_force;
+
+  } catch (error) {
+    console.error('somthing happened:', error);
+
+  }
+};
 // Function to check availability based on the `days` value
 const checkAvailability = async () => {
   if (!days.value) {
@@ -100,13 +126,13 @@ onMounted(() => {
   <div class="w-100" style="width: 200px;">
     <label for="days" class="text-muted">Days</label>
     <input type="number" v-model="days" class="form-control" id="days" placeholder="Enter number of days" />
-    
 
-  <div class="form-group mb-4">
-    <label for="range" class="text-muted">Range (Optionall)</label>
-    <input class="form-control" type="number" id="range" placeholder="Enter the range" v-model="range"
-      @input="checkAvailability" />
-  </div>
+
+    <div class="form-group mb-4">
+      <label for="range" class="text-muted">Range (Optionall)</label>
+      <input class="form-control" type="number" id="range" placeholder="Enter the range" v-model="range"
+        @input="checkAvailability" />
+    </div>
 
     <div v-if="nextAppointmentDate" class="mt-2 text-info">
       Next appointment will be on: {{ formatDateHelper(nextAppointmentDate) }}
@@ -115,11 +141,17 @@ onMounted(() => {
 
 
     <div v-else-if="!nextAppointmentDate && days > 0" class="mt-2 text-center">
-      <p class="text-danger">There are no slots available.</p>
-      <button @click="forceAppointment" class="btn btn-outline-secondary mt-2 mb-2">Force Appointment</button>
-      <div v-if="isForcingAppointment">
-        <SimpleCalendar :days="days" :doctorId="props.doctorId" @timeSelected="handleTimeSelected"
-          @dateSelected="handleDateSelected" />
+
+      <div v-if="(is_able_tO_force || authStore.user.role === 'admin' || authStore.user.role === 'doctor')">
+        <button @click="forceAppointment" class="btn btn-outline-secondary mt-2 mb-2">Force Appointment</button>
+        <div v-if="isForcingAppointment">
+          <SimpleCalendar :days="days" :doctorId="props.doctorId" @timeSelected="handleTimeSelected"
+            @dateSelected="handleDateSelected" />
+        </div>
+      </div>
+      <div v-else class="alert alert-info text-center w-50 m-auto"
+        style="background-color: #5bc0de; border-radius: 5px; color: white; padding: 5px; ">
+        <p class="text-white" style="font-weight: bold; font-size: 1.1em;">No slots available at the moment.</p>
       </div>
     </div>
   </div>

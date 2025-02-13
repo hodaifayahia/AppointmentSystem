@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use \Storage;
+use App\Http\Enum\RoleSystemEnum;
 use App\Http\Resources\UserDoctorResource;
 use App\Http\Resources\UserResource;
 use App\Models\Doctor;
@@ -25,6 +26,14 @@ class UserController extends Controller
         // Return the collection wrapped in a resource
         return UserResource::collection($users);  // Wrap collection with resource transformation
     }
+    public function GetReceptionists(Request $request)
+    {
+        // Fetch users where the role column is "receptionist"
+        $users = User::where('role','receptionist')->paginate();
+    
+        return UserResource::collection($users);
+    }
+    
     public function getCurrentUser()
     {
         try {
@@ -188,6 +197,7 @@ public function update(Request $request, string $id)
     public function search(Request $request)
     {
         $searchTerm = $request->query('query');
+        $role = $request->query('role');
         // If search term is empty, return an empty collection
         if (empty($searchTerm)) {
             return UserResource::collection(User::orderBy('created_at', 'desc')->get());
@@ -197,9 +207,14 @@ public function update(Request $request, string $id)
             $query->where('name', 'LIKE', "%{$searchTerm}%")
                   ->orWhere('email', 'LIKE', "%{$searchTerm}%")
                   ->orWhere('phone', 'LIKE', "%{$searchTerm}%");
-        })
-        ->orderBy('created_at', 'desc')
+        });
+
+        if ($role) {
+            $users->where('role',$role);
+        }
+        $users = $users->orderBy('created_at', 'desc')
         ->paginate();
+    
     
         return UserResource::collection($users);
     }

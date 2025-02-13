@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, ref, onMounted, watch } from 'vue';
+import { reactive, ref, onMounted, watch  } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 import { Form } from 'vee-validate';
@@ -19,9 +19,11 @@ const importanceLevels = ref([]);
 
 const props = defineProps({
   editMode: { type: Boolean, default: false },
+  NextAppointment: { type: Boolean, default: false },
   doctorId: { type: Number, default: null },
   appointmentId: { type: Number, default: null }
 });
+const emit = defineEmits(['close']); // Define the emit event
 
 const form = reactive({
   id: null,
@@ -108,20 +110,30 @@ if (props.editMode && props.appointmentId) {
 const handleTimeSelected = (time) => {
   form.appointment_time = time;  // Store selected time in `appointment_time`
 };
-
 const handleSubmit = async (values, { setErrors }) => {
   try {
-    const method = props.editMode ? 'put' : 'post';
-    const url = props.editMode
-      ? `/api/appointments/${props.appointmentId}`
-      : '/api/appointments';
+    let url = '/api/appointments';
+    let method = props.editMode ? 'put' : 'post';
+
+    if (props.editMode) {
+      if (props.NextAppointment) {
+        url = `/api/appointment/nextappointment/${props.appointmentId}`;
+        method = 'post';
+      } else {
+        url = `/api/appointments/${props.appointmentId}`;
+      }
+    }
 
     const response = await axios[method](url, form);
     console.log(`${props.editMode ? 'Appointment updated:' : 'Appointment created:'}`, response.data);
 
-    // Redirect to the appointment list for the doctor
-    router.push({ name: 'admin.appointments', params: { doctorId: form.doctor_id } });
     toastr.success(`${props.editMode ? 'Appointment updated' : 'Appointment created'} successfully`);
+
+    if (props.NextAppointment) {
+      emit('close'); // Emit close event if it's a Next Appointment
+    } else {
+      router.push({ name: 'admin.appointments', params: { doctorId: form.doctor_id } });
+    }
   } catch (error) {
     console.error(`${props.editMode ? 'Error updating appointment:' : 'Error creating appointment:'}`, error);
     setErrors({ form: 'An error occurred while processing your request' });
@@ -152,6 +164,7 @@ onMounted(async () => {
 </script>
 
 <template>
+  
   <Form @submit="handleSubmit" v-slot="{ errors }">
     <!-- Patient Search Component -->
     <PatientSearch v-model="searchQuery" :patientId="form.patient_id" @patientSelected="handlePatientSelect" />
@@ -189,10 +202,11 @@ onMounted(async () => {
     </div>
     <!-- Submit Button -->
     <div class="form-group">
-      <button type="submit" class="btn btn-primary rounded-pill">
-        {{ props.editMode ? 'Update Appointment' : 'Create Appointment' }}
-      </button>
-    </div>
+  <button type="submit" class="btn btn-primary rounded-pill">
+    {{ props.NextAppointment ? 'Create Appointment' : props.editMode ? 'Update Appointment' : 'Create Appointment' }}
+  </button>
+</div>
+
   </Form>
 </template>
 <style scoped>

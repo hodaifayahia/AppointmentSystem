@@ -78,6 +78,50 @@ class AppointmentController extends Controller
           ], 500);
       }
   }
+  public function ForPatient(Request $request, $Patientid)
+  {
+      try {
+          // Get appointments only for this patient
+          $appointments = Appointment::query()
+              ->with(['patient', 'doctor:id,user_id,specialization_id', 'doctor.user:id,name', 'waitlist'])
+              ->whereHas('doctor', function ($query) {
+                  $query->whereNull('deleted_at')
+                      ->whereHas('user');
+              })
+              ->where('patient_id', $Patientid)
+              ->whereNull('deleted_at')
+              ->orderBy('appointment_date', 'asc')
+              ->orderBy('appointment_time', 'asc');
+  
+          // Apply filters if provided
+          if ($request->filled('status') && $request->status !== 'ALL') {
+              $appointments->where('status', $request->status);
+          }
+          if ($request->filled('date')) {
+              $appointments->whereDate('appointment_date', $request->date);
+          }
+          if ($request->filled('filter') && $request->filter === 'today') {
+              $appointments->whereDate('appointment_date', now()->toDateString())
+                           ->whereIn('status', [0, 1]);
+          }
+  
+          // Fetch results without pagination
+          $appointments = $appointments->get();
+  
+          return response()->json([
+              'success' => true,
+              'data' => AppointmentResource::collection($appointments),
+          ]);
+  
+      } catch (\Exception $e) {
+          return response()->json([
+              'success' => false,
+              'message' => 'Failed to fetch appointments',
+              'error' => $e->getMessage()
+          ], 500);
+      }
+  }
+  
   public function getPendingAppointment(Request $request)
   {
       try {
@@ -197,7 +241,8 @@ public function search(Request $request)
             $queryBuilder->whereHas('patient', function ($patientQuery) use ($query) {
                 $patientQuery->where('Firstname', 'like', "%{$query}%")
                     ->orWhere('Lastname', 'like', "%{$query}%")
-                    ->orWhere('dateOfBirth', 'like', "%{$query}%");
+                    ->orWhere('dateOfBirth', 'like', "%{$query}%")
+                    ->orWhere('phone', 'like', "%{$query}%");
             });
         })
         // Filter by doctor ID
