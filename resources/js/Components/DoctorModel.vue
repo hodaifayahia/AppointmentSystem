@@ -89,11 +89,10 @@ const handleUserUpdate = () => {
 const getDoctorSchema = (isEditMode) => {
   const baseSchema = {
     name: yup.string().required('Name is required'),
-    email: yup.string(),
+    email: yup.string('the Username should not be the same as another username'),
     phone: yup
       .string()
-      .matches(/^[0-9]{10,15}$/, 'Phone number must be between 10 and 15 digits')
-      .required('Phone number is required'),
+      .matches(/^[0-9]{10,15}$/, 'Phone number must be between 10 and 15 digits'),
     specialization: yup.string().required('Specialization is required'),
     frequency: yup.string().required('Frequency is required'),
   };
@@ -119,7 +118,7 @@ watch(
       const computedNumber = Array.isArray(newValue?.schedules)
         ? Math.max(0, ...newValue.schedules.map(s => s.number_of_patients_per_day ?? 0))
         : 0;
-      
+
       doctor.value = {
         ...doctor.value,
         id: newValue?.id || null,
@@ -255,7 +254,6 @@ const submitForm = async (values, { setErrors, resetForm }) => {
     formData.append('id', doctor.value.id);
     formData.append('specialization', doctor.value.specialization_id);
     formData.append('time_slot', doctor.value.time_slot);
-    formData.append('number_of_patients_per_day', doctor.value.number_of_patients_per_day);
 
     // Handle appointmentBookingWindow
     if (doctor.value.appointmentBookingWindow && Array.isArray(doctor.value.appointmentBookingWindow)) {
@@ -319,7 +317,7 @@ const submitForm = async (values, { setErrors, resetForm }) => {
 
     const url = isEditMode.value ? `/api/doctors/${doctor.value.id}` : '/api/doctors';
 
-   
+
     await axios.post(url, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
@@ -346,8 +344,8 @@ onMounted(() => {
 </script>
 <template>
   <div class="modal fade overflow-auto" :class="{ show: showModal }" tabindex="-1" aria-labelledby="doctorModalLabel"
-  aria-hidden="true" v-if="showModal">
- 
+    aria-hidden="true" v-if="showModal">
+
     <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <div class="modal-header">
@@ -400,20 +398,16 @@ onMounted(() => {
 
             <!-- Patient Selection Row -->
             <div class="row">
-              <div class="col-md-6 mb-4">
-                <label for="patients_based_on_time" class="form-label fs-5">Patients Based on Time</label>
-                <select v-model="doctor.patients_based_on_time" class="form-control form-control-md"
-                  @change="handlePatientSelectionChange">
-                  <option :value="false">Fixed Number of Patients</option>
-                  <option :value="true">Based on Time</option>
-                </select>
-              </div>
-              <div v-if="!doctor.patients_based_on_time" class="col-md-6 mb-4">
-  <label for="number_of_patients_per_day" class="form-label fs-5">Number of Patients Per Day</label>
-  <input type="number" v-model="doctor.number_of_patients_per_day" class="form-control form-control-md" min="0" />
-</div>
+    <div class="mb-4" :class="{'col-md-6': doctor.patients_based_on_time, 'col-md-12': !doctor.patients_based_on_time}">
+        <label for="patients_based_on_time" class="form-label fs-5">Patients Based on Time</label>
+        <select v-model="doctor.patients_based_on_time" class="form-control form-control-md"
+                @change="handlePatientSelectionChange">
+            <option :value="false">Fixed Number of Patients</option>
+            <option :value="true">Based on Time</option>
+        </select>
+    </div>
 
-              
+
               <div v-if="doctor.patients_based_on_time" class="col-md-6 mb-4">
                 <label for="time_slot" class="form-label fs-5">Time Slot for Patients</label>
                 <input v-model="doctor.time_slot" class="form-control form-control-md" placeholder="Select time slot" />
@@ -453,11 +447,8 @@ onMounted(() => {
 
             <div class="row">
               <div class="col-md-6 mb-4">
-                          <AppointmentBookingWindowModel
-            :isEditMode="isEditMode"
-            :appointment-booking-window="doctor.appointmentBookingWindow"
-            v-model="selectedMonths"
-/>
+                <AppointmentBookingWindowModel :isEditMode="isEditMode"
+                  :appointment-booking-window="doctor.appointmentBookingWindow" v-model="selectedMonths" />
               </div>
               <div class="col-md-6 mb-4">
                 <label for="password" class="form-label fs-5">
@@ -477,8 +468,9 @@ onMounted(() => {
             <div class="row">
               <div class="col-12" v-if="doctor.frequency === 'Daily' || doctor.frequency === 'Weekly'">
                 <DoctorSchedules :doctorId="doctor.id" :existingSchedules="doctor.schedules"
-                  :patients_based_on_time="doctor.patients_based_on_time" :time_slot="doctor.time_slot" v-model="doctor.schedules"
-                  :number_of_patients_per_day="doctor.number_of_patients_per_day" @schedulesUpdated="handleSchedulesUpdated" />
+                  :patients_based_on_time="doctor.patients_based_on_time" :time_slot="doctor.time_slot"
+                  v-model="doctor.schedules" 
+                  @schedulesUpdated="handleSchedulesUpdated" />
               </div>
               <div class="col-md-12 mb-4" v-if="doctor.frequency === 'Monthly'">
                 <label class="form-label fs-5">Custom Dates</label>

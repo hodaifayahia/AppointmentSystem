@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch ,reactive } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 import AppointmentListItem from './AppointmentListItem.vue';
@@ -7,8 +7,14 @@ import headerDoctorAppointment from '@/Components/Doctor/headerDoctorAppointment
 import DoctorWaitlist from '@/Components/Doctor/DoctorWaitlist.vue';
 import { Bootstrap5Pagination } from 'laravel-vue-pagination';
 import { useAuthStore } from '../../stores/auth';
+import { useAppointmentStore } from '../../stores/AppointmentStata';
+import AddWaitlistModal from '../../Components/waitList/addWaitlistModel.vue'; // Import the modal
+
+
 import { storeToRefs } from 'pinia';
 const pagination = ref({});
+const selectedWaitlist = ref(null);
+const showAddModal = ref(false);
 
 // Initialize all refs
 const appointments = ref([]);
@@ -28,16 +34,63 @@ const WaitlistDcotro = ref(false);
 const isDcotro = ref(false);
 const userRole = ref("");
 
+const fileInput = ref(null);
+const uploadProgress = ref(0);
+const currentFileIndex = ref(0);
+const selectedFiles = ref([]);
+
+const results = reactive({
+  success: [],
+  errors: []
+});
 
 const authStore = useAuthStore();
 // const { user, isLoading } = storeToRefs(authStore);
-
+const appointmentStore = useAppointmentStore();
 onMounted(async () => {
-    await authStore.getUser();
-    
+  await authStore.getUser();
+  await appointmentStore.getAppointments(doctorId, 1, 0);
+  
+  appointments.value = appointmentStore.appointments;
+  pagination.value = appointmentStore.pagination;
 });
 
+watch(
+  () => route.params.id,
+  async (newDoctorId) => {
+    if (newDoctorId) {
+      loading.value = true;
+      await appointmentStore.getAppointments(newDoctorId, 1, 0);
+      appointments.value = appointmentStore.appointments;
+      pagination.value = appointmentStore.pagination;
+      loading.value = false;
+    }
+  }
+);
 
+
+
+const showResults = () => {
+  let message = '';
+  
+  if (results.success.length) {
+    message += `Successfully processed ${results.success.length} files.\n`;
+  }
+  
+  if (results.errors.length) {
+    message += `\nFailed to process ${results.errors.length} files:\n`;
+    results.errors.forEach(error => {
+      message += `${error.filename}: ${error.error}\n`;
+    });
+  }
+  
+  // Assuming you're using a notification library like vue-notification
+  notify({
+    title: 'Import Results',
+    message: message,
+    type: results.errors.length ? 'warning' : 'success'
+  });
+};
 userRole.value = authStore.user.role;
 
 const getAppointments = async (page = 1, status = null, filter = null, date = null) => {
@@ -50,7 +103,8 @@ const getAppointments = async (page = 1, status = null, filter = null, date = nu
     };
 
     const { data } = await axios.get(`/api/appointments/${doctorId}`, { params });
-
+    console.log();
+    
     if (data.success) {
       appointments.value = data.data;
       pagination.value = data.meta;
@@ -69,14 +123,18 @@ const initializeComponent = async () => {
     loading.value = true;
     
     // Get user data first
-    await authStore.getUser();
+     authStore.getUser();
     userRole.value = authStore.user.role;
     
     // Fetch appointments status and appointments in parallel
-    await Promise.all([
+     Promise.all([
       getAppointmentsStatus(),
-      getAppointments(1, currentFilter.value)
+      fetchWaitlists(),
+      
+
+         // Fetch scheduled appointments (assuming 0 = Scheduled)
     ]);
+    
     
   } catch (err) {
     console.error('Error initializing component:', err);
@@ -89,31 +147,95 @@ const handleGetAppointments = (data) => {
   appointments.value = data.data; // Update the appointments list
 };
 // Fetch today's appointments
+// Open modal for adding a new waitlist
+const openAddModal = () => {
+  showAddModal.value = true;
+};
+
+// Close modal
+const closeAddModal = () => {
+  showAddModal.value = false;
+};
 
 // Optimized file upload using Axios
-const uploadFile = async () => {
-  if (!file.value) return;
-
-  const formData = new FormData();
-  formData.append('file', file.value);
-
-  try {
-    loading.value = true;
-
-    await axios.post(`/api/import/appointment/${doctorId}`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-
-    await getAppointments(currentFilter.value);
-    getAppointmentsStatus();
-    file.value = null;
-  } catch (error) {
-    console.error('Error uploading file:', error);
-  } finally {
-    loading.value = false;
+const uploadFiles = async () => {
+  if (!selectedFiles.value.length) return;
+  
+  loading.value = true;
+  uploadProgress.value = 0;
+  currentFileIndex.value = 0;
+  results.success = [];
+  results.errors = [];
+  
+  for (let i = 0; i < selectedFiles.value.length; i++) {
+    currentFileIndex.value = i;
+    const file = selectedFiles.value[i];
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const response = await axios.post(
+        `/api/import/appointment/${doctorId}`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          onUploadProgress: (progressEvent) => {
+            const percentCompleted = Math.round(
+              (progressEvent.loaded * 100) / progressEvent.total
+            );
+            uploadProgress.value = percentCompleted;
+          },
+        }
+      );
+      
+      results.success.push({
+        filename: file.name,
+        message: response.data.message
+      });
+      
+    } catch (error) {
+      results.errors.push({
+        filename: file.name,
+        error: error.response?.data?.message || 'Upload failed'
+      });
+    }
   }
+  
+  // Refresh appointments list and status
+   getAppointments(currentFilter.value);
+   getAppointmentsStatus();
+  
+  // Show results
+  showResults();
+  
+  // Reset state
+  loading.value = false;
+  selectedFiles.value = [];
+  fileInput.value.value = '';
+};
+
+const handleFileSelection = (event) => {
+  const files = Array.from(event.target.files);
+  const validTypes = [
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/csv'
+  ];
+  
+  const validFiles = files.filter(file => 
+    validTypes.includes(file.type) || 
+    file.name.endsWith('.csv') ||
+    file.name.endsWith('.xlsx') ||
+    file.name.endsWith('.xls')
+  );
+  
+  selectedFiles.value = validFiles;
+};
+
+const removeFile = (index) => {
+  selectedFiles.value.splice(index, 1);
 };
 
 const exportAppointments = async () => {
@@ -157,7 +279,6 @@ const fetchWaitlists = async (filters = {}) => {
     params.specialization_id = specializationId;
 
     const response = await axios.get('/api/waitlists', { params });
-    console.log(response.data);
     
     countWithDoctor.value = response.data.count_with_doctor; // Assign count where doctor_id is not null
     countWithoutDoctor.value = response.data.count_without_doctor; // Assign count where doctor_id is null
@@ -179,19 +300,21 @@ const openWaitlistNotForYouModal = () => {
 
 const closeWaitlistModal = () => {
   WaitlistDcotro.value = false; // Close the Waitlist modal
-  fetchWaitlists();
 };
 
 watch(
-  () => [doctorId.value, route.params.id],
+  () => [doctorId, route.params.id],
   async ([newDoctorId]) => {
     if (newDoctorId) {
       await getAppointments();
+      await fetchWaitlists();
     }
   },
   { immediate: false }
 );
-
+onMounted(()=>{
+  fetchWaitlists();
+})
 const statuses = ref([
   { name: 'ALL', value: null, color: 'secondary', icon: 'fas fa-list', count: 0 },
   { name: 'SCHEDULED', value: 0, color: 'primary', icon: 'fa fa-calendar-check', count: 0 },
@@ -203,7 +326,7 @@ const statuses = ref([
 
 // Update the status filter handler
 const handleStatusFilter = (status) => {
-  getAppointments(1, status); // Reset to page 1 when changing status
+  getAppointments(1, status ); // Reset to page 1 when changing status
 };
 const handleFileChange = (event) => {
   file.value = event.target.files[0];
@@ -231,9 +354,30 @@ const goToAddAppointmentPage = () => {
     params: { doctorId }
   });
 };
+
 const getTodaysAppointments = async () => {
-  getAppointments(1, 'TODAY', 'today');
+  try {
+    loading.value = true; // Set loading state
+    error.value = null; // Clear any previous errors
+
+    const response = await axios.get(`/api/appointments/${doctorId}`, {
+      params: { filter: 'today' } // Pass filter=today to fetch today's appointments
+    });
+
+    if (response.data.success) {
+      appointments.value = response.data.data;
+      todaysAppointmentsCount.value = response.data.data.length; // Update todaysAppointmentsCount
+    } else {
+      throw new Error(response.data.message);
+    }
+  } catch (err) {
+    console.error('Error fetching today\'s appointments:', err);
+    error.value = 'Failed to load today\'s appointments. Please try again later.'; // User-friendly error message
+  } finally {
+    loading.value = false; // Reset loading state
+  }
 };
+
 
 // Watch for route changes to reload appointments
 watch(
@@ -275,98 +419,126 @@ watch(
           <!-- Search and Import/Export Section -->
           <div class="col-lg-12">
             <!-- Actions toolbar -->
-            <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-3">
-              <button @click="goToAddAppointmentPage" class="btn btn-primary rounded-pill mb-2 mb-md-0">
+            <div class="d-flex   justify-content-between align-items-center mb-4 gap-3">
+              <!-- Add Appointment Button -->
+                <!-- Add to WaitList Button -->
+                <button @click="goToAddAppointmentPage" class="btn btn-primary rounded-pill flex-shrink-0">
                 <i class="fas fa-plus me-2"></i>
                 Add Appointment
-              </button>
+              </button> 
+              <div class=" ">
+                <button class=" btn btn-primary rounded-pill flex-shrink-0 mr-2" @click="openAddModal">
+                  <i class="fas fa-plus"></i> Add to WaitList
+                </button>
+            
+            
+            </div>
 
               <!-- Status Filters -->
-              <div class="btn-group flex-wrap" role="group" aria-label="Appointment status filters">
+              <div class="d-flex flex-wrap gap-2">
                 <!-- Today's Appointments Tab -->
-                <button @click="getTodaysAppointments" :class="[
-                  'btn',
-                  currentFilter === 'TODAY' ? 'btn-info' : 'btn-outline-info',
-                  'btn-sm m-1 rounded'
+                <button @click="getTodaysAppointments()" :class="[
+                  'btn btn-sm rounded-pill mr-1',
+                  currentFilter === 'TODAY' ? 'btn-info' : 'btn-outline-info'
                 ]">
-                  <i class="fas fa-calendar-day"></i>
+                  <i class="fas fa-calendar-day me-1"></i>
                   Today's Appointments
-                  <span class="badge rounded-pill ms-1"
-                    :class="currentFilter === 'TODAY' ? 'bg-light text-dark' : 'bg-info'">
+                  <span class="badge rounded-pill ms-1" :class="currentFilter === 'TODAY' ? 'bg-light text-dark' : 'bg-info'">
                     {{ todaysAppointmentsCount }}
                   </span>
                 </button>
 
                 <!-- Existing Status Filters -->
                 <button v-for="status in statuses" :key="status.name" @click="handleStatusFilter(status.value)" :class="[
-                  'btn',
-                  currentFilter === status.name ? `btn-${status.color}` : `btn-outline-${status.color}`,
-                  'btn-sm m-1 rounded'
+                  'btn btn-sm rounded-pill mr-1',
+                  currentFilter === status.name ? `btn-${status.color}` : `btn-outline-${status.color}`
                 ]">
-                  <i :class="status.icon"></i>
+                  <i :class="status.icon" class="me-1"></i>
                   {{ status.name }}
-                  <span class="badge rounded-pill ms-1"
-                    :class="currentFilter === status.name ? 'bg-light text-dark' : `bg-${status.color}`">
+                  <span class="badge rounded-pill ms-1" :class="currentFilter === status.name ? 'bg-light text-dark' : `bg-${status.color}`">
                     {{ status.count }}
                   </span>
                 </button>
               </div>
             </div>
 
-            <!-- Search and Import/Export Section -->
-            <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4">
-              <!-- File Upload and Export Buttons -->
-              <!-- Waitlist Buttons -->
-              <div class="d-flex gap-2">
-                <!-- Button for "Waitlist for You" Modal -->
-                <button class="btn btn-outline-success mr-2 position-relative"  type="button" @click="openWaitlistForYouModal">
-                  <i class="fas fa-user-clock me-2 "></i> Waitlist for You <span v-if="countWithDoctor > 0" class="custom-time">{{ countWithDoctor }}</span>
-                </button>
+            <!-- Waitlist Buttons -->
+            <div class="d-flex flex-wrap gap-2 mb-4">
+              <!-- Waitlist for You Button -->
+              <button class="btn btn-outline-success position-relative" type="button" @click="openWaitlistForYouModal">
+                <i class="fas fa-user-clock me-2"></i>
+                Waitlist for You
+                <span v-if="countWithDoctor > 0" class="badge bg-danger ms-1">{{ countWithDoctor }}</span>
+              </button>
 
-                <!-- Button for "Waitlist Not for You" Modal -->
-                <button class="btn btn-outline-warning position-relative" type="button" @click="openWaitlistNotForYouModal">
-                  <i class="fas fa-user-times me-2"></i>  Waitlist Not for You <span v-if="countWithoutDoctor > 0" class="custom-time"> {{ countWithoutDoctor }}</span>
-                </button>
-              </div>
-              <div v-if="userRole === 'admin'" class="d-flex flex-column align-items-center sm:w-100 w-md-auto">
-                <!-- File Upload -->
-                <div class="custom-file mb-3 w-100">
-                  <label for="fileUpload" class="btn btn-primary sm:w-100 premium-file-button">
-                    <i class="fas fa-file-upload mr-2"></i> Choose File
-                  </label>
-                  <input ref="fileInput" type="file" @change="handleFileChange" class="custom-file-input d-none"
-                    id="fileUpload">
-                </div>
-
-                <!-- Import and Export Buttons -->
-                <div class="d-flex flex-column flex-md-row justify-content-between sm:w-100">
-                  <button @click="uploadFile" :disabled="loading || !file"
-                    class="btn btn-success mb-2 mb-md-0 me-md-2 w-100">
-                    Import Appointments
-                  </button>
-                  <button @click="exportAppointments" class="btn btn-primary w-100">
-                    Export File
-                  </button>
-                </div>
-              </div>
-
+              <!-- Waitlist Not for You Button -->
+              <button class="btn btn-outline-warning position-relative" type="button" @click="openWaitlistNotForYouModal">
+                <i class="fas fa-user-times me-2"></i>
+                Waitlist Not for You
+                <span v-if="countWithoutDoctor > 0" class="badge bg-danger ms-1">{{ countWithoutDoctor }}</span>
+              </button>
             </div>
 
-            <!-- Appointments list -->
+            <!-- File Upload and Export Section -->
+            <div class="d-flex flex-column flex-md-row gap-3 mb-4">
+              <!-- File Upload -->
+              <div class="d-flex flex-column flex-md-row gap-2 w-100">
+                <input type="file" @change="handleFileSelection" multiple accept=".csv,.xlsx,.xls" ref="fileInput" class="d-none" />
+                <button @click="$refs.fileInput.click()" class="btn btn-outline-primary w-100" :disabled="loading">
+                  <i class="fas fa-upload me-2"></i>
+                  Select Files
+                </button>
+                <button @click="uploadFiles" :disabled="loading || !selectedFiles" class="btn btn-success w-100">
+                  <i class="fas fa-file-import me-2"></i>
+                  Import {{ selectedFiles.length }} Files
+                </button>
+                <button @click="exportAppointments" class="btn btn-primary w-100">
+                  <i class="fas fa-file-export me-2"></i>
+                  Export File
+                </button>
+              </div>
+            </div>
+
+           
+            <!-- Progress Bar -->
+            <div v-if="loading" class="mb-4">
+              <div class="progress">
+                <div class="progress-bar" :style="{ width: `${uploadProgress}%` }">
+                  {{ uploadProgress }}%
+                </div>
+              </div>
+              <div class="mt-2 text-center">
+                Uploading file {{ currentFileIndex + 1 }} of {{ selectedFiles.length }}
+              </div>
+            </div>
+
+            <!-- Appointments List -->
             <AppointmentListItem :appointments="appointments" :userRole="userRole" :error="error" :doctor-id="doctorId"
               @update-appointment="getAppointments(currentFilter)" @update-status="getAppointmentsStatus"
               @get-appointments="handleSearchResults" @filterByDate="handleFilterByDate" />
-          </div>
-          <div class="mt-4">
-            <Bootstrap5Pagination :data="pagination" :limit="5"
-              @pagination-change-page="(page) => getAppointments(page)" />
+
+            <!-- Pagination -->
+            <div class="mt-4 d-flex justify-content-center">
+              <Bootstrap5Pagination :data="pagination" :limit="5" @pagination-change-page="(page) => getAppointments(page)" />
+            </div>
           </div>
         </div>
       </div>
     </div>
+
     <!-- Waitlist Modal -->
     <DoctorWaitlist :WaitlistDcotro="WaitlistDcotro" :NotForYou="NotForYou" :specializationId="specializationId"
       :doctorId="doctorId" @close="closeWaitlistModal" />
+
+        <!-- Add/Edit Waitlist Modal -->
+        <AddWaitlistModal
+      :show="showAddModal"
+      :editMode="false"
+      :specializationId="specializationId"
+      @close="closeAddModal"
+      @save="handleSave"
+      @update="handleUpdate"
+    />
   </div>
 </template>
 <style scoped>
@@ -386,7 +558,7 @@ watch(
 /* Ensure buttons and inputs are touch-friendly */
 .btn,
 .custom-file-label {
-  padding: 0.5rem 1rem;
+  padding: 0.5rem 0.75rem;
   font-size: 1rem;
 }
 

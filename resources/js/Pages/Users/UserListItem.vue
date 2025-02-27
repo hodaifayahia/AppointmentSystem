@@ -140,7 +140,7 @@ const formatDate = (dateString) => {
     <td class="user-phone">{{ user.phone || 'N/A' }}</td>
     <td class="user-role">
       <select @change="ChangeRole(user, $event.target.value)" class="form-control form-select-sm"
-        :disabled="user.role === 'admin' || user.role === 'doctor' ">
+        :disabled="user.role === 'doctor' ">
         <option v-for="role in roles" :key="role.value" :value="role.value" :selected="user.role === role.name">
           {{ capitalize(role.name) }}
         </option>

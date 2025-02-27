@@ -1,5 +1,5 @@
 <script setup>
-import { defineProps, defineEmits, ref, onMounted, watch } from 'vue';
+import { defineProps, defineEmits, ref, onMounted, watch, capitalize } from 'vue';
 import axios from 'axios';
 import { useToastr } from '../../Components/toster';
 import { useRouter } from 'vue-router';
@@ -46,6 +46,8 @@ const selectedWaitlist = ref(null);
 const localAppointments = ref(props.appointments);
 const localPagination = ref(props.pagination);
 const selectedDate = ref();
+const previousDate = ref(null); // Store the previous date
+
 const showAddModal = ref(false); // Add this line
 const ShowReasonModel = ref(false);
 const selectedAppointment = ref(null);
@@ -54,27 +56,14 @@ const appointmentId = ref(null);
 
 const formatDate = (dateString) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
+    return date.toLocaleDateString('fr', {
         year: 'numeric',
         month: 'short',
         day: 'numeric'
     });
 };
 
-// Group related state
-const uiState = ref({
-  dropdownStates: {},
-  searchQuery: "",
-  isLoading: false,
-  isEditMode: false,
-  selectedWaitlist: null,
-  selectedDate: null,
-  showAddModal: false,
-  ShowReasonModel: false,
-  selectedAppointment: null,
-  isModalVisible: false,
-  appointmentId: null
-});
+
 const formatTime = (time) => {
     if (!time) return "00:00";
     try {
@@ -93,10 +82,22 @@ const formatTime = (time) => {
 };
 
 const getPatientFullName = (patient) => {
-    if (!patient) return 'N/A';
-    return `${patient.patient_first_name} ${patient.patient_last_name}`;
-};
+    // Validate input
+    if (!patient || typeof patient !== 'object') {
+        return 'N/A';
+    }
 
+    // Extract and sanitize properties
+    const { Parent = '', patient_last_name = '', patient_first_name = '' } = patient;
+
+    // Construct full name
+    const fullName = [Parent, patient_last_name, patient_first_name]
+        .filter(Boolean) // Remove empty strings
+        .join(' ')       // Join with spaces
+
+    // Capitalize the result (assuming capitalize is defined elsewhere)
+    return fullName ? capitalize(fullName) : 'N/A';
+};
 const toggleDropdown = (appointmentId) => {
     dropdownStates.value = {
         ...dropdownStates.value,
@@ -165,12 +166,11 @@ const getAppointmentsStatus = async () => {
 const goToEditAppointmentPage = (appointment) => {
     router.push({
         name: 'admin.appointments.edit',
-        params: { id: props.doctorId, appointmentId: appointment.id }
+        params: { id: props.doctorId, appointmentId: appointment.id , specialization_id: appointment.specialization_id  }
     });
 };
 const openModal = (appointment) => {
     isModalVisible.value = true;
-    
     appointmentId.value = appointment.id;
     emit('updateStatus');
     emit('update-appointment');
@@ -265,11 +265,11 @@ const AddToWaitList = async (appointment) => {
     };
     openAddModal();
 };
-
 const applyDateFilter = async () => {
     if (selectedDate.value) {
         isLoading.value = true;
         try {
+            // Emit the selected date to the parent component for filtering
             emit('filterByDate', selectedDate.value);
         } catch (err) {
             error.value = 'Failed to filter appointments by date.';
@@ -277,9 +277,20 @@ const applyDateFilter = async () => {
             isLoading.value = false;
         }
     } else {
+        // If no date is selected, emit null to clear the filter
         emit('filterByDate', null);
     }
 };
+const resetToPreviousDate = () => {
+    selectedDate.value = null; // Reset to the previous date
+    applyDateFilter(); // Reapply the filter with the previous date
+};
+// Watch for changes in selectedDate
+watch(selectedDate, (newDate, oldDate) => {
+    if (newDate !== oldDate) {
+        previousDate.value = oldDate; // Store the previous date
+    }
+});
 const debouncedSearch = (() => {
     let timeout;
     return () => {
@@ -315,7 +326,7 @@ const debouncedSearch = (() => {
             } finally {
                 isLoading.value = false;
             }
-        }, 300);
+        }, 500);
     };
 })();
 
@@ -354,6 +365,9 @@ onMounted(() => {
                         :disabled="isLoading">
                         <i class="fas fa-filter"></i>
                     </button>
+                    <button class="btn btn-outline-secondary" type="button" @click="resetToPreviousDate">
+                        <i class="fas fa-undo"></i>
+                    </button>
                 </div>
 
                 <!-- Search Bar -->
@@ -374,7 +388,8 @@ onMounted(() => {
                     <thead>
                         <tr>
                             <th scope="col">#</th>
-                            <th scope="col">Patient Name</th>
+                            <th scope="col">Patient</th>
+                            <th scope="col">Parent </th>
                             <th scope="col">Phone</th>
                             <th scope="col">Date Of Birth</th>
                             <th scope="col">Date</th>
@@ -382,6 +397,8 @@ onMounted(() => {
                             <th scope="col">Description</th>
                             <th scope="col">Status</th>
                             <th scope="col">Reason</th>
+                            <th v-if="userRole === 'admin'" scope="col">created_by</th>
+                            <th v-if="userRole === 'admin'" scope="col">canceled_by</th>
                             <th scope="col">Actions</th>
                         </tr>
                     </thead>
@@ -392,8 +409,9 @@ onMounted(() => {
                         <tr v-else v-for="(appointment, index) in appointments" :key="appointment.id">
                             <td>{{ index + 1 }}</td>
                             <td>{{ getPatientFullName(appointment) }}</td>
+                            <td>{{ appointment.Parent }}</td>
                             <td>{{ appointment.phone }}</td>
-                            <td>{{ appointment.patient_Date_Of_Birth }}</td>
+                            <td>{{ formatDate(appointment.patient_Date_Of_Birth) }}</td>
                             <td>{{ formatDate(appointment.appointment_date) }}</td>
                             <td>{{ formatTime(appointment.appointment_time) }}</td>
                             <td>{{ appointment.description ?? "Null" }}</td>
@@ -441,14 +459,16 @@ onMounted(() => {
                                     </ul>
                                 </div>
                             </td>
-                            <td>{{ appointment.reason ?? "__" }}</td>
+                            <td >{{ appointment.reason ?? "__" }}</td>
+                            <td v-if="userRole === 'admin'">{{ appointment.created_by ?? "__" }}</td>
+                            <td v-if="userRole === 'admin'">{{ appointment.canceled_by ?? "__" }}</td>
                             <td>
                                 <div class="d-flex gap-2 justify-content-center">
                                     <button @click="goToEditAppointmentPage(appointment)"
                                         class="btn btn-sm btn-outline-primary mr-2">
                                         <i class="fas fa-edit"></i>
                                     </button>
-                                    <button 
+                                    <button v-if="props.userRole === 'admin' || props.userRole === 'doctor'"
                                         @click="openModal(appointment)" class="btn btn-sm btn-outline-primary mr-2">
                                         <i class="fas fa-calendar-plus"></i>
                                     </button>

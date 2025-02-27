@@ -49,7 +49,7 @@ const editUser = () => { // Keep editUser as it might be related to editing user
 const goToEditAppointmentPage = (appointment) => {
     router.push({
         name: 'admin.appointments.edit',
-        params: { id: appointment.doctor_id, appointmentId: appointment.id }
+        params: { id: appointment.doctor_id, specialization_id:appointment.specialization_id, appointmentId: appointment.id }
     });
     emit('appointment-updated')
 };

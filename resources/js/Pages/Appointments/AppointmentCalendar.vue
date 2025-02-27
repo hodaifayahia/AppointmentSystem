@@ -101,6 +101,11 @@ const resetDateSelection = () => {
   nextAvailableDate.value = null;
   isForcingAppointment.value = false;
 };
+// Custom date formatter for display
+const formatDate = (date) => {
+  if (!date) return '';
+  return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
+};
 
 const forceAppointment = () => {
   isForcingAppointment.value = true;
@@ -119,7 +124,13 @@ watch(selectedDate, checkDateAvailability);
   <div class="">
     <div class="mb-3">
       <label for="datepicker" class="form-label">Select Date</label>
-      <Datepicker v-model="selectedDate" id="datepicker" :enable-time-picker="false" :disabled-dates="isDateDisabled"
+      <Datepicker 
+      v-model="selectedDate"
+       id="datepicker"
+        :enable-time-picker="false" 
+        :disabled-dates="isDateDisabled"
+        :format="(date) => formatDate(date)"
+        :format-locale="{ code: 'en-GB', monthsShort: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] }"
         :min-date="new Date()" style="display: block; width: 100%;" />
     </div>
 

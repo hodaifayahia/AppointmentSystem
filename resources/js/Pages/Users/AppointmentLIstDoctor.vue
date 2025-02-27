@@ -6,8 +6,6 @@ import AppointmentListItem from '../Appointments/AppointmentListItem.vue';
 import headerDoctorAppointment from '@/Components/Doctor/headerDoctorAppointment.vue';
 import DoctorWaitlist from '@/Components/Doctor/DoctorWaitlist.vue';
 import { Bootstrap5Pagination } from 'laravel-vue-pagination';
-import { useAuthStoreDoctor } from '../../stores/AuthDoctor';
-
 const pagination = ref({});
 
 // Initialize all refs
@@ -28,38 +26,49 @@ const WaitlistDcotro = ref(false);
 const isDcotro = ref(false);
 const userRole = ref(null);
 
-const doctors = useAuthStoreDoctor(); // Initialize Pinia store
-onMounted(async () => {
-    await doctors.getDoctor(); // Fetch doctor data
-    userRole.value = 'doctor';
-doctorId.value = doctors.doctorData.id;
-specializationId.value = doctors.doctorData.specialization_id;
-});
-userRole.value = 'doctor';
-doctorId.value = doctors.doctorData.id;
-specializationId.value = doctors.doctorData.specialization_id;
-const getAppointments = async (page = 1, status = null, filter = null, date = null) => {
+const initializeRole = async () => {
   try {
-    const params = {
-      page,
-      status: status ?? currentFilter.value,
-      filter,
-      date
-    };
+    const user = await axios.get('/api/role');
+      userRole.value = user.data.role;
+      doctorId.value = user.data.id;
+      specializationId.value = user.data.specialization_id;
 
-    const { data } = await axios.get(`/api/appointments/${doctorId}`, { params });
-
-    if (data.success) {
-      appointments.value = data.data;
-      pagination.value = data.meta;
-    }
   } catch (err) {
-    console.error('Error fetching appointments:', err);
-    error.value = 'Failed to load appointments. Please try again.';
-  } finally {
-    loading.value = false;
+    console.error('Error fetching user role:', err);
   }
 };
+
+const getAppointments = (() => {
+  let timeout;
+  return async (page = 1, status = null, filter = null, date = null) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(async () => {
+      try {
+        loading.value = true;
+        
+        const params = {
+          page,
+          status: status ?? currentFilter.value,
+          filter,
+          date
+        };
+
+        const { data } = await axios.get(`/api/appointments/${doctorId.value}`, { params });
+
+        if (data.success) {
+          appointments.value = data.data;
+          pagination.value = data.meta;
+
+         
+        }
+      } catch (err) {
+        console.error('Error fetching appointments:', err);
+      } finally {
+        loading.value = false;
+      }
+    }, 300); // Wait 300ms before making API request
+  };
+})();
 const handleGetAppointments = (data) => {
   appointments.value = data.data; // Update the appointments list
 };
@@ -179,28 +188,6 @@ const handleFilterByDate = (date) => {
     getAppointments(1, currentFilter.value);
   }
 };
-// Optimized initialization function
-const initializeComponent = async () => {
-  try {
-    loading.value = true;
-    
-    // Get user data first
-    await authStore.getUser();
-    userRole.value = authStore.user.role;
-    
-    // Fetch appointments status and appointments in parallel
-    await Promise.all([
-      getAppointmentsStatus(),
-      getAppointments(1, currentFilter.value)
-    ]);
-    
-  } catch (err) {
-    console.error('Error initializing component:', err);
-    error.value = 'Failed to initialize. Please refresh the page.';
-  } finally {
-    loading.value = false;
-  }
-};
 
 const handleSearchResults = (searchData) => {
   appointments.value = searchData.data;
@@ -237,28 +224,18 @@ watch(
     }
   }
 );
-// Use a single onMounted hook
-onMounted(() => {
-  initializeComponent();
+
+onMounted(async  ()=>{
+   await initializeRole();
+  getAppointmentsStatus();
+  getAppointments();
   fetchWaitlists();
-
 });
-
-// Watch for route changes
-watch(
-  () => route.params.id,
-  (newDoctorId) => {
-    if (newDoctorId) {
-      initializeComponent();
-    }
-  }
-);
-
 </script>
 <template>
   <div class="appointment-page">
     <!-- Page header -->
-     <div class="p-2">
+    <div class="p-2">
       <!-- Ensure header-doctor-appointment is rendered only after doctorId is initialized -->
       <header-doctor-appointment v-if="doctorId" :isDcotro="isDcotro" :doctor-id="doctorId" />
     </div>

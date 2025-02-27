@@ -188,7 +188,6 @@ watch(searchQuery, debouncedSearch);
       <!-- Loading Indicator -->
       <div v-if="isLoading" class="loading-container">
         <div class="spinner-border text-primary" role="status">
-          <span class="visually-hidden">Loading...</span>
         </div>
       </div>
       <!-- Users Table -->

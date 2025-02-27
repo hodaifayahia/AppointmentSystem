@@ -21,6 +21,7 @@ class ExcludedDates extends Controller
 
         // Fetch all excluded date ranges and eager load the 'doctor' relationship
         $excludedDates = ExcludedDate::where('doctor_id', $doctorId)
+            ->orWhere('doctor_id', null)
             ->with('doctor')  // Eager load the 'doctor' relationship
             ->get();
     

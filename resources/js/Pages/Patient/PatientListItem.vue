@@ -62,7 +62,6 @@ const debouncedSearch = (() => {
           params: { query: searchQuery.value },
         });
         Patient.value = response.data.data;
-        pagiante.value = response.data.meta; // Update pagination on search
       } catch (error) {
         toaster.error('Failed to search users');
         console.error('Error searching users:', error);
@@ -324,8 +323,9 @@ onMounted(() => {
                   <thead class="table-primary">
                     <tr>
                       <th scope="col">#</th>
-                      <th scope="col">First Name</th>
+                      <th scope="col">Parent Name</th>
                       <th scope="col">last Name</th>
+                      <th scope="col">First Name</th>
                       <th scope="col">idantifcation number</th>
                       <th scope="col">date of birth</th>
                       <th scope="col">Phone</th>
@@ -340,8 +340,9 @@ onMounted(() => {
                     <tr v-for="(Patient, index) in Patient" :key="Patient.id"
                       @click="goToPatientAppointmentsPage(Patient.id)" style="cursor: pointer;">
                       <td>{{ index + 1 }}</td>
-                      <td>{{ Patient.first_name }}</td>
+                      <td>{{ Patient.Parent }}</td>
                       <td>{{ Patient.last_name }}</td>
+                      <td>{{ Patient.first_name }}</td>
                       <td>{{ Patient.Idnum }}</td>
                       <td>{{ Patient.dateOfBirth }}</td>
                       <td>{{ Patient.phone }}</td>

@@ -1,26 +1,38 @@
 <script setup>
 import AppointmentForm from './AppointmentForm.vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { computed, ref, onMounted } from 'vue';
 import axios from 'axios';
 
 const route = useRoute();
+const router = useRouter();
+
 const doctorId = route.params.id;
+const specialization_id = route.params.specialization_id;
+
 const editMode = computed(() => route.name === 'admin.appointments.edit');
 const appointmentId = ref(route.params.appointmentId);
-
 const appointmentData = ref(null);
 
-
+console.log(route);
 </script>
-
 <template>
   <div class="appointment-page">
     <div class="content-header text-black">
       <div class="container-fluid">
-        <div class="row mb-2">
-          <div class="col-sm-6">
-            <h1 class="m-0">{{ editMode ? 'Edit' : 'Create' }} Appointment</h1>
+        <div class="row mb-3">
+          <div class="row align-items-center">
+            <div class="col-sm-12 d-flex align-items-center">
+              <!-- Back button now on the left -->
+              <button 
+                class="btn btn-light btn-sm rounded-pill shadow-sm mr-3 bg-primary"
+                @click="router.go(-1)"
+              >
+                <i class="fas fa-arrow-left "></i> Back
+              </button>
+              <!-- Title next to the back button -->
+              <h1 class="m-0">{{ editMode ? 'Edit' : 'Create' }} Appointment</h1>
+            </div>
           </div>
           <div class="col-sm-6 text-right">
             <ol class="breadcrumb float-sm-right breadcrumb-dark">
@@ -36,14 +48,13 @@ const appointmentData = ref(null);
         </div>
       </div>
     </div>
-
     <div class="content">
       <div class="container-fluid">
         <div class="row justify-content-center">
           <div class="col-md-10">
             <div class="card">
               <div class="card-body">
-                <AppointmentForm :doctorId="doctorId" :appointmentId="appointmentId" :edit-mode="editMode" />
+                <AppointmentForm :doctorId="doctorId" :specialization_id="specialization_id" :appointmentId="appointmentId" :edit-mode="editMode" />
               </div>
             </div>
           </div>

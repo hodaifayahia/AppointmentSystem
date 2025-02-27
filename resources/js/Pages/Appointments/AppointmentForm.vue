@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, ref, onMounted, watch  } from 'vue';
+import { reactive, ref, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 import { Form } from 'vee-validate';
@@ -16,14 +16,33 @@ const searchQuery = ref('');
 const toastr = useToastr();
 const isEmpty = ref(false);
 const importanceLevels = ref([]);
+import { useAuthStore } from '../../stores/auth';
+
+const authStore = useAuthStore();
+const doctors = ref([]);
 
 const props = defineProps({
   editMode: { type: Boolean, default: false },
   NextAppointment: { type: Boolean, default: false },
   doctorId: { type: Number, default: null },
+  specialization_id: { type: Number, default: null },
   appointmentId: { type: Number, default: null }
 });
-const emit = defineEmits(['close']); // Define the emit event
+const emit = defineEmits(['close']);
+
+const fetchDoctors = async () => {
+  try {
+    const response = await axios.get(`/api/doctors/specializations/${props.specialization_id}`);
+    doctors.value = response.data.data;
+    
+    // If in edit mode and doctorId is provided, set it as the selected doctor
+    if (props.editMode && props.doctorId && !form.doctor_id) {
+      form.doctor_id = props.doctorId;
+    }
+  } catch (error) {
+    console.error('Failed to fetch doctors:', error);
+  }
+};
 
 const form = reactive({
   id: null,
@@ -32,15 +51,17 @@ const form = reactive({
   last_name: '',
   patient_Date_Of_Birth: '',
   phone: '',
-  doctor_id: props.doctorId,
+  doctor_id: null, // Initialize as null
   appointment_date: '',
   appointment_time: '',
   description: '',
-  description: '',
-  addToWaitlist: false, // Default to false
-  importance: 1, // Default importance level
+  addToWaitlist: false,
+  importance: 1,
   status: {},
+  selectionMethod: '',
+  days: ''
 });
+
 const fetchAppointmentData = async () => {
   if (props.editMode && props.appointmentId) {
     try {
@@ -48,40 +69,44 @@ const fetchAppointmentData = async () => {
       if (response.data.success) {
         const appointment = response.data.data;
         // Populate form with appointment data
-        form.id = appointment.id;
-        form.first_name = appointment.first_name;
-        form.patient_id = appointment.patient_id;
-        form.last_name = appointment.last_name;
-        form.patient_Date_Of_Birth = appointment.patient_Date_Of_Birth;
-        form.phone = appointment.phone;
-        form.doctor_id = props.doctorId;
-        form.appointment_date = appointment.appointment_date;
-        form.appointment_time = appointment.appointment_time;
-        form.description = appointment.description;
-        form.addToWaitlist = appointment.addToWaitlist; // Populate waitlist field
-        form.status = appointment.status;
+        Object.assign(form, {
+          id: appointment.id,
+          first_name: appointment.first_name,
+          patient_id: appointment.patient_id,
+          last_name: appointment.last_name,
+          patient_Date_Of_Birth: appointment.patient_Date_Of_Birth,
+          phone: appointment.phone,
+          doctor_id: appointment.doctor_id || props.doctorId, // Use appointment's doctor_id if available, otherwise use props
+          appointment_date: appointment.appointment_date,
+          appointment_time: appointment.appointment_time,
+          description: appointment.description,
+          addToWaitlist: appointment.addToWaitlist,
+          status: appointment.status
+        });
 
-        // Set the search query to potentially match the patient's name
         searchQuery.value = `${appointment.first_name} ${appointment.last_name} ${appointment.patient_Date_Of_Birth} ${appointment.phone}`;
       }
     } catch (error) {
       console.error('Failed to fetch appointment data:', error);
     }
+  } else if (!props.editMode && props.doctorId) {
+    // If not in edit mode but doctorId is provided, set it as the initial doctor
+    form.doctor_id = props.doctorId;
   }
 };
-// Fetch importance enum values
+
+// Rest of the existing functions remain the same
 const fetchImportanceEnum = async () => {
   const response = await axios.get('/api/importance-enum');
   importanceLevels.value = response.data;
 };
+
 const isWaitListEmpty = async () => {
   const response = await axios.get('/api/waitlist/empty');
   isEmpty.value = response.data.data;
-  
 };
-// Handle patient selection
-const handlePatientSelect = (patient) => {
 
+const handlePatientSelect = (patient) => {
   form.first_name = patient.first_name;
   form.last_name = patient.last_name;
   form.patient_Date_Of_Birth = patient.dateOfBirth;
@@ -89,27 +114,19 @@ const handlePatientSelect = (patient) => {
   form.patient_id = patient.id;
 };
 
-
-// Handle days change from "By Days"
 const handleDaysChange = (days) => {
   form.days = days;
 };
 
-// Handle date selection from calendar
 const handleDateSelected = (date) => {
-
-  form.appointment_date = date; // Store selected date in `appointment_date`
-  nextAppointmentDate.value = date; // Optionally display it
+  form.appointment_date = date;
+  nextAppointmentDate.value = date;
 };
-if (props.editMode && props.appointmentId) {
-  // Assuming you've fetched appointment data and form.patient_id is set
-  searchQuery.value = `${form.first_name} ${form.last_name} ${form.patient_Date_Of_Birth} ${form.phone}`;
-}
 
-// Handle time selection from TimeSlotSelector
 const handleTimeSelected = (time) => {
-  form.appointment_time = time;  // Store selected time in `appointment_time`
+  form.appointment_time = time;
 };
+
 const handleSubmit = async (values, { setErrors }) => {
   try {
     let url = '/api/appointments';
@@ -125,12 +142,10 @@ const handleSubmit = async (values, { setErrors }) => {
     }
 
     const response = await axios[method](url, form);
-    console.log(`${props.editMode ? 'Appointment updated:' : 'Appointment created:'}`, response.data);
-
     toastr.success(`${props.editMode ? 'Appointment updated' : 'Appointment created'} successfully`);
 
     if (props.NextAppointment) {
-      emit('close'); // Emit close event if it's a Next Appointment
+      emit('close');
     } else {
       router.push({ name: 'admin.appointments', params: { doctorId: form.doctor_id } });
     }
@@ -140,8 +155,6 @@ const handleSubmit = async (values, { setErrors }) => {
   }
 };
 
-
-// Reset selection when method changes or after submission
 const resetSelection = () => {
   if (form.selectionMethod === 'days') {
     form.appointment_date = '';
@@ -151,64 +164,100 @@ const resetSelection = () => {
   }
 };
 
-// Watch for changes in selectionMethod to reset appropriate fields
 watch(() => form.selectionMethod, resetSelection);
 
-// Load existing appointment data in edit mode
 onMounted(async () => {
-  fetchImportanceEnum();
-  fetchAppointmentData();
-  isWaitListEmpty();
-
+  await Promise.all([
+    fetchImportanceEnum(),
+    fetchDoctors(),
+    isWaitListEmpty()
+  ]);
+  await fetchAppointmentData();
 });
 </script>
 
 <template>
-  
   <Form @submit="handleSubmit" v-slot="{ errors }">
     <!-- Patient Search Component -->
     <PatientSearch v-model="searchQuery" :patientId="form.patient_id" @patientSelected="handlePatientSelect" />
 
-    <!-- Available Appointments Component -->
-    <AvailableAppointments :waitlist="false" :isEmpty="isEmpty" :doctorId="props.doctorId" @dateSelected="handleDateSelected"
-      @timeSelected="handleTimeSelected" />
+    <!-- Doctor Selection - Show only if user is not a doctor -->
+    <div class="mb-3" v-if="props.editMode && authStore.user.role !== 'doctor'">
+      <label for="doctor_id" class="form-label">Select Doctor</label>
+      <select id="doctor_id" v-model="form.doctor_id" class="form-control" required>
+        <option value="" disabled>Select a doctor</option>
+        <option v-for="doctor in doctors" :key="doctor.id" :value="doctor.id">
+          {{ doctor.name }}
+        </option>
+      </select>
+      <span class="text-sm invalid-feedback">{{ errors.doctor_id }}</span>
+    </div>
+
+    <!-- Available Appointments -->
+    <AvailableAppointments 
+      v-if="!form.selectionMethod" 
+      :waitlist="false" 
+      :isEmpty="isEmpty" 
+      :doctorId="form.doctor_id || props.doctorId"
+      @dateSelected="handleDateSelected" 
+      @timeSelected="handleTimeSelected" 
+    />
 
     <!-- Appointment Method Selection -->
     <div class="form-group mb-4">
       <label for="selectionMethod" class="form-label">Select Appointment Method</label>
       <select id="selectionMethod" v-model="form.selectionMethod" class="form-control">
+        <option value="">Select Available Appointments</option>
         <option value="days">By Days</option>
         <option value="calendar">By Calendar</option>
       </select>
     </div>
 
-    <!-- Show 'By Days' Option -->
-    <NextAppointmentDate v-if="form.selectionMethod === 'days'" :doctorId="props.doctorId" :initialDays="form.days"
-      @update:days="handleDaysChange" @dateSelected="handleDateSelected" @timeSelected="handleTimeSelected" />
+    <!-- By Days Option -->
+    <NextAppointmentDate 
+      v-if="form.selectionMethod === 'days'"
+      :doctorId="form.doctor_id || props.doctorId"
+      :initialDays="form.days"
+      @update:days="handleDaysChange"
+      @dateSelected="handleDateSelected"
+      @timeSelected="handleTimeSelected"
+    />
 
-    <!-- Show Calendar if 'By Calendar' Option is Selected -->
+    <!-- Calendar Option -->
+    <AppointmentCalendar 
+      v-if="form.selectionMethod === 'calendar'"
+      :doctorId="form.doctor_id || props.doctorId"
+      @timeSelected="handleTimeSelected"
+      @dateSelected="handleDateSelected"
+    />
 
-    <AppointmentCalendar v-if="form.selectionMethod === 'calendar'" :doctorId="props.doctorId"
-      @timeSelected="handleTimeSelected" @dateSelected="handleDateSelected" />
     <!-- Waitlist Checkbox -->
     <div class="form-group mb-4">
-      <label for="addToWaitlist" class="form-label ">Add to Waitlist</label>
+      <label for="addToWaitlist" class="form-label">Add to Waitlist</label>
       <input type="checkbox" id="addToWaitlist" v-model="form.addToWaitlist" class="form-check-input" />
     </div>
+
+    <!-- Description -->
     <div class="form-group mb-4">
       <label for="description" class="form-label">Description</label>
-      <textarea id="description" v-model="form.description" class="form-control" rows="3"
-        placeholder="Enter appointment details..."></textarea>
+      <textarea 
+        id="description" 
+        v-model="form.description" 
+        class="form-control" 
+        rows="3"
+        placeholder="Enter appointment details..."
+      ></textarea>
     </div>
+
     <!-- Submit Button -->
     <div class="form-group">
-  <button type="submit" class="btn btn-primary rounded-pill">
-    {{ props.NextAppointment ? 'Create Appointment' : props.editMode ? 'Update Appointment' : 'Create Appointment' }}
-  </button>
-</div>
-
+      <button type="submit" class="btn btn-primary rounded-pill">
+        {{ props.NextAppointment ? 'Create Appointment' : props.editMode ? 'Update Appointment' : 'Create Appointment' }}
+      </button>
+    </div>
   </Form>
 </template>
+
 <style scoped>
 .form-group {
   margin-bottom: 1.5rem;
@@ -227,7 +276,7 @@ onMounted(async () => {
 }
 
 .form-check-input {
-  margin-left: 10px
+  margin-left: 10px;
 }
 
 .btn {

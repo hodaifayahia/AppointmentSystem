@@ -31,3 +31,6 @@ if (window.location.pathname === '/login') {
 } else {
     app.mount('#app');
 }
+
+
+// app.mount('#app');

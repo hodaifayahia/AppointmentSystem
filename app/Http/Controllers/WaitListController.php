@@ -44,6 +44,12 @@ public function index(Request $request)
     if ($importance !== null) {
         $query->where('importance', $importance);
     }
+    // Filter by specialization ID if provided
+    if (!empty($specializationId)) {
+        $query->where('specialization_id', $specializationId);
+    }
+    $waitlistscount = $query->get();
+
 
     // Handle doctor_id filtering
     if ($doctor_id === "null") {
@@ -52,10 +58,6 @@ public function index(Request $request)
         $query->where('doctor_id', $doctor_id);
     }
 
-    // Filter by specialization ID if provided
-    if (!empty($specializationId)) {
-        $query->where('specialization_id', $specializationId);
-    }
 
     // Sorting logic
     if ($importance !== null) {
@@ -73,9 +75,10 @@ public function index(Request $request)
         'data' => WaitListResource::collection($waitlists),
         'count' => $waitlists->count(),
         'count_with_doctor' => $waitlists->whereNotNull('doctor_id')->count(),
-        'count_without_doctor' => $waitlists->whereNull('doctor_id')->count()
+        'count_without_doctor' => $waitlistscount->where('doctor_id',null)->count()
     ]);
 }
+
 
 
     /**

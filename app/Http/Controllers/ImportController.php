@@ -80,10 +80,10 @@ class ImportController extends Controller
             ], 422);
         }
     }
-    public function ImportAppointment(Request $request , $doctorid)
+    public function ImportAppointment(Request $request, $doctorid)
     {
         try {
-            // More lenient file validation
+            // Validate the uploaded file
             $request->validate([
                 'file' => [
                     'required',
@@ -97,50 +97,54 @@ class ImportController extends Controller
                 'file.mimes' => 'The file must be a CSV or Excel file (xlsx, csv).',
                 'file.max' => 'The file size must not exceed 10MB.',
             ]);
-        
+            
             // Get the authenticated user's ID
             $createdBy = Auth::id();
-        
-            // Perform the import
+            
+            // Create a new import instance
             $import = new AppointmentImport($createdBy, $doctorid);
+            
+            // Process the file
             Excel::import($import, $request->file('file'));
-        
-            // Get the results of the import
+            
+            // Get import results
             $successCount = $import->getSuccessCount();
             $errors = $import->getErrors();
-        
-            // Return a JSON response with the results
+            
+            // Return appropriate response
             if (count($errors) > 0) {
                 return response()->json([
                     'success' => true,
-                    'message' => "Successfully imported {$successCount} appointments, but some rows had errors.",
-                    'errors' => $errors,
-                ]);
+                    'message' => "Imported {$successCount} appointments with some errors",
+                    'details' => [
+                        'successCount' => $successCount,
+                        'errorCount' => count($errors),
+                        'errors' => $errors
+                    ]
+                ], 207); // 207 Multi-Status
             }
-        
+            
             return response()->json([
                 'success' => true,
-                'message' => "Successfully imported {$successCount} appointments.",
-            ]);
-        
+                'message' => "Successfully imported {$successCount} appointments",
+                'details' => [
+                    'successCount' => $successCount,
+                    'errorCount' => 0
+                ]
+            ], 200);
+            
         } catch (ValidationException $e) {
-            // Handle validation errors (e.g., file type or size issues)
-            $failures = collect($e->failures())
-                ->map(function ($failure) {
-                    return "Row {$failure->row()}: {$failure->errors()[0]}";
-                })
-                ->join(', ');
-        
             return response()->json([
                 'success' => false,
-                'message' => 'Import failed: ' . $failures,
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
             ], 422);
-        
+            
         } catch (\Exception $e) {
-            // Handle any other exceptions
             return response()->json([
                 'success' => false,
-                'message' => 'Import failed: ' . $e->getMessage(),
+                'message' => 'Import failed',
+                'error' => $e->getMessage()
             ], 500);
         }
     }

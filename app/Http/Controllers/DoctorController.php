@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\AppointmentBookingWindow;
+use App\AppointmentSatatusEnum;
 use App\DayOfWeekEnum;
 use App\Http\Resources\DoctorResource;
 use App\Models\Appointment;
+use App\Models\AppointmentAvailableMonth;
 use App\Models\Doctor;
+use App\Models\ExcludedDate;
 use App\Models\Schedule;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -50,60 +53,185 @@ class DoctorController extends Controller
     
     public function WorkingDates(Request $request)
     {
-        $doctorId = $request->query('doctorId'); // Get the doctorId parameter (optional)
-        $month = $request->query('month'); // Get the month parameter (e.g., '2023-10')
-    
-        // Base query to fetch doctors
-        $doctorsQuery = Doctor::whereHas('user', function ($query) {
-            $query->where('role', 'doctor');
-        })
-        ->with(['user', 'specialization']);
-    
-        // Apply doctorId filter if provided
-        if ($doctorId) {
-            $doctorsQuery->where('id', $doctorId);
-        }
-    
-        // Fetch the doctors
-        $doctors = $doctorsQuery->get();
-    
-        // Transform the results
-        $transformedDoctors = $doctors->map(function ($doctor) use ($month) {
-            return $this->transformDoctor($doctor, $month);
-        });
-    
-        return response()->json([
-            'data' => $transformedDoctors,
-        ]);
-    }
-    
+        try {
+            $validated = $request->validate([
+                'doctorId' => 'nullable|exists:doctors,id',
+                'month' => 'required|date_format:Y-m',
+            ]);
 
-    
-    private function transformDoctor($doctor, $month)
+            $startDate = Carbon::createFromFormat('Y-m', $validated['month'])->startOfMonth();
+            $endDate = $startDate->copy()->endOfMonth();
+
+            // Modified query to ensure we get doctor name and specialization
+            $doctorsQuery = Doctor::query()
+                ->select([
+                    'doctors.id',
+                    'doctors.specialization_id',
+                    'users.name as doctor_name',  // Changed from users.name to doctor_name alias
+                    'specializations.name as specialization_name'  // Changed from specializations.name to specialization_name alias
+                ])
+                ->join('users', 'doctors.user_id', '=', 'users.id')
+                ->join('specializations', 'doctors.specialization_id', '=', 'specializations.id')
+                ->where('users.role', 'doctor');
+
+            if (isset($validated['doctorId'])) {
+                $doctorsQuery->where('doctors.id', $validated['doctorId']);
+            }
+
+            $doctors = $doctorsQuery->get();
+
+            if ($doctors->isEmpty()) {
+                return response()->json([
+                    'data' => [],
+                    'month' => $validated['month'],
+                    'total_doctors' => 0
+                ]);
+            }
+
+            $doctorIds = $doctors->pluck('id')->toArray();
+            
+            // Get active schedules
+            $schedules = DB::table('schedules')
+                ->select(['doctor_id', 'date', 'day_of_week', 'is_active'])
+                ->where('is_active', true)
+                ->where(function ($q) use ($startDate, $endDate) {
+                    $q->whereBetween('date', [$startDate, $endDate])
+                      ->orWhereNull('date');
+                })
+                ->whereIn('doctor_id', $doctorIds)
+                ->get();
+
+            // Get appointments
+            $appointments = DB::table('appointments')
+                ->select(['doctor_id', 'appointment_date'])
+                ->whereIn('doctor_id', $doctorIds)
+                ->whereBetween('appointment_date', [$startDate, $endDate])
+                ->where('status', '!=', AppointmentSatatusEnum::CANCELED->value)
+                ->distinct()
+                ->get();
+
+            // Get excluded dates
+            $excludedDates = ExcludedDate::where(function ($query) use ($doctorIds) {
+                $query->whereIn('doctor_id', $doctorIds)
+                      ->orWhereNull('doctor_id');
+            })
+            ->where(function ($query) use ($startDate, $endDate) {
+                $query->whereBetween('start_date', [$startDate, $endDate])
+                      ->orWhereBetween('end_date', [$startDate, $endDate])
+                      ->orWhere(function ($q) use ($startDate, $endDate) {
+                          $q->where('start_date', '<=', $startDate)
+                            ->where('end_date', '>=', $endDate);
+                      });
+            })
+            ->get();
+
+            // Get month availability
+            $monthAvailability = AppointmentAvailableMonth::whereIn('doctor_id', $doctorIds)
+                ->where('month', $startDate->month)
+                ->where('year', $startDate->year)
+                ->where('is_available', true)
+                ->pluck('doctor_id')
+                ->toArray();
+
+            $result = $doctors->map(function ($doctor) use ($schedules, $appointments, $excludedDates, $monthAvailability, $startDate, $endDate) {
+                // Ensure we have all required properties
+                if (!$doctor->doctor_name || !$doctor->specialization_name) {
+                    \Log::error('Missing doctor data', ['doctor' => $doctor]);
+                    return null;
+                }
+
+                if (!in_array($doctor->id, $monthAvailability)) {
+                    return [
+                        'id' => $doctor->id,
+                        'name' => $doctor->doctor_name,
+                        'specialization' => $doctor->specialization_name,
+                        'working_dates' => [],
+                    ];
+                }
+
+                $doctorSchedules = $schedules->where('doctor_id', $doctor->id);
+                $doctorAppointments = $appointments->where('doctor_id', $doctor->id);
+                
+                $workingDates = $this->calculateWorkingDatesOptimized(
+                    $doctor->id,
+                    $doctorSchedules,
+                    $doctorAppointments,
+                    $excludedDates,
+                    $startDate,
+                    $endDate
+                );
+
+                return [
+                    'id' => $doctor->id,
+                    'name' => $doctor->doctor_name,
+                    'specialization' => $doctor->specialization_name,
+                    'working_dates' => array_values(array_unique($workingDates)),
+                ];
+            })->filter(); // Remove any null values
+
+            return response()->json([
+                'data' => $result,
+                'month' => $validated['month'],
+                'total_doctors' => $result->count()
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error in WorkingDates', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'message' => 'Error fetching working dates',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    private function calculateWorkingDatesOptimized($doctorId, $schedules, $appointments, $excludedDates, $startDate, $endDate)
     {
         $workingDates = [];
-    
-        // Fetch appointments for the doctor for the specified month
-        $appointments = Appointment::where('doctor_id', $doctor->id)
-            ->whereYear('appointment_date', '=', substr($month, 0, 4))
-            ->whereMonth('appointment_date', '=', substr($month, 5, 2))
-            ->get();
-    
-        // Extract working dates from appointments
-        if ($appointments->isNotEmpty()) {
-            $workingDates = $appointments->pluck('appointment_date')->unique()->values()->toArray();
+        $currentDate = $startDate->copy();
+
+        $doctorExcludedDates = $excludedDates->filter(function ($date) use ($doctorId) {
+            return $date->doctor_id === $doctorId || $date->doctor_id === null;
+        });
+
+        while ($currentDate <= $endDate) {
+            $dateStr = $currentDate->format('Y-m-d');
+            
+            $isExcluded = $doctorExcludedDates->contains(function ($excludedDate) use ($currentDate) {
+                $endDate = $excludedDate->end_date ?? $excludedDate->start_date;
+                return $currentDate->between($excludedDate->start_date, $endDate);
+            });
+
+            if (!$isExcluded) {
+                $hasSpecificSchedule = $schedules->contains(function ($schedule) use ($dateStr) {
+                    return $schedule->date === $dateStr && $schedule->is_active;
+                });
+
+                $hasRecurringSchedule = $schedules->contains(function ($schedule) use ($currentDate) {
+                    return $schedule->day_of_week === $currentDate->dayOfWeek 
+                           && $schedule->date === null 
+                           && $schedule->is_active;
+                });
+
+                if ($hasSpecificSchedule || $hasRecurringSchedule) {
+                    $workingDates[] = $dateStr;
+                }
+            }
+
+            $currentDate->addDay();
         }
-    
-        return [
-            'id' => $doctor->id,
-            'name' => $doctor->user->name,
-            'specialization' => $doctor->specialization->name,
-            'working_dates' => $workingDates,
-        ];
+
+        // Add appointment dates
+        $appointmentDates = $appointments->map(function ($appointment) {
+            return Carbon::parse($appointment->appointment_date)->format('Y-m-d');
+        })->toArray();
+
+        return array_merge($workingDates, $appointmentDates);
     }
-    /**
-     * Show the form for creating a new resource.
-     */
+
 
      public function getspecific()
      {
@@ -165,31 +293,30 @@ class DoctorController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+   
+public function store(Request $request)
 {
     $validated = $request->validate([
         'name' => 'required|string|max:255',
         'email' => 'required',
-        'phone' => 'required|string',
+        'phone' => 'nullable|string',
         'password' => 'required|min:8',
         'specialization' => 'required|exists:specializations,id',
         'frequency' => 'required|string',
         'patients_based_on_time' => 'required|boolean',
-        'time_slot' => 'nullable|integer',
+        'time_slot' => 'required_if:patients_based_on_time,true|nullable|integer',
         'schedules' => 'array|required_without:customDates',
         'customDates' => 'array|required_without:schedules',
         'schedules.*.day_of_week' => 'required|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
         'schedules.*.shift_period' => 'required|in:morning,afternoon',
         'schedules.*.start_time' => 'required',
         'schedules.*.end_time' => 'required|after:schedules.*.start_time',
-        'number_of_patients_per_day' => 'required|integer|min:1',
+        'schedules.*.number_of_patients_per_day' => 'required_if:patients_based_on_time,false|integer',
         'customDates.*.date' => 'required|date|after_or_equal:today',
-        'customDates.*.morningStartTime' => 'nullable|required_with:customDates.*.morningEndTime|date_format:H:i',
-        'customDates.*.morningEndTime' => 'nullable|required_with:customDates.*.morningStartTime|date_format:H:i',
-        'customDates.*.afternoonStartTime' => 'nullable|required_with:customDates.*.afternoonEndTime|date_format:H:i',
-        'customDates.*.afternoonEndTime' => 'nullable|required_with:customDates.*.afternoonStartTime|date_format:H:i',
-        'customDates.*.morningPatients' => 'nullable|required_with:customDates.*.morningStartTime|integer|min:1',
-        'customDates.*.afternoonPatients' => 'nullable|required_with:customDates.*.afternoonStartTime|integer|min:1',
+        'customDates.*.shift_period' => 'required|in:morning,afternoon',
+        'customDates.*.start_time' => 'required|date_format:H:i',
+        'customDates.*.end_time' => 'required|date_format:H:i|after:customDates.*.start_time',
+        'customDates.*.number_of_patients_per_day' => 'required_if:patients_based_on_time,false|integer',
         'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         'appointmentBookingWindow' => 'required|array',
         'appointmentBookingWindow.*.month' => 'required|integer|between:1,12',
@@ -226,21 +353,21 @@ class DoctorController extends Controller
                 'time_slots' => $request->time_slot,
             ]);
 
-            // Prepare appointment available months data for bulk insertion
+            // Handle appointment booking window
             $appointmentMonths = [];
             $currentYear = date('Y');
-            $currentMonth = date('n'); // Get current month without leading zeros
+            $currentMonth = date('n');
 
             if ($request->has('appointmentBookingWindow')) {
                 foreach ($request->appointmentBookingWindow as $month) {
                     $year = $currentYear;
                     if ($month['month'] < $currentMonth) {
-                        $year = $currentYear + 1; // If the month has passed, set the year to next year
+                        $year = $currentYear + 1;
                     }
 
                     $appointmentMonths[] = [
                         'month' => $month['month'],
-                        'year' => $year, // Add the year
+                        'year' => $year,
                         'doctor_id' => $doctor->id,
                         'is_available' => $month['is_available'],
                         'created_at' => now(),
@@ -248,11 +375,10 @@ class DoctorController extends Controller
                     ];
                 }
 
-                // Insert all appointment months in one query
                 DB::table('appointment_available_month')->insert($appointmentMonths);
             }
 
-            // Handle custom dates or regular schedules
+            // Handle schedules
             if ($request->has('customDates')) {
                 $this->createCustomSchedules($request, $doctor);
             } elseif ($request->has('schedules')) {
@@ -271,146 +397,463 @@ class DoctorController extends Controller
         ], 500);
     }
 }
-    
-    private function createCustomSchedules(Request $request, Doctor $doctor)
+private function createCustomSchedules(Request $request, Doctor $doctor)
 {
-    $customSchedules = [];
-
-    // Loop through each custom date in the request
-    foreach ($request->customDates as $dateInfo) {
-        // Parse the date
+    $customSchedules = collect($request->customDates)->map(function ($dateInfo) use ($doctor, $request) {
         $date = Carbon::parse($dateInfo['date']);
-
-        // Determine the day of the week
-        $dayOfWeek = DayOfWeekEnum::from(strtolower($dateInfo['day_of_week']))->value;
-
-        // Prepare schedule data based on the shift period
-        $customSchedules[] = $this->prepareScheduleData(
-            $doctor,
-            $date,
-            $dateInfo['shift_period'], // 'morning' or 'afternoon'
-            $dateInfo['start_time'],   // Start time
-            $dateInfo['end_time'],     // End time
-            $dayOfWeek,                // Day of the week
-            $dateInfo['number_of_patients_per_day'], // Number of patients
-            $request
+        $dayOfWeek = strtolower($date->format('l'));
+        
+        // Make sure time formats are correct (H:i)
+        $startTime = $this->formatTimeString($dateInfo['start_time']);
+        $endTime = $this->formatTimeString($dateInfo['end_time']);
+        
+        $numberOfPatients = $request->patients_based_on_time 
+            ? $this->calculatePatientsPerShift($startTime, $endTime, $request->time_slot)
+            : $dateInfo['number_of_patients_per_day'];
+            
+        // Update future appointments for this specific date and shift period
+        $this->updateFutureAppointments(
+            $doctor->id,
+            $startTime,
+            $endTime,
+            $numberOfPatients,
+            $date->format('Y-m-d'), // Specific date
+            null, // No day of week needed since we have a specific date
+            $dateInfo['shift_period'] // Added shift period parameter
         );
-    }
 
-    // Insert all custom schedules into the database
+        return [
+            'doctor_id' => $doctor->id,
+            'date' => $date->format('Y-m-d'),
+            'day_of_week' => $dayOfWeek,
+            'shift_period' => $dateInfo['shift_period'],
+            'start_time' => $startTime,
+            'end_time' => $endTime,
+            'number_of_patients_per_day' => $numberOfPatients,
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ];
+    })->all();
+
     if (!empty($customSchedules)) {
         Schedule::insert($customSchedules);
     }
 }
-    
-    private function createRegularSchedules(Request $request, Doctor $doctor)
-    {
-        $schedules = collect($request->schedules)->map(function ($schedule) use ($doctor) {
-            return [
-                'doctor_id' => $doctor->id,
-                'day_of_week' => $schedule['day_of_week'],
-                'shift_period' => $schedule['shift_period'],
-                'start_time' => $schedule['start_time'],
-                'end_time' => $schedule['end_time'],
-                'number_of_patients_per_day' => $schedule['number_of_patients_per_day'],
-                'is_active' => true,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ];
-        })->all();
-    
-        Schedule::insert($schedules);
-    }
-   
-    
-    private function prepareScheduleData(Doctor $doctor, Carbon $date, string $shift, string $startTime, string $endTime, string $dayOfWeek, ?int $patients, Request $request): array
-    {
-        // Determine the number of patients for this schedule:
-        // 1. If a number is provided (for example, in customDates), use it.
-        // 2. Else if the doctor is set to use patients based on time and a time slot is provided,
-        //    calculate the number of patients based on the available minutes divided by the time slot duration.
-        // 3. Otherwise, use the provided 'number_of_patients_per_day' from the request.
-        if ($patients !== null) {
-            $numberOfPatients = $patients;
-        } elseif ($request->patients_based_on_time && !empty($request->time_slot)) {
-            $numberOfPatients = $this->calculatePatientsPerShift($startTime, $endTime, $request->time_slot);
-        } else {
-            $numberOfPatients = $request->number_of_patients_per_day;
-        }
-        
+private function createRegularSchedules(Request $request, Doctor $doctor)
+{
+    $schedules = collect($request->schedules)->map(function ($schedule) use ($doctor, $request) {
+        $numberOfPatients = $request->patients_based_on_time 
+            ? $this->calculatePatientsPerShift($schedule['start_time'], $schedule['end_time'], $request->time_slot)
+            : $schedule['number_of_patients_per_day'];
+
+        // Update all future appointments for this weekday and shift period
+        $this->updateFutureAppointments(
+            $doctor->id,
+            $schedule['start_time'],
+            $schedule['end_time'],
+            $numberOfPatients,
+            null, // No specific date - all future dates
+            $schedule['day_of_week'],
+            $schedule['shift_period'] // Added shift_period parameter
+        );
+
         return [
             'doctor_id' => $doctor->id,
-            'date' => $date->format('Y-m-d'),
-            'shift_period' => $shift,
-            'start_time' => $startTime,
-            'end_time' => $endTime,
-            'day_of_week' => $dayOfWeek,
-            'is_active' => true,
+            'day_of_week' => $schedule['day_of_week'],
+            'shift_period' => $schedule['shift_period'],
+            'start_time' => $schedule['start_time'],
+            'end_time' => $schedule['end_time'],
             'number_of_patients_per_day' => $numberOfPatients,
+            'is_active' => true,
             'created_at' => now(),
             'updated_at' => now(),
         ];
+    })->all();
+
+    Schedule::insert($schedules);
+}
+private function updateFutureAppointments(
+    int $doctorId,
+    string $startTime,
+    string $endTime,
+    int $newCapacity,
+    ?string $specificDate = null,
+    ?string $dayOfWeek = null,
+    ?string $shiftPeriod = null
+): void {
+    try {
+        DB::beginTransaction();
+        
+        // Build the query for future appointments
+        $query = Appointment::where('doctor_id', $doctorId)
+            ->where('appointment_date', '>=', Carbon::today())
+            ->where('status', '!=', AppointmentSatatusEnum::CANCELED->value);
+            
+        // Filter by specific date or day of week
+        if ($specificDate) {
+            $query->whereDate('appointment_date', $specificDate);
+        } elseif ($dayOfWeek) {
+            $query->whereRaw('LOWER(DAYNAME(appointment_date)) = ?', [strtolower($dayOfWeek)]);
+        }
+        
+        // Get all affected dates
+        $affectedDates = $query->clone()
+            ->select('appointment_date')
+            ->distinct()
+            ->orderBy('appointment_date')
+            ->pluck('appointment_date');
+        
+        // Process each affected date
+        foreach ($affectedDates as $date) {
+            // Get appointments for this date, ordered by their creation date (oldest first)
+            $dateAppointments = $query->clone()
+                ->whereDate('appointment_date', $date)
+                ->orderBy('created_at', 'asc')
+                ->get();
+            
+            if ($dateAppointments->isEmpty()) {
+                continue;
+            }
+            
+            // Calculate new time slots based on the new parameters
+            $slots = $this->getDoctorWorkingHours($doctorId, $date, $startTime, $endTime, $newCapacity, $shiftPeriod);
+            if (empty($slots)) {
+                continue; // No slots available for this date
+            }
+            
+            // Assign appointments to slots in order (first booked appointment gets first slot)
+            foreach ($dateAppointments as $index => $appointment) {
+               // Handle excess appointments (more than available slots)
+if ($index < count($slots)) {
+    // Assign the current slot to this appointment
+    $appointment->update([
+        'appointment_time' => $slots[$index]
+    ]);
+} else {
+    // Add a gap slot after the last appointment
+    $lastSlot = end($slots);
+    $lastSlotCarbon = Carbon::parse($date . ' ' . $lastSlot);
+    
+    // Calculate the new time (adding your preferred gap duration)
+    // Assuming your appointments have a fixed duration, adjust this as needed
+    $appointmentDuration = 15; // in minutes, adjust based on your system
+    $newSlotTime = $lastSlotCarbon->addMinutes($appointmentDuration)->format('H:i:s');
+    
+    // Update the appointment with the new gap slot time
+    $appointment->update([
+        'appointment_time' => $newSlotTime
+    ]);
+    
+    // Add this new slot to the slots array so it becomes the "last slot" for the next overflow appointment
+    $slots[] = $newSlotTime;
+}
+            }
+        }
+        
+        DB::commit();
+    } catch (\Exception $e) {
+        DB::rollBack();
+        Log::error('Failed to update future appointments: ' . $e->getMessage());
+        throw $e;
+    }
+}
+public function getDoctorWorkingHours(
+    int $doctorId, 
+    string $date,
+    string $startTime = null,
+    string $endTime = null,
+    int $numberOfPatients = null,
+    ?string $shiftPeriod = null
+) {
+    $dayOfWeek = DayOfWeekEnum::cases()[Carbon::parse($date)->dayOfWeek]->value;
+    $doctor = Doctor::find($doctorId, ['patients_based_on_time', 'time_slot']);
+    
+    if (!$doctor) {
+        return [];
     }
     
+    $workingHours = [];
     
-    private function calculatePatientsPerShift($startTime, $endTime, $timeSlot)
-    {
-        $start = Carbon::parse($startTime);
-        $end = Carbon::parse($endTime);
-        $totalMinutes = $end->diffInMinutes($start);
-        return (int) floor($totalMinutes / $timeSlot);
+    // If no specific shift period is provided, get schedules for the day
+    if (!$shiftPeriod || !$startTime || !$endTime || $numberOfPatients === null) {
+        $schedules = Schedule::select('start_time', 'end_time', 'number_of_patients_per_day', 'shift_period')
+            ->where('doctor_id', $doctorId)
+            ->where('is_active', true)
+            ->where('day_of_week', $dayOfWeek)
+            ->get();
+        
+        if ($schedules->isEmpty()) {
+            return [];
+        }
+        
+        // If doctor has a fixed time slot, calculate based on that
+        if ($doctor->time_slot !== null && (int)$doctor->time_slot > 0) {
+            $timeSlotMinutes = (int)$doctor->time_slot;
+            
+            foreach (['morning', 'afternoon'] as $shift) {
+                $schedule = $schedules->firstWhere('shift_period', $shift);
+                if (!$schedule) continue;
+                
+                $startTime = Carbon::parse($date . ' ' . $schedule->start_time);
+                $endTime = Carbon::parse($date . ' ' . $schedule->end_time);
+                $currentTime = clone $startTime;
+                
+                while ($currentTime < $endTime) {
+                    $workingHours[] = $currentTime->format('H:i');
+                    $currentTime->addMinutes($timeSlotMinutes);
+                }
+            }
+        } else {
+            // Calculate based on number of patients per shift
+            foreach (['morning', 'afternoon'] as $shift) {
+                $schedule = $schedules->firstWhere('shift_period', $shift);
+                if (!$schedule) continue;
+                
+                // Get the exact start and end times
+                $startTime = Carbon::parse($schedule->start_time);
+                $endTime = Carbon::parse($schedule->end_time);
+                // Get number of patients for this specific shift
+                $patientsForShift = (int)$schedule->number_of_patients_per_day;
+                
+                if ($patientsForShift <= 0) continue;
+                
+                // Calculate total duration in minutes
+                $totalDuration = abs($endTime->diffInMinutes($startTime));
+                
+                // Calculate the gap between each appointment
+                // We subtract 1 from patients because we need one less gap than appointments
+                $gap = $totalDuration / ($patientsForShift - 1);
+                $totalDuration = $totalDuration - $gap;
+                $gap = $totalDuration / ($patientsForShift - 1);
+                
+                // Generate slots
+                for ($i = 0; $i < $patientsForShift; $i++) {
+                    $minutesToAdd = round($i * $gap);
+                    $slotTime = (clone $startTime)->addMinutes($minutesToAdd);
+                    $workingHours[] = $slotTime->format('H:i');
+                }
+            }
+        }
+    } else {
+        // We're processing a specific shift with the provided parameters
+        if ($doctor->time_slot !== null && (int)$doctor->time_slot > 0 && $doctor->patients_based_on_time) {
+            $timeSlotMinutes = (int)$doctor->time_slot;
+            
+            $startTimeCopy = Carbon::parse($date . ' ' . $startTime);
+            $endTimeCopy = Carbon::parse($date . ' ' . $endTime);
+            $currentTime = clone $startTimeCopy;
+            
+            while ($currentTime < $endTimeCopy) {
+                $workingHours[] = $currentTime->format('H:i');
+                $currentTime->addMinutes($timeSlotMinutes);
+            }
+        } else {
+            // Calculate based on number of patients
+            $startTimeCopy = Carbon::parse($startTime);
+            $endTimeCopy = Carbon::parse($endTime);
+            
+            if ($numberOfPatients <= 0) {
+                return [];
+            }
+            
+            // Calculate total duration in minutes
+            $totalDuration = abs($endTimeCopy->diffInMinutes($startTimeCopy));
+            
+            if ($numberOfPatients > 1) {
+                // Calculate the gap between each appointment
+                // We subtract 1 from patients because we need one less gap than appointments
+                $gap = $totalDuration / ($numberOfPatients - 1);
+                $totalDuration = $totalDuration - $gap;
+                $gap = $totalDuration / ($numberOfPatients - 1);
+                
+                // Generate slots
+                for ($i = 0; $i < $numberOfPatients; $i++) {
+                    $minutesToAdd = round($i * $gap);
+                    $slotTime = (clone $startTimeCopy)->addMinutes($minutesToAdd);
+                    $workingHours[] = $slotTime->format('H:i');
+                }
+            } else {
+                // Handle case with just one patient
+                $workingHours[] = $startTimeCopy->format('H:i');
+            }
+        }
     }
-    /**
-     * Calculate the number of patients per day based on start time, end time, and time slot.
-     *
-     * @param string $startTime Format: H:i
-     * @param string $endTime Format: H:i
-     * @param int $timeSlot Time in minutes for each slot
-     * @return int
-     */
-    private function calculatePatientsPerDay($startTime, $end_time, $timeSlot)
-    {
-        $start = strtotime($startTime);
-        $end = strtotime($end_time);
-        
-        // Convert times to minutes since midnight
-        $startMinutes = intval(date('H', $start)) * 60 + intval(date('i', $start));
-        $endMinutes = intval(date('H', $end)) * 60 + intval(date('i', $end));
-        
-        // Calculate total workable minutes
-        $totalMinutes = $endMinutes - $startMinutes;
-        
-        // Calculate number of slots
-        return floor($totalMinutes / $timeSlot);
+    
+    return array_unique($workingHours);
+}
+private function getBookedSlots($doctorId, $date) {
+    // Fetch all booked appointments for the given doctor and date
+    $bookedAppointments = Appointment::where('doctor_id', $doctorId)
+        ->whereDate('appointment_date', $date)
+        ->where('status', '!=', AppointmentSatatusEnum::CANCELED->value)
+        ->get();
+    
+    // Map appointment times to a simple format (H:i)
+    return $bookedAppointments->map(function ($appointment) {
+        return Carbon::parse($appointment->appointment_time)->format('H:i');
+    })->toArray();
+}
+/**
+ * Calculate time slots based on start time, end time, and capacity
+ */
+private function calculateTimeSlots(
+    string $startTime, 
+    string $endTime, 
+    int $capacity, 
+    int $doctorId, 
+    string $date,
+    ?string $shiftPeriod = null,
+): array {
+    if ($capacity <= 0) {
+        return [];
     }
+    
+    // If no specific shift period is provided, check the schedules table
+    if ($shiftPeriod === null) {
+        $dayOfWeek = DayOfWeekEnum::cases()[Carbon::parse($date)->dayOfWeek]->value;
+        $schedules = Schedule::select('doctor_id', 'day_of_week','start_time', 'end_time', 'number_of_patients_per_day', 'shift_period')
+        ->where('doctor_id', 10)
+        ->where('is_active', 1)
+        ->get();
+        
+        $slots = [];
+        
+        // Calculate slots for each shift (morning and afternoon)
+        foreach (['morning', 'afternoon'] as $shift) {
+            $schedule = $schedules->firstWhere('shift_period', $shift);
+            if (!$schedule) continue;
+            
+            // Get shift-specific data
+            $shiftStart = $schedule->start_time;
+            $shiftEnd = $schedule->end_time;
+            $patientsForShift = (int)$schedule->number_of_patients_per_day;
+            
+            // Calculate slots for this shift
+            $shiftSlots = $this->calculateSlotsForShift($date, $shiftStart, $shiftEnd, $patientsForShift);
+            $slots = array_merge($slots, $shiftSlots);
+        }
+        
+        return array_unique($slots);
+    }
+
+    // If a specific shift period is provided, calculate for that shift only
+    return $this->calculateSlotsForShift($date, $startTime, $endTime, $capacity);
+}
+
+private function calculateSlotsForShift(string $date, string $startTime, string $endTime, int $capacity): array
+{
+    if ($capacity <= 0) {
+        return [];
+    }
+    
+    $startDateTime = Carbon::parse("$date $startTime");
+    $endDateTime = Carbon::parse("$date $endTime");
+    
+    // Make sure end time is after start time
+    if ($endDateTime->lt($startDateTime)) {
+        $endDateTime->addDay(); // Assume it's crossing midnight
+    }
+    
+    // Calculate the total duration in minutes
+    $totalDuration = $endDateTime->diffInMinutes($startDateTime);
+    
+    // If only one patient, return just the start time
+    if ($capacity == 1) {
+        return [$startTime];
+    }
+    
+    // Calculate time slot gap (time between appointments)
+    $gap = abs($totalDuration) / ($capacity - 1);
+    
+    $slots = [];
+    for ($i = 0; $i < $capacity; $i++) {
+        $minutesToAdd = round($i * $gap);
+        $slotTime = (clone $startDateTime)->addMinutes($minutesToAdd);
+        $slots[] = $slotTime->format('H:i');
+    }
+    
+    return $slots;
+}
+
+
+// Helper function to ensure time format is H:i
+private function formatTimeString($timeString)
+{
+    // Parse the input time string 
+    $time = Carbon::parse($timeString);
+    // Return in the correct format
+    return $time->format('H:i');
+}
+// This method needs to be fixed too to support proper time formatting
+private function calculatePatientsPerShift($startTime, $endTime, $timeSlot)
+{
+    // Format the times to ensure correct format
+    $startTime = $this->formatTimeString($startTime);
+    $endTime = $this->formatTimeString($endTime);
+
+    // Calculate total minutes in shift
+    $start = Carbon::parse($startTime);
+    $end = Carbon::parse($endTime);
+    $totalMinutes = $end->diffInMinutes($start);
+    
+    // Calculate number of slots that can fit in this time period
+    $slots = floor($totalMinutes / $timeSlot);
+    
+    // Return at least 1 patient
+    return max(1, $slots);
+}
+
+private function prepareScheduleData(Doctor $doctor, Carbon $date, string $shift, string $startTime, string $endTime, string $dayOfWeek, ?int $patients, Request $request): array
+{
+    $numberOfPatients = $patients;
+    
+    if ($request->patients_based_on_time && !empty($request->time_slot)) {
+        $numberOfPatients = $this->calculatePatientsPerShift($startTime, $endTime, $request->time_slot);
+    }
+    
+    return [
+        'doctor_id' => $doctor->id,
+        'date' => $date->format('Y-m-d'),
+        'shift_period' => $shift,
+        'start_time' => $startTime,
+        'end_time' => $endTime,
+        'day_of_week' => $dayOfWeek,
+        'is_active' => true,
+        'number_of_patients_per_day' => $numberOfPatients,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ];
+}
+    
+
 
     // Make sure your DoctorResource handles JSON days properly
     public function update(Request $request, $doctorid)
     {
         // dd($request->all());
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+           'name' => 'required|string|max:255',
             'email' => 'required',
-            'phone' => 'required|string',
+            'phone' => 'nullable|string',
             'password' => 'nullable|min:8',
             'specialization' => 'required|exists:specializations,id',
             'frequency' => 'required|string',
             'patients_based_on_time' => 'required|boolean',
-            'time_slot' => 'nullable|integer',
+            'time_slot' => 'required_if:patients_based_on_time,true|nullable|integer',
             'schedules' => 'array|required_without:customDates',
             'customDates' => 'array|required_without:schedules',
             'schedules.*.day_of_week' => 'required|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
             'schedules.*.shift_period' => 'required|in:morning,afternoon',
             'schedules.*.start_time' => 'required',
             'schedules.*.end_time' => 'required|after:schedules.*.start_time',
-            'number_of_patients_per_day' => 'required|integer|min:1',
-            'customDates.*.morningStartTime' => 'nullable|required_with:customDates.*.morningEndTime|date_format:H:i',
-            'customDates.*.morningEndTime' => 'nullable|required_with:customDates.*.morningStartTime|date_format:H:i|after:customDates.*.morningStartTime',
-            'customDates.*.afternoonStartTime' => 'nullable|required_with:customDates.*.afternoonEndTime|date_format:H:i',
-            'customDates.*.afternoonEndTime' => 'nullable|required_with:customDates.*.afternoonStartTime|date_format:H:i|after:customDates.*.afternoonStartTime',
-            'customDates.*.morningPatients' => 'nullable|required_with:customDates.*.morningStartTime|integer|min:1',
-            'customDates.*.afternoonPatients' => 'nullable|required_with:customDates.*.afternoonStartTime|integer|min:1',
-            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'schedules.*.number_of_patients_per_day' => 'required_if:patients_based_on_time,false|integer',
+            'customDates.*.date' => 'required|date|after_or_equal:today',
+            'customDates.*.shift_period' => 'required|in:morning,afternoon',
+            'customDates.*.start_time' => 'required|date_format:H:i',
+            'customDates.*.end_time' => 'required|date_format:H:i|after:customDates.*.start_time',
+            'customDates.*.number_of_patients_per_day' => 'required_if:patients_based_on_time,false|integer',
+            'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'appointmentBookingWindow' => 'required|array',
             'appointmentBookingWindow.*.month' => 'required|integer|between:1,12',
             'appointmentBookingWindow.*.is_available' => 'required|boolean',

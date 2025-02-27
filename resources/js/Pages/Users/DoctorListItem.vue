@@ -138,7 +138,6 @@ const handleDelete = async (id) => {
       <span v-else>No Photo</span>
     </td>
     <td class="doctor-name">{{ doctor.name }}</td>
-    <td class="doctor-name">{{ doctor.name }}</td>
     <td class="doctor-email">{{ doctor.email }}</td>
     <td class="doctor-phone">{{ doctor.phone }}</td>
     <td class="doctor-specialization">{{ doctor.specialization }}</td>

@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, defineEmits, watch } from 'vue';
+import { reactive, defineEmits, watch, ref } from 'vue';
 import * as yup from 'yup';
 import { useForm } from 'vee-validate';
 
@@ -20,25 +20,29 @@ const props = defineProps({
     type: Number,
     required: false,
   },
-  number_of_patients_per_day: {
-    type: Number,
-    default: 0,
-  },
   existingSchedules: {
     type: Array,
     default: () => []
   }
 });
 
-console.log(props.number_of_patients_per_day);
-
 // Initialize schedules with reactive
 const schedules = reactive(
   daysOfWeek.reduce((acc, day) => ({
     ...acc,
     [day]: {
-      morning: { isActive: false, startTime: '08:00', endTime: '12:00' },
-      afternoon: { isActive: false, startTime: '13:00', endTime: '17:00' },
+      morning: { 
+        isActive: false, 
+        startTime: '08:00', 
+        endTime: '12:00',
+        patients_per_day: 0 
+      },
+      afternoon: { 
+        isActive: false, 
+        startTime: '13:00', 
+        endTime: '17:00',
+        patients_per_day: 0 
+      },
     },
   }), {})
 );
@@ -47,8 +51,18 @@ const schedules = reactive(
 const resetSchedules = () => {
   Object.keys(schedules).forEach(day => {
     schedules[day] = {
-      morning: { isActive: false, startTime: '08:00', endTime: '12:00' },
-      afternoon: { isActive: false, startTime: '13:00', endTime: '17:00' }
+      morning: { 
+        isActive: false, 
+        startTime: '08:00', 
+        endTime: '12:00',
+        patients_per_day: 0 
+      },
+      afternoon: { 
+        isActive: false, 
+        startTime: '13:00', 
+        endTime: '17:00',
+        patients_per_day: 0 
+      }
     };
   });
 };
@@ -67,8 +81,9 @@ const populateSchedules = (existingSchedules) => {
       if (schedules[day][shift]) {
         schedules[day][shift] = {
           isActive: true,
-          startTime: schedule.start_time.slice(0, 5), // Remove seconds
-          endTime: schedule.end_time.slice(0, 5), // Remove seconds
+          startTime: schedule.start_time.slice(0, 5),
+          endTime: schedule.end_time.slice(0, 5),
+          patients_per_day: schedule.number_of_patients_per_day || 0
         };
       }
     }
@@ -86,7 +101,7 @@ watch(
   { immediate: true, deep: true }
 );
 
-// Form validation setup
+// Form validation schema
 const { values, errors } = useForm({
   initialValues: schedules,
   validationSchema: yup.object().shape({
@@ -98,7 +113,19 @@ const { values, errors } = useForm({
     }),
   }),
 });
-
+// Fetch excluded dates from the backend
+const fetchExcludedDates = async (doctorId) => {    
+    
+    try {
+      const response = await axios.get(`/api/excluded-dates/${doctorId}`);
+      excludedDates.value = response.data.data;
+      console.log(excludedDates.value);
+      
+    } catch (error) {
+      toast.error('Failed to fetch excluded dates');
+      console.error('Error fetching excluded dates:', error);
+    }
+  };
 
 // Calculate patients per shift
 const calculatePatientsPerDay = (startTime, endTime, slot) => {
@@ -123,7 +150,7 @@ const updateSchedulesData = () => {
           is_active: true,
           number_of_patients_per_day: props.patients_based_on_time
             ? calculatePatientsPerDay(shifts.morning.startTime, shifts.morning.endTime, props.time_slot)
-            : props.number_of_patients_per_day,
+            : shifts.morning.patients_per_day,
         });
       }
       if (shifts.afternoon.isActive) {
@@ -135,7 +162,7 @@ const updateSchedulesData = () => {
           is_active: true,
           number_of_patients_per_day: props.patients_based_on_time
             ? calculatePatientsPerDay(shifts.afternoon.startTime, shifts.afternoon.endTime, props.time_slot)
-            : props.number_of_patients_per_day,
+            : shifts.afternoon.patients_per_day,
         });
       }
       return records;
@@ -146,7 +173,6 @@ const updateSchedulesData = () => {
   emit('update:modelValue', { schedules: schedulesData });
 };
 
-
 // Watch for changes in schedules
 watch(schedules, () => {
   updateSchedulesData();
@@ -156,8 +182,7 @@ watch(schedules, () => {
 watch(
   [
     () => props.patients_based_on_time,
-    () => props.time_slot,
-    () => props.number_of_patients_per_day
+    () => props.time_slot
   ],
   () => {
     updateSchedulesData();
@@ -168,13 +193,18 @@ watch(
 const handleTimeChange = (day, shift, type, event) => {
   const time = event.target.value;
   schedules[day][shift][type] = time;
-  updateSchedulesData(); // Trigger update when time changes
+  updateSchedulesData();
+};
+
+// Handle patients per day changes
+const handlePatientsChange = (day, shift, event) => {
+  const value = parseInt(event.target.value) || 0;
+  schedules[day][shift].patients_per_day = value;
+  updateSchedulesData();
 };
 </script>
 
 <template>
-  <!-- Previous template code remains the same until the time inputs -->
-  
   <div class="card">
     <div class="card-header">
       <h2 class="card-title">
@@ -224,6 +254,17 @@ const handleTimeChange = (day, shift, type, event) => {
                 @input="(e) => handleTimeChange(day, 'morning', 'endTime', e)"
               />
             </div>
+            <div class="col-md-4 mb-3" v-if="!patients_based_on_time">
+              <label class="form-label">Patients Per Day Morning</label>
+              <input
+                type="number"
+                class="form-control"
+                :value="schedules[day].morning.patients_per_day"
+                @input="(e) => handlePatientsChange(day, 'morning', e)"
+                min="0"
+                :disabled="props.patients_based_on_time"
+              />
+            </div>
           </div>
         </div>
         
@@ -241,8 +282,8 @@ const handleTimeChange = (day, shift, type, event) => {
             </div>
           </div>
           
-          <div v-if="schedules[day].afternoon.isActive" class="row ms-4">
-            <div class="col-md-6 mb-3">
+          <div v-if="schedules[day].afternoon.isActive"   class="row ms-4">
+            <div class="col-md-6 mb-3" >
               <label class="form-label">Start Time</label>
               <input
                 type="time"
@@ -251,13 +292,24 @@ const handleTimeChange = (day, shift, type, event) => {
                 @input="(e) => handleTimeChange(day, 'afternoon', 'startTime', e)"
               />
             </div>
-            <div class="col-md-6 mb-3">
+            <div class="col-md-6 mb-3" >
               <label class="form-label">End Time</label>
               <input
                 type="time"
                 class="form-control"
                 :value="schedules[day].afternoon.endTime"
                 @input="(e) => handleTimeChange(day, 'afternoon', 'endTime', e)"
+              />
+            </div>
+            <div class="col-md-4 mb-3" v-if="!patients_based_on_time">
+              <label class="form-label">Patients Per Day Afternoon</label>
+              <input
+                type="number"
+                class="form-control"
+                :value="schedules[day].afternoon.patients_per_day"
+                @input="(e) => handlePatientsChange(day, 'afternoon', e)"
+                min="0"
+                :disabled="props.patients_based_on_time"
               />
             </div>
           </div>

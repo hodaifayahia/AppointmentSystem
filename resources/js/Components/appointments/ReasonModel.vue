@@ -51,15 +51,13 @@
   // Emits
   const emit = defineEmits(['close', 'submit']);
   
-  // Hardcoded reasons for canceling a doctor's appointment with Font Awesome icons
-  const reasons = ref([
-    { value: 'BUSY', label: 'I am too busy', icon: 'fas fa-calendar-times' },
-    { value: 'UNWELL', label: 'I am not feeling well', icon: 'fas fa-thermometer-half' },
-    { value: 'TRAVEL', label: 'I have travel plans', icon: 'fas fa-plane' },
-    { value: 'WORK', label: 'Work commitments', icon: 'fas fa-briefcase' },
-    { value: 'OTHER', label: 'Other reasons', icon: 'fas fa-question-circle' },
-  ]);
-  
+// Hardcoded reasons for canceling a doctor's appointment with Font Awesome icons
+const reasons = ref([
+  { value: 'NOT_RESPONDED', label: 'Not Responded', icon: 'fas fa-calendar-times' },
+  { value: 'PATIENT_CANCELED', label: 'Patient Canceled', icon: 'fas fa-thermometer-half' },
+  { value: 'OTHER', label: 'Other Reasons', icon: 'fas fa-question-circle' },
+]);
+
   // Selected reason
   const selectedReason = ref('');
   

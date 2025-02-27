@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue';
 import axios from 'axios';
 
+
 const appointments = ref([]);
 const loading = ref(false);
 const error = ref(null);
@@ -22,6 +23,7 @@ const filters = ref({
   status: '',
   doctorName: '',
 });
+
 const initializeRole = async () => {
   try {
     const user = await axios.get('/api/role');
@@ -59,6 +61,8 @@ const getAppointments = async (status = null, filter = null, date = null) => {
 
 
     const response = await axios.get(`/api/appointments`, { params });
+    console.log(response.data);
+    
     pagination.value = response.data.meta;
 
     if (response.data.success) {
@@ -303,14 +307,12 @@ function formatTime(time) {
 }
 // Status options
 const statusOptions = ref([
-  { value: 0, label: 'Scheduled' },
-  { value: 1, label: 'Confirmed' },
-  { value: 2, label: 'Canceled' },
-  { value: 3, label: 'Pending' },
-  { value: 4, label: 'Done' },
+  { value: "0", label: 'Scheduled' },
+  { value: "1", label: 'Confirmed' },
+  { value: "2", label: 'Canceled' },
+  { value: "3", label: 'Pending' },
+  { value: "4", label: 'Done' },
 ]);
-
-// Modified filteredAppointments computed property
 const filteredAppointments = computed(() => {
   return appointments.value.filter(appointment => {
     // Base filtering conditions
@@ -326,8 +328,9 @@ const filteredAppointments = computed(() => {
       (!filters.value.time ||
         appointment.appointment_time.includes(filters.value.time)) &&
       (!filters.value.status ||
-        appointment.status.value === filters.value.status);
-
+        // Convert both values to numbers for comparison
+        Number(appointment.status.value) === Number(filters.value.status));
+    
     // Additional doctor name filter only if user is not a doctor
     const doctorNameCondition = role.value === 'doctor' ? true :
       (!filters.value.doctorName ||
@@ -336,15 +339,36 @@ const filteredAppointments = computed(() => {
     return baseConditions && doctorNameCondition;
   });
 });
+const generatePdf = async () => {
+  try {
+    const response = await axios.post('/generate-appointments-pdf', filters.value, {
+      responseType: 'blob', // Important for handling binary data
+    });
+    
+    // Create a blob URL for the PDF
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'appointments.pdf'); // Set the file name
+    document.body.appendChild(link);
+    link.click();
+
+    // Clean up
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+  }
+};
+const printTable = () => {
+  window.print();
+};
 
 // Modified onMounted to ensure role is initialized first
-onMounted(async () => {
-  console.log(role.value);
+onMounted( () => {
 
-  await initializeRole(); // This will also trigger getAppointments if user is a doctor
-  if (role.value !== 'doctor') {
-    await getAppointments(); // Only fetch all appointments if user is not a doctor
-  }
+ 
+     getAppointments(); // Only fetch all appointments if user is not a doctor
   fetchDoctorsworkingDates(formatMonthYear(currentDate.value));
 });
 </script>
@@ -404,6 +428,10 @@ onMounted(async () => {
       <!-- Filters and Table -->
       <div class="card">
         <div class="card-body">
+
+          <button @click="generatePdf" class="btn btn-primary flosat-right">
+            Print PDF
+          </button>
           <div class="table-responsive">
             <table class="table table-bordered ">
               <thead class="table-light">

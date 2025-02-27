@@ -43,6 +43,7 @@ const getPatients = async (page = 1) => {
 const initializeRole = async () => {
   try {
     const user = await axios.get('/api/role');
+    role.value = user.data.role;
 
 
     if (user.data.role === 'admin') {

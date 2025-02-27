@@ -54,12 +54,13 @@ const adminRoutes = [
         path: '/admin/appointments/create/:id',
         name: 'admin.appointments.create',
         component: AppointmentPage,
+        
     },
     {
-        path: '/admin/appointments/edit/:id/:appointmentId',
+        path: '/admin/appointments/create/:id/:specialization_id/:appointmentId',
         name: 'admin.appointments.edit',
         component: AppointmentPage,
-    },
+      },
     {
         path: '/admin/appointments/:id',
         name: 'admin.appointments',

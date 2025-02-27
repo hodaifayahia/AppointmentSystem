@@ -23,10 +23,6 @@ const props = defineProps({
     type: Number,
     required: true,
   },
-  number_of_patients_per_day: {
-    type: Number,
-    default: 0,
-  },
   existingSchedules: {
     type: Array,
     default: null
@@ -46,12 +42,13 @@ const calculatePatientsPerShift = (startTime, endTime, slot) => {
   const totalMinutes = (end - start) / 60000;
   return Math.floor(totalMinutes / slot);
 };
+
 function formatTimeForInput(time) {
   if (!time) return '';
-
   const [hours, minutes] = time.split(':');
   return `${hours}:${minutes}`;
 }
+
 const processExistingSchedules = (schedules) => {
   const processedDates = new Map();
 
@@ -86,18 +83,20 @@ const updatePatientsForShift = (dateInfo, shift) => {
   const startTime = dateInfo[`${shift}StartTime`];
   const endTime = dateInfo[`${shift}EndTime`];
 
-  if (startTime && endTime) {
-    if (props.patients_based_on_time) {
-      dateInfo[`${shift}Patients`] = calculatePatientsPerShift(
-        startTime,
-        endTime,
-        props.time_slot
-      );
-    } else {
-      dateInfo[`${shift}Patients`] = props.number_of_patients_per_day;
-    }
-  } else {
-    dateInfo[`${shift}Patients`] = 0;
+  if (startTime && endTime && props.patients_based_on_time) {
+    dateInfo[`${shift}Patients`] = calculatePatientsPerShift(
+      startTime,
+      endTime,
+      props.time_slot
+    );
+  }
+};
+
+const handlePatientsChange = (index, shift, event) => {
+  if (!props.patients_based_on_time) {
+    const value = parseInt(event.target.value) || 0;
+    dates.value[index][`${shift}Patients`] = value;
+    emitUpdate();
   }
 };
 
@@ -171,7 +170,7 @@ const emitUpdate = () => {
     // Morning shift
     if (dateInfo.morningStartTime && dateInfo.morningEndTime) {
       records.push({
-        date:dateInfo.date,
+        date: dateInfo.date,
         day_of_week: dayName,
         shift_period: 'morning',
         start_time: dateInfo.morningStartTime,
@@ -184,7 +183,7 @@ const emitUpdate = () => {
     // Afternoon shift
     if (dateInfo.afternoonStartTime && dateInfo.afternoonEndTime) {
       records.push({
-        date:dateInfo.date,
+        date: dateInfo.date,
         day_of_week: dayName,
         shift_period: 'afternoon',
         start_time: dateInfo.afternoonStartTime,
@@ -203,7 +202,7 @@ const emitUpdate = () => {
 
 // Watch for changes in props that affect patient calculations
 watch(
-  [() => props.patients_based_on_time, () => props.time_slot, () => props.number_of_patients_per_day],
+  [() => props.patients_based_on_time, () => props.time_slot],
   () => {
     dates.value.forEach(dateInfo => {
       updatePatientsForShift(dateInfo, 'morning');
@@ -239,7 +238,7 @@ watch(
           <div class="p-3 rounded">
             <h6 class="mb-3">Morning Session</h6>
             <div class="row">
-              <div class="col-md-6 mb-3">
+              <div class="col-md-4 mb-3">
                 <label class="form-label">Start Time</label>
                 <Field
                   type="time"
@@ -249,7 +248,7 @@ watch(
                   class="form-control form-control-md"
                 />
               </div>
-              <div class="col-md-6 mb-3">
+              <div class="col-md-4 mb-3">
                 <label class="form-label">End Time</label>
                 <Field
                   type="time"
@@ -259,7 +258,17 @@ watch(
                   class="form-control form-control-md"
                 />
               </div>
-             
+              <div class="col-md-4 mb-3">
+                <label class="form-label">Number of Patients</label>
+                <input
+                  type="number"
+                  class="form-control"
+                  :value="dateInfo.morningPatients"
+                  @input="(e) => handlePatientsChange(index, 'morning', e)"
+                  min="0"
+                  :disabled="props.patients_based_on_time"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -269,7 +278,7 @@ watch(
           <div class="p-3 rounded">
             <h6 class="mb-3">Afternoon Session</h6>
             <div class="row">
-              <div class="col-md-6 mb-3">
+              <div class="col-md-4 mb-3">
                 <label class="form-label">Start Time</label>
                 <Field
                   type="time"
@@ -279,7 +288,7 @@ watch(
                   class="form-control form-control-md"
                 />
               </div>
-              <div class="col-md-6 mb-3">
+              <div class="col-md-4 mb-3">
                 <label class="form-label">End Time</label>
                 <Field
                   type="time"
@@ -289,10 +298,16 @@ watch(
                   class="form-control form-control-md"
                 />
               </div>
-              <div class="col-12">
-                <small class="text-muted">
-                  Patients: {{ dateInfo.afternoonPatients }}
-                </small>
+              <div class="col-md-4 mb-3">
+                <label class="form-label">Number of Patients</label>
+                <input
+                  type="number"
+                  class="form-control"
+                  :value="dateInfo.afternoonPatients"
+                  @input="(e) => handlePatientsChange(index, 'afternoon', e)"
+                  min="0"
+                  :disabled="props.patients_based_on_time"
+                />
               </div>
             </div>
           </div>
@@ -320,7 +335,6 @@ watch(
     </div>
   </div>
 </template>
-
 
 <style scoped>
 .custom-dates {

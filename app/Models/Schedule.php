@@ -19,7 +19,7 @@ class Schedule extends Model
         'created_by',
         'updated_by',
         'deleted_by',
-        ''
+
     ];
 
     public function doctor()

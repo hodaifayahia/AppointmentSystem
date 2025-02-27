@@ -12,19 +12,28 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['timeSelected', 'dateSelected']);
-const availableSlots = ref({});  // Changed to object to hold multiple properties
-const selectedDate = ref(null);  // Initialize as null
+const availableSlots = ref({});
+const selectedDate = ref(null);
 
+// Format the selected date as yyyy-MM-dd for API
 const formattedDate = computed(() => {
   if (!selectedDate.value) return '';
-  return `${selectedDate.value.getFullYear()}-${(selectedDate.value.getMonth() + 1).toString().padStart(2, '0')}-${selectedDate.value.getDate().toString().padStart(2, '0')}`;
+  const date = selectedDate.value;
+  return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
 });
+
+// Custom date formatter for display
+const formatDate = (date) => {
+  if (!date) return '';
+  return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
+};
+
 const fetchSlots = async () => {
   try {
     const response = await axios.get('/api/appointments/ForceSlots', {
       params: {
-        date: props.date ? props.date : null,  // Send date if available, otherwise null
-        days: props.date ? null : props.days, // Send days only if date is not available
+        date: props.date ? props.date : null,
+        days: props.date ? null : props.days,
         doctor_id: props.doctorId
       }
     });
@@ -37,15 +46,14 @@ const fetchSlots = async () => {
 
     // Set the selected date to the next available date if it exists
     selectedDate.value = availableSlots.value.next_available_date;
-    emit('dateSelected', response.data.next_available_date); // Emit selected date to the parent
+    emit('dateSelected', formattedDate.value); // Emit the formatted date to the parent
 
   } catch (error) {
     console.error('Error fetching slots:', error);
     availableSlots.value = {};
-    selectedDate.value = null; // Reset selectedDate if there's an error
+    selectedDate.value = null;
   }
 };
-
 
 const handleTimeSelected = (time) => {
   emit('timeSelected', time); // Emit the selected time to parent
@@ -61,7 +69,7 @@ watch(() => [props.days, props.doctorId], fetchSlots, { immediate: true });
 
 // Function to reset the date selection
 const resetDateSelection = () => {
-  selectedDate.value = selectedDate; 
+  selectedDate.value = null;
   availableSlots.value = {};
 };
 </script>
@@ -76,18 +84,19 @@ const resetDateSelection = () => {
             v-model="selectedDate" 
             id="datepicker" 
             :enable-time-picker="false"
+            :format-locale="{ code: 'en-GB', monthsShort: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] }"
+            :auto-apply="true"
+            :format="(date) => formatDate(date)"
             style="display: block; width: 100%;"
           />
         </div>
-
-        
       </div>
     </div>
 
     <div v-if="selectedDate" class="card mb-3 shadow-sm">
       <div class="card-body">
         <TimeSlotSelector
-          :date="props.date"
+          :date="formattedDate" 
           :forceAppointment="true"
           :doctorid="props.doctorId"
           @timeSelected="handleTimeSelected"
@@ -98,6 +107,7 @@ const resetDateSelection = () => {
     </div>
   </div>
 </template>
+
 <style scoped>
 .appointment-selection {
   max-width: 600px;

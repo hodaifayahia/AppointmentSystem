@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Imports;
+
 use App\Models\Patient;
 use App\Models\Appointment;
 use App\Models\Doctor;
@@ -29,14 +30,16 @@ class AppointmentImport implements
     protected $errors = [];
     protected $successCount = 0;
     protected $dateSlots = [];
+    protected $lastAppointmentTimes = [];
+    protected $intervalMinutes = 15;
     protected $usedSlots = [];
-    protected $overflowMinutes;
+    protected $existingAppointments = [];
+    protected $processedPatients = [];
 
     public function __construct($createdBy, $doctorId)
     {
         $this->createdBy = $createdBy;
         $this->doctorId = $doctorId;
-        $this->overflowMinutes = 15; // Default time between overflow appointments
     }
 
     protected function getDoctorWorkingHours($doctorId, $date)
@@ -51,11 +54,10 @@ class AppointmentImport implements
         $doctor = Doctor::find($doctorId, ['patients_based_on_time', 'time_slot']);
         
         if (!$doctor || $schedules->isEmpty()) {
-            return ['slots' => [], 'lastTime' => null];
+            return [];
         }
         
         $workingHours = [];
-        $lastEndTime = null;
         
         foreach (['morning', 'afternoon'] as $shift) {
             $schedule = $schedules->firstWhere('shift_period', $shift);
@@ -63,7 +65,6 @@ class AppointmentImport implements
                 try {
                     $startTime = Carbon::parse($date . ' ' . $schedule->start_time);
                     $endTime = Carbon::parse($date . ' ' . $schedule->end_time);
-                    $lastEndTime = $endTime; // Keep track of the latest end time
                     
                     if ($doctor->time_slot !== null) {
                         // Time slot based calculation
@@ -80,7 +81,7 @@ class AppointmentImport implements
                         $totalMinutes = $endTime->diffInMinutes($startTime);
                         $patientsPerShift = (int) $schedule->number_of_patients_per_day;
                         
-                        if (abs($totalMinutes) > 0 && abs($patientsPerShift) > 0) {
+                        if ($totalMinutes > 0 && $patientsPerShift > 0) {
                             $patientsForPeriod = (int) ceil($patientsPerShift / 2);
                             $slotDuration = (int) ceil($totalMinutes / $patientsForPeriod);
                             
@@ -89,7 +90,7 @@ class AppointmentImport implements
 
                             while ($currentTime < $endTime && $slotsCreated < $patientsForPeriod) {
                                 $workingHours[] = $currentTime->format('H:i');
-                                $currentTime->addMinutes(abs($slotDuration));
+                                $currentTime->addMinutes($slotDuration);
                                 $slotsCreated++;
                             }
                         }
@@ -100,81 +101,138 @@ class AppointmentImport implements
             }
         }
 
-        return [
-            'slots' => array_unique($workingHours),
-            'lastTime' => $lastEndTime
-        ];
+        return array_unique($workingHours);
+    }
+
+    protected function getOrCreateTimeSlot($appointmentDate)
+    {
+        // If we don't have any slots for this date yet, initialize them
+        if (!isset($this->dateSlots[$appointmentDate])) {
+            $this->dateSlots[$appointmentDate] = $this->getDoctorWorkingHours($this->doctorId, $appointmentDate);
+        }
+
+        // If we don't have a last appointment time for this date yet
+        if (!isset($this->lastAppointmentTimes[$appointmentDate])) {
+            // Get the latest appointment for this date
+            $lastAppointment = Appointment::where('doctor_id', $this->doctorId)
+                ->where('appointment_date', $appointmentDate)
+                ->orderBy('appointment_time', 'desc')
+                ->first();
+
+            if ($lastAppointment) {
+                $this->lastAppointmentTimes[$appointmentDate] = Carbon::parse($lastAppointment->appointment_time);
+            } elseif (!empty($this->dateSlots[$appointmentDate])) {
+                // If no appointments exist, use the last scheduled slot
+                $this->lastAppointmentTimes[$appointmentDate] = Carbon::parse($appointmentDate . ' ' . end($this->dateSlots[$appointmentDate]));
+            } else {
+                // If no schedule exists, start from 9 AM
+                $this->lastAppointmentTimes[$appointmentDate] = Carbon::parse($appointmentDate . ' 09:00:00');
+            }
+        }
+
+        // Create next time slot by adding interval to last appointment time
+        $nextTime = (clone $this->lastAppointmentTimes[$appointmentDate])->addMinutes($this->intervalMinutes);
+        $this->lastAppointmentTimes[$appointmentDate] = $nextTime;
+
+        return $nextTime->format('H:i:s');
+    }
+
+    protected function loadExistingAppointments($appointmentDate)
+    {
+        if (!isset($this->existingAppointments[$appointmentDate])) {
+            // Get all existing appointments for this date and doctor
+            $existingAppointments = Appointment::where('doctor_id', $this->doctorId)
+                ->where('appointment_date', $appointmentDate)
+                ->with('patient:id,phone,Firstname,Lastname')
+                ->get();
+
+            $this->existingAppointments[$appointmentDate] = [];
+            
+            foreach ($existingAppointments as $appointment) {
+                // Create a unique key using phone, first name, and last name
+                $key = $this->createPatientKey(
+                    $appointment->patient->phone,
+                    $appointment->patient->Firstname,
+                    $appointment->patient->Lastname
+                );
+                
+                $this->existingAppointments[$appointmentDate][$key] = $appointment;
+            }
+        }
+    }
+
+    protected function createPatientKey($phone, $firstName, $lastName)
+    {
+        $phone = $this->cleanPhoneNumber($phone);
+        $firstName = strtolower(trim($firstName));
+        $lastName = strtolower(trim($lastName));
+        return "{$phone}_{$firstName}_{$lastName}";
     }
 
     public function model(array $row)
     {
         try {
+            // Check for required appointment date
             if (empty($row['appointement_date'])) {
                 throw new \Exception("Appointment date is required");
             }
-
+    
             $appointmentDate = $this->formatDate($row['appointement_date']);
             
             if (Carbon::parse($appointmentDate)->startOfDay()->lt(Carbon::now()->startOfDay())) {
                 throw new \Exception("Cannot book appointments for past dates");
             }
+    
+            // Validate firstname and lastname
+            $firstName = trim($row['firstname'] ?? '');
+            $lastName = trim($row['lastname'] ?? '');
 
-            // Get or initialize slots for this date
-            if (!isset($this->dateSlots[$appointmentDate])) {
-                $doctorHours = $this->getDoctorWorkingHours($this->doctorId, $appointmentDate);
-                $this->dateSlots[$appointmentDate] = $doctorHours['slots'];
-                $this->usedSlots[$appointmentDate] = [];
-                
-                // Store the last end time for overflow handling
-                $this->lastEndTime[$appointmentDate] = $doctorHours['lastTime'];
+            // Skip if either firstname or lastname is empty
+            if (empty($firstName) ||  empty($lastName)) {
+                Log::info("Skipping appointment due to missing name. Date: {$appointmentDate}, " . 
+                         "Firstname: {$firstName}, Lastname: {$lastName}");
+                return null;
             }
 
-            // Get existing appointments
-            $bookedSlots = Appointment::where('doctor_id', $this->doctorId)
-                ->where('appointment_date', $appointmentDate)
-                ->pluck('appointment_time')
-                ->map(function($time) {
-                    return Carbon::parse($time)->format('H:i');
-                })
-                ->toArray();
-
-            // Combine already booked slots with slots used in current import
-            $unavailableSlots = array_merge($bookedSlots, $this->usedSlots[$appointmentDate]);
-
-            // Get available slots
-            $availableSlots = array_diff($this->dateSlots[$appointmentDate], $unavailableSlots);
-
-            $appointmentTime = null;
-            
-            if (!empty($availableSlots)) {
-                // Use the next available regular slot
-                $appointmentTime = reset($availableSlots);
-            } else {
-                // Handle overflow: schedule after the last appointment
-                $lastTime = empty($unavailableSlots) 
-                    ? $this->lastEndTime[$appointmentDate]
-                    : Carbon::parse(max($unavailableSlots));
-                
-                $appointmentTime = $lastTime->addMinutes($this->overflowMinutes)->format('H:i');
-            }
-            
-            // Mark slot as used
-            $this->usedSlots[$appointmentDate][] = $appointmentTime;
-
-            // Process patient
+            // Clean and prepare patient data
             $phone = $this->cleanPhoneNumber($row['phone'] ?? '');
+            $firstName = ucfirst(strtolower($firstName));
+            $lastName = ucfirst(strtolower($lastName));
+            
+            // Load existing appointments for this date if not already loaded
+            $this->loadExistingAppointments($appointmentDate);
+            
+            // Create a unique key for this patient
+            $patientKey = $this->createPatientKey($phone, $firstName, $lastName);
+            
+            // Check if this exact patient already has an appointment on this date
+            if (isset($this->existingAppointments[$appointmentDate][$patientKey])) {
+                Log::info("Skipping duplicate appointment for patient: {$patientKey} on date: {$appointmentDate}");
+                return null;
+            }
+            
+            // Check if we've already processed this patient in the current import
+            if (isset($this->processedPatients[$appointmentDate][$patientKey])) {
+                Log::info("Skipping duplicate patient from import file: {$patientKey} on date: {$appointmentDate}");
+                return null;
+            }
+    
+            // Get or create patient
             $patient = Patient::firstOrCreate(
                 [
                     'phone' => $phone,
-                    'Firstname' => ucfirst(strtolower(trim($row['firstname']))),
-                    'Lastname' => ucfirst(strtolower(trim($row['lastname']))),
+                    'Firstname' => $firstName,
+                    'Lastname' => $lastName,
                 ],
                 [
                     'created_by' => $this->createdBy,
                 ]
             );
-
-            // Create appointment
+    
+            // Force create a new time slot after the last appointment
+            $appointmentTime = $this->getOrCreateTimeSlot($appointmentDate);
+    
+            // Create appointment data
             $appointmentData = [
                 'patient_id' => $patient->id,
                 'doctor_id' => $this->doctorId,
@@ -186,54 +244,21 @@ class AppointmentImport implements
                 'created_at' => now(),
                 'updated_at' => now(),
             ];
-
+    
+            // Mark this patient as processed for this date
+            $this->processedPatients[$appointmentDate][$patientKey] = true;
+            
+            // Add to existing appointments to prevent duplicates in subsequent rows
+            $this->existingAppointments[$appointmentDate][$patientKey] = new Appointment($appointmentData);
+    
             $this->successCount++;
             return new Appointment($appointmentData);
-
+    
         } catch (Throwable $e) {
             $this->errors[] = "Error processing row: " . $e->getMessage();
             Log::error("Import error: " . $e->getMessage());
             return null;
         }
-    }
-    protected function loadAvailableSlots($date)
-    {
-        // Get all slots from doctor's schedule
-        $allSlots = $this->getDoctorWorkingHours($this->doctorId, $date);
-        
-        if (empty($allSlots)) {
-            throw new \Exception("No available time slots found for this doctor on the specified date.");
-        }
-
-        // Filter out already booked slots
-        $bookedSlots = Appointment::where('doctor_id', $this->doctorId)
-            ->where('appointment_date', $date)
-            ->pluck('appointment_time')
-            ->map(function($time) {
-                return Carbon::parse($time)->format('H:i');
-            })
-            ->toArray();
-
-        $this->availableSlots = array_values(array_diff($allSlots, $bookedSlots));
-        
-        if (empty($this->availableSlots)) {
-            throw new \Exception("All time slots are already booked for this doctor on the specified date.");
-        }
-
-        // Sort slots chronologically
-        sort($this->availableSlots);
-    }
-
-    protected function getNextAvailableSlot()
-    {
-        if (!isset($this->availableSlots[$this->currentSlotIndex])) {
-            return null;
-        }
-
-        $slot = $this->availableSlots[$this->currentSlotIndex];
-        $this->currentSlotIndex++;
-        
-        return Carbon::parse($slot)->format('H:i:s');
     }
 
     protected function formatDate($date)
@@ -299,5 +324,4 @@ class AppointmentImport implements
     {
         return $this->successCount;
     }
-
 }

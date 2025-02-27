@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Appointment;
 use App\Models\Schedule;
 use App\Models\Specialization;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Carbon\Carbon;
 
 class Doctor extends Model 
 {
@@ -85,6 +86,10 @@ class Doctor extends Model
 public function schedules()
 {
     return $this->hasMany(Schedule::class);
+}
+public function appointments()
+{
+    return $this->hasMany(Appointment::class);
 }
     /**
      * Get the user that owns the doctor.

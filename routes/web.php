@@ -102,6 +102,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/api/patients/{parentid}', [PatientController::class, 'SpecificPatient']);
     Route::delete('/api/patients/{patientid}', [PatientController::class, 'destroy']);
     
+    Route::post('/generate-appointments-pdf', [AppointmentController::class, 'generateAppointmentsPdf']);
+    
     
     Route::get('/api/setting/user', [SettingController::class, 'index']);
     Route::put('/api/setting/user', [SettingController::class, 'update']);

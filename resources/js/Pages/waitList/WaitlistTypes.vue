@@ -16,6 +16,8 @@ const isEditMode = ref(false);
 const selectedWaitlist = ref(null);
 const specializationId = parseInt(route.params.id); // Convert to integer
 
+
+
 // Function to handle option change
 const handleOptionChange = (option) => {
   selectedOption.value = option;
@@ -155,6 +157,7 @@ onMounted(() => {
     </div>
 
     <!-- Add/Edit Waitlist Modal -->
+     
     <AddWaitlistModal
       :show="showAddModal"
       :editMode="false"

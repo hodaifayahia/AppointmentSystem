@@ -19,7 +19,6 @@ const props = defineProps({
 const emitUpdate = (newPatient) => {
   emit('specUpdate', newPatient); // Pass the newly created patient data
 };
-console.log('PatientModel.vue', props.specData);
 
 const emit = defineEmits(['close', 'patientsUpdate']);
 const toastr = useToastr();
@@ -30,6 +29,7 @@ const Patient = ref({
     last_name: props.specData?.last_name || '',
     phone: props.specData?.phone || '',
     Idnum: props.specData?.Idnum || '',
+    Parent: props.specData?.Parent || '',
     dateOfBirth: props.specData?.dateOfBirth || null,
 });
 
@@ -42,6 +42,7 @@ watch(
         Patient.value = {
             id: newValue?.id || null,
             first_name: props.specData?.first_name || '',
+            Parent: props.specData?.Parent || '',
             last_name: props.specData?.last_name || '',
 
             phone: newValue?.phone || '',
@@ -62,6 +63,8 @@ const PatientSchema = yup.object({
         .required('Last name is required')
         .min(2, 'Last name must be at least 2 characters')
         .max(50, 'Last name cannot exceed 50 characters'),
+        Parent: yup
+        .string(),
     phone: yup
         .string()
         .required('Phone number is required')
@@ -102,7 +105,9 @@ const submitForm = async (values) => {
         const submissionData = { ...values, id: Patient.value.id };
         
         if (isEditMode.value) {
-            await axios.put(`/api/patients/${submissionData.id}`, submissionData);
+            const response = await axios.put(`/api/patients/${submissionData.id}`, submissionData);
+            emitUpdate(response.data.data);
+
             toastr.success('Patient updated successfully');
         } else {
             const response = await axios.post('/api/patients', submissionData);
@@ -121,7 +126,7 @@ const submitForm = async (values) => {
 </script>
 
 <template>
-    <div class="modal fade" :class="{ show: showModal }" tabindex="-1" aria-labelledby="specializationModalLabel"
+    <div class="modal fade overflow-auto" :class="{ show: showModal }" tabindex="-1" aria-labelledby="specializationModalLabel"
         aria-hidden="true" v-if="showModal">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -138,10 +143,12 @@ const submitForm = async (values) => {
                         v-slot="{ errors, handleSubmit }"
                     >
                         <div class="row">
-                            <!-- Patient First Name -->
+                          
+
+                            <!-- Parent Name -->
                             <div class="col-md-12">
                                 <div class="form-group mb-4">
-                                    <label for="patient-first-name" class="text-muted">Patient First Name</label>
+                                    <label for="patient-first-name" class="text-muted">Patient Lastname Name</label>
                                     <Field
                                         name="first_name"
                                         v-model="Patient.first_name"
@@ -154,11 +161,9 @@ const submitForm = async (values) => {
                                     <span class="invalid-feedback">{{ errors.first_name }}</span>
                                 </div>
                             </div>
-
-                            <!-- Patient Last Name -->
                             <div class="col-md-12">
                                 <div class="form-group mb-4">
-                                    <label for="patient-last-name" class="text-muted">Patient Last Name</label>
+                                    <label for="patient-last-name" class="text-muted">Patient First Name</label>
                                     <Field
                                         name="last_name"
                                         v-model="Patient.last_name"
@@ -171,6 +176,25 @@ const submitForm = async (values) => {
                                     <span class="invalid-feedback">{{ errors.last_name }}</span>
                                 </div>
                             </div>
+                        
+                            <div class="col-md-12">
+                                <div class="form-group mb-4">
+                                    <label for="patient-last-name" class="text-muted">Parent Name</label>
+                                    <Field
+                                        name="Parent"
+                                        v-model="Patient.Parent"
+                                        type="text"
+                                        class="form-control form-control-md rounded-pill"
+                                        :class="{ 'is-invalid': errors.Parent }"
+                                        id="patient-last-name"
+                                        placeholder="Enter Patient Parent name"
+                                    />
+                                    <span class="invalid-feedback">{{ errors.Parent }}</span>
+                                </div>
+                            </div>
+                          
+                            
+                           
 
                             <!-- Patient Phone -->
                             <div class="col-md-12">

@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import axios from 'axios';
 import { useToastr } from '../../Components/toster';
 import AppointmentFormWaitlist from '../../Components/appointments/appointmentFormWaitlist.vue';
+import { useAuthStore } from '../../stores/auth';
 
 
 const router = useRouter();
@@ -35,24 +36,16 @@ const props = defineProps({
   },
 });
 
-const userRole = ref(null); // Track user role
+const userRole = ref("");
 
-// Fetch user role and initialize doctor ID
-const initializeDoctorId = async () => {
-  try {
-    const user = await axios.get('/api/role');
-   
-    userRole.value = user.data.role;
 
-    if (user.data.role === 'admin') {
-      userRole.value = user.data.role;
-      // console.log('User role:', userRole.value);
-      
-    } 
-  } catch (err) {
-    console.error('Error fetching user role:', err);
-  }
-};
+const authStore = useAuthStore();
+
+onMounted(async () => {
+    await authStore.getUser();
+    userRole.value = authStore.user.role;
+
+});
 
 const emit = defineEmits(['update', 'delete', 'move-to-appointments', 'update-importance', 'move-to-end']);
 
@@ -119,9 +112,7 @@ const closeModal = () => {
   isModalOpen.value = false;
   emit('update-importance');
 };
-onMounted(() => {
-  initializeDoctorId();
-});
+
 
 </script>
 <template>
@@ -184,10 +175,10 @@ onMounted(() => {
       <button v-if="(userRole !== 'admin' || userRole !== 'receptionist')" class="btn btn-sm btn-outline-primary ml-2" @click="$emit('update', waitlist.id)">
         <i class="fas fa-edit"></i>
       </button>
-      <button v-if="(userRole =='admin')"  class="btn btn-sm btn-outline-danger ml-2" @click="$emit('delete', waitlist.id)">
+      <button v-if="(userRole === 'admin' || userRole === 'receptionist' ) "  class="btn btn-sm btn-outline-danger ml-2" @click="$emit('delete', waitlist.id)">
         <i class="fas fa-trash"></i>
       </button>
-      <button v-if="userRole ==='doctor' " class="btn btn-sm btn-outline-success ml-2" @click="$emit('move-to-appointments', waitlist)">
+      <button v-if="userRole ==='doctor'  || userRole ==='admin'" class="btn btn-sm btn-outline-success ml-2" @click="$emit('move-to-appointments', waitlist)">
         <i class="fas fa-calendar-check"></i>
       </button>
       <button v-if="(isDaily && index === 0 && (!isDoctor) && waitlist.importance === null)" 

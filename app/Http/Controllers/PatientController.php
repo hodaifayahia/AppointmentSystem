@@ -41,6 +41,7 @@ class PatientController extends Controller
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string', 
             'phone' => 'required|string',
+            'Parent' => 'nullable|string',
             'dateOfBirth' => 'nullable|date|string',
             'Idnum' => 'nullable|string|max:20', // Assuming ID can be up to 20 characters long
         ]);
@@ -50,6 +51,7 @@ class PatientController extends Controller
             'Lastname' => $validatedData['last_name'],
             'phone' => $validatedData['phone'],
             'dateOfBirth' => $validatedData['dateOfBirth'] ?? null, // Handle optional date
+            'Parent' => $validatedData['Parent'] ?? null, // Handle optional date
             'Idnum' => $validatedData['Idnum'] ?? null, // Handle optional ID number
             'created_by' => Auth::id(), // Assuming you're using Laravel's built-in authentication
         ]);
@@ -62,8 +64,8 @@ class PatientController extends Controller
     {
         $validatedData = $request->validate([
             'first_name' => 'required|string|max:255',
-'last_name' => 'required|string',
-
+            'last_name' => 'required|string',
+            'Parent' => 'nullable|string',
             'phone' => 'required|string',
             'dateOfBirth' => 'nullable|date|string',
             'Idnum' => 'nullable|string|max:20',
@@ -75,6 +77,7 @@ class PatientController extends Controller
             'Lastname' => $validatedData['last_name'],
             'phone' => $validatedData['phone'],
             'dateOfBirth' => $validatedData['dateOfBirth'] ?? null,
+            'Parent' => $validatedData['Parent'] ?? null,
             'Idnum' => $validatedData['Idnum'] ?? null,
         ]);
     
@@ -85,31 +88,37 @@ class PatientController extends Controller
      * Display the specified resource.
      */
     // PatientController.php
-public function search(Request $request)
-{
-    $searchTerm = $request->query('query');
+    public function search(Request $request)
+    {
+        $searchTerm = $request->query('query');
+        
+        // If search term is empty, return all patients ordered by 'created_at'
+        if (empty($searchTerm)) {
+            return PatientResource::collection(
+                Patient::orderBy('created_at', 'desc')->get()
+            );
+        }
     
-    // If search term is empty, return all patients ordered by 'created_at'
-    if (empty($searchTerm)) {
-        return PatientResource::collection(
-            Patient::orderBy('created_at', 'desc')->get()
-        );
-    }
+        // Check if the search term is a date in the format YYYY/MM/DD
+        if (preg_match('/^\d{4}\/\d{2}\/\d{2}$/', $searchTerm)) {
+            // Convert the date format from YYYY/MM/DD to YYYY-MM-DD
+            $searchTerm = str_replace('/', '-', $searchTerm);
+        }
     
-    // Search patients by first name, last name, or phone
-    $patients = Patient::where(function($query) use ($searchTerm) {
-        $query->where('Firstname', 'LIKE', "%{$searchTerm}%")
-              ->orWhere('Lastname', 'LIKE', "%{$searchTerm}%")
-              ->orWhere('dateOfBirth', 'LIKE', "%{$searchTerm}%")
-              ->orWhere('Idnum', 'LIKE', "%{$searchTerm}%")
-              ->orWhere('phone', 'LIKE', "%{$searchTerm}%");
-    })
-    ->orderBy('created_at', 'desc')
-    ->get();
-    
-    return PatientResource::collection($patients);
-}
-    
+        // Search patients by first name, last name, or phone
+        $patients = Patient::where(function($query) use ($searchTerm) {
+            $query->where('Firstname', 'LIKE', "%{$searchTerm}%")
+                  ->orWhere('Lastname', 'LIKE', "%{$searchTerm}%")
+                  ->orWhere('dateOfBirth', 'LIKE', "%{$searchTerm}%")
+                  ->orWhere('Idnum', 'LIKE', "%{$searchTerm}%")
+                  ->orWhere('phone', 'LIKE', "%{$searchTerm}%")
+                  ->orWhere('Parent', 'LIKE', "%{$searchTerm}%");
+        })
+        ->orderBy('created_at', 'desc')
+        ->get();
+        
+        return PatientResource::collection($patients);
+    } 
 
     /**
      * Show the form for editing the specified resource.
