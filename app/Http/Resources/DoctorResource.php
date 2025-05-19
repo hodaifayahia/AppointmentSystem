@@ -23,7 +23,14 @@ class DoctorResource extends JsonResource
             'patients_based_on_time' => $this->patients_based_on_time,
             'specific_date' => $this->specific_date,
             'total_patients_per_day' => $this->getTotalPatientsPerDay(), // Add this line
-
+            // 'appointment_forcer' => $this->whenLoaded('appointmentForce', function () {
+            //     return [
+            //         'id' => $this->appointmentForce->id ?? null,
+            //         'start_time' => $this->appointmentForce->start_time ?? null,
+            //         'end_time' => $this->appointmentForce->end_time ?? null,
+            //         'number_of_patients' => $this->appointmentForce->number_of_patients ?? null,
+            //     ];
+            // }),
             'appointment_booking_window' => $this->formatAppointmentBookingWindow(),
             'schedules' => $this->formatSchedules(),
             'created_at' => $this->formatTimestamp($this->created_at),

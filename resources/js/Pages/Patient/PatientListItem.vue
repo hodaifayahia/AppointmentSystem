@@ -341,8 +341,8 @@ onMounted(() => {
                       @click="goToPatientAppointmentsPage(Patient.id)" style="cursor: pointer;">
                       <td>{{ index + 1 }}</td>
                       <td>{{ Patient.Parent }}</td>
-                      <td>{{ Patient.last_name }}</td>
                       <td>{{ Patient.first_name }}</td>
+                      <td>{{ Patient.last_name }}</td>
                       <td>{{ Patient.Idnum }}</td>
                       <td>{{ Patient.dateOfBirth }}</td>
                       <td>{{ Patient.phone }}</td>
@@ -350,7 +350,7 @@ onMounted(() => {
                         <button @click.stop="openModal(Patient)" class="btn btn-sm btn-outline-primary me-2">
                           <i class="fas fa-edit"></i>
                         </button>
-                        <button v-if="role === 'admin'" @click.stop="deletePatient(Patient.id)"
+                        <button v-if="role === 'admin' || role === 'SuperAdmin'" @click.stop="deletePatient(Patient.id)"
                           class="btn btn-sm btn-outline-danger">
                           <i class="fas fa-trash-alt"></i>
                         </button>

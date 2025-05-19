@@ -8,6 +8,7 @@ use App\Models\Specialization;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Auth;
 
 class WaitList extends Model
 {
@@ -56,5 +57,27 @@ class WaitList extends Model
     public function specialization()
     {
         return $this->belongsTo(Specialization::class, 'specialization_id');
+    }
+    public static function updateOrDeleteWaitlist($doctorId, $patientId, $addToWaitlist, $specializationId, $importance, $description)
+    {
+        if ($addToWaitlist) {
+            return self::updateOrCreate(
+                [
+                    'doctor_id' => $doctorId,
+                    'patient_id' => $patientId,
+                ],
+                [
+                    'specialization_id' => $specializationId,
+                    'status' => 0,
+                    'importance' => $importance,
+                    'notes' => $description,
+                    'created_by' => Auth::id(),
+                ]
+            );
+        } else {
+            return self::where('doctor_id', $doctorId)
+                ->where('patient_id', $patientId)
+                ->delete();
+        }
     }
 }

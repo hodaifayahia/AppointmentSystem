@@ -180,5 +180,16 @@ class ScheduleController extends Controller
         $totalMinutes = $end->diffInMinutes($start);
         return (int) floor($totalMinutes / $timeSlot);
     }
+
+    public function destroy($id , Request $request)
+    {
+        $schedule = Schedule::where('doctor_id', $id)->where('date', $request->date)->first();
+        $schedule->delete();
+
+        return response()->json([
+            'message' => 'Schedule deleted successfully!'
+        ]);
+    }
+    
 }
 

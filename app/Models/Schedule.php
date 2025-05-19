@@ -26,4 +26,12 @@ class Schedule extends Model
     {
         return $this->belongsTo(Doctor::class);
     }
+    public static function getSchedulesForDoctor(int $doctorId, string $dayOfWeek)
+    {
+        return self::select('start_time', 'end_time', 'number_of_patients_per_day', 'shift_period')
+            ->where('doctor_id', $doctorId)
+            ->where('is_active', true)
+            ->where('day_of_week', $dayOfWeek)
+            ->get();
+    }
 }

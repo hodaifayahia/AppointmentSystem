@@ -164,7 +164,7 @@ onMounted(() => {
                     {{ availableAppointments[doctor.id].normal_appointments &&
                       availableAppointments[doctor.id].normal_appointments.date ?
                       availableAppointments[doctor.id].normal_appointments.date + ' at ' +
-                      availableAppointments[doctor.id].normal_appointments.time :
+                      availableAppointments[doctor.id].normal_appointments.available_times[0] :
                       'No upcoming appointments' }}
                   </p>
                 </div>

@@ -66,7 +66,6 @@ const fetchExcludedDates = async (doctorId) => {
   try {
     const response = await axios.get(`/api/excluded-dates/${doctorId}`);
     excludedDates.value = response.data.data;
-    console.log(excludedDates.value);
     
   } catch (error) {
     toast.error('Failed to fetch excluded dates');
@@ -102,40 +101,12 @@ onMounted(async () => {
 
 <template>
   <div class="container mt-4">
-    <h2 class="text-center mb-4">
-      <i class="bi bi-calendar-x me-2 "></i>Manage Excluded Dates
-    </h2>
 
-    <!-- Buttons for adding single date or date range -->
-    <div class="d-flex gap-3 mb-4">
-      <button class="btn btn-primary mr-2" @click="openSingleDateModal">
-        <i class="bi bi-calendar-plus me-2"></i>Add Single Date
-      </button>
-      <button class="btn btn-primary" @click="openDateRangeModal">
-        <i class="bi bi-calendar-range me-2"></i>Add Date Range
-      </button>
-    </div>
 
     <!-- DataTable component to display excluded dates -->
-    <DataTable
-        
-      :dates="sortedExcludedDates"
-      @remove="removeExcludedDate"
-      @edit="openEditModal"
-    />
+    <DataTable />
     
-    <!-- DateModal component for adding dates -->
-    <DateModal
-      :show="showModal"
-      :doctors="doctors"
-      :mode="modalMode"
-      v-model:new-date="newDate"
-      :editData="editData"
-      :doctorId="doctorId"
-      v-model:date-range="dateRange"
-      @updateDATA="fetchExcludedDates"
-      @close="closeModal"
-    />
+    
   </div>
 </template>
 

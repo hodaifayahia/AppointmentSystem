@@ -63,6 +63,8 @@ const fetchAvailableAppointments = async () => {
     const response = await axios.get('/api/appointments/available', {
       params: { doctor_id: props.doctorId },
     });
+    console.log(response.data.canceled_appointments);
+    
     availableAppointments.value = {
       canceled_appointments: response.data.canceled_appointments || [],
       normal_appointments: response.data.normal_appointments || null,
@@ -134,7 +136,7 @@ onMounted(fetchAvailableAppointments);
         class="form-select form-control w-full mb-3"
       >
         <option disabled value="">Select an appointment</option>
-        <optgroup v-if="(availableAppointments.canceled_appointments.length > 0 && waitlist) || (availableAppointments.canceled_appointments.length > 0 && !isEmpty) " label="Canceled Appointments">
+        <optgroup v-if="(availableAppointments.canceled_appointments.length > 0 ) || (availableAppointments.canceled_appointments.length > 0 && !isEmpty) " label="Canceled Appointments">
           <option
             v-for="appointment in availableAppointments.canceled_appointments"
             :key="`canceled-${appointment.date}`"

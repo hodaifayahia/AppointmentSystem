@@ -142,7 +142,7 @@ onMounted(() => {
 
     <div v-else-if="!nextAppointmentDate && days > 0" class="mt-2 text-center">
 
-      <div v-if="(is_able_tO_force || authStore.user.role === 'admin' || authStore.user.role === 'doctor')">
+      <div v-if="(is_able_tO_force || authStore.user.role === 'admin' || authStore.user.role === 'doctor' || authStore.user.role === 'SuperAdmin' ) ">
         <button @click="forceAppointment" class="btn btn-outline-secondary mt-2 mb-2">Force Appointment</button>
         <div v-if="isForcingAppointment">
           <SimpleCalendar :days="days" :doctorId="props.doctorId" @timeSelected="handleTimeSelected"

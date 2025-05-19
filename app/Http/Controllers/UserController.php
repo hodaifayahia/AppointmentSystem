@@ -85,7 +85,7 @@ class UserController extends Controller
             'email' => 'required|unique:users,email',
             'phone' => 'required|string',
             'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', // Max 2MB file size
-            'role' => 'required|string|in:admin,doctor,receptionist', 
+            'role' => 'required|string|in:admin,doctor,receptionist,SuperAdmin', 
             'password' => 'required|string|min:8',
         ]);
     
@@ -131,7 +131,7 @@ public function update(Request $request, string $id)
         'email' => 'required|unique:users,email,' . $id,
         'phone' => 'required|string|min:10|max:15',
         'password' => 'nullable|string|min:8',
-        'role' => 'required|string|in:admin,doctor,receptionist',
+        'role' => 'required|string|in:admin,doctor,receptionist,SuperAdmin',
         'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', // Avatar validation
     ]);
 
@@ -228,23 +228,43 @@ public function update(Request $request, string $id)
      * Remove the specified resource from storage.
      */
     public function destroy(User $user)
-    {
-        $user->delete(); // Performs a soft delete if the model uses SoftDeletes
-        return response()->noContent(); // Returns a 204 No Content response
+{
+    $authUser = Auth::user();
+
+    // Prevent deleting a SuperAdmin if the authenticated user is not a SuperAdmin
+    if ($user->role === RoleSystemEnum::SuperAdmin) {
+        return response()->json([
+            'message' => 'You cannot delete a Super Admin',
+        ], 403);
     }
-    
-    public function bulkDelete(Request $request)
-    {
-        $ids = $request->query('ids'); // Retrieve 'ids' from the query parameters
-    
-        if (!is_array($ids)) {
-            return response()->json(['message' => 'Invalid input'], 422);
-        }
-    
-        User::whereIn('id', $ids)->delete();
-    
-        return response()->json(['message' => 'Users deleted successfully!'], 200);
+
+    $user->delete(); // Uses SoftDeletes if enabled
+
+    return response()->noContent(); // Returns HTTP 204 No Content
+}
+
+public function bulkDelete(Request $request)
+{
+    $ids = $request->input('ids'); // Retrieves 'ids' from the request body
+
+    if (!is_array($ids) || empty($ids)) {
+        return response()->json(['message' => 'Invalid input'], 422);
     }
+
+    // Convert all IDs to integers to avoid SQL injection risks
+    $ids = array_map('intval', $ids);
+
+    // Exclude Super Admins from being deleted
+    $usersToDelete = User::whereIn('id', $ids)->where('role', '!=', RoleSystemEnum::SuperAdmin)->pluck('id')->toArray();
+
+    if (empty($usersToDelete)) {
+        return response()->json(['message' => 'No users deleted (Super Admins cannot be deleted)'], 403);
+    }
+
+    User::whereIn('id', $usersToDelete)->delete();
+
+    return response()->json(['message' => 'Users deleted successfully!'], 200);
+}
 
     
     

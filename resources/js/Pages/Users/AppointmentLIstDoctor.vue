@@ -6,6 +6,9 @@ import AppointmentListItem from '../Appointments/AppointmentListItem.vue';
 import headerDoctorAppointment from '@/Components/Doctor/headerDoctorAppointment.vue';
 import DoctorWaitlist from '@/Components/Doctor/DoctorWaitlist.vue';
 import { Bootstrap5Pagination } from 'laravel-vue-pagination';
+import { useAppointmentStore } from '../../stores/AppointmentStata';
+import { useAuthStoreDoctor } from '../../stores/AuthDoctor';
+
 const pagination = ref({});
 
 // Initialize all refs
@@ -25,6 +28,15 @@ const NotForYou = ref(false);
 const WaitlistDcotro = ref(false);
 const isDcotro = ref(false);
 const userRole = ref(null);
+const appointmentStore = useAppointmentStore();
+const doctors = useAuthStoreDoctor(); // Initialize Pinia store
+
+onMounted( () => {
+   appointmentStore.getAppointments(doctorId, 1, 0);
+  appointments.value = appointmentStore.appointments;
+  pagination.value = appointmentStore.pagination;
+});
+
 
 const initializeRole = async () => {
   try {
@@ -66,7 +78,7 @@ const getAppointments = (() => {
       } finally {
         loading.value = false;
       }
-    }, 300); // Wait 300ms before making API request
+    }); // Wait 300ms before making API request
   };
 })();
 const handleGetAppointments = (data) => {
@@ -159,15 +171,6 @@ const closeWaitlistModal = () => {
   WaitlistDcotro.value = false; // Close the Waitlist modal
 };
 
-watch(
-  () => [doctorId.value, route.params.id],
-  async ([newDoctorId]) => {
-    if (newDoctorId) {
-      await getAppointments();
-    }
-  },
-  { immediate: false }
-);
 
 
 // Update the status filter handler
@@ -220,15 +223,15 @@ watch(
   () => route.params.id,
   (newDoctorId) => {
     if (newDoctorId) {
-      getAppointments(currentFilter.value);
+      getAppointments(1, 'TODAY', 'today');
     }
   }
 );
 
-onMounted(async  ()=>{
-   await initializeRole();
+onMounted(  ()=>{
+  
+  initializeRole();
   getAppointmentsStatus();
-  getAppointments();
   fetchWaitlists();
 });
 </script>
@@ -237,7 +240,7 @@ onMounted(async  ()=>{
     <!-- Page header -->
     <div class="p-2">
       <!-- Ensure header-doctor-appointment is rendered only after doctorId is initialized -->
-      <header-doctor-appointment v-if="doctorId" :isDcotro="isDcotro" :doctor-id="doctorId" />
+      <header-doctor-appointment  :isDcotro="true" :doctor-id="doctorId" />
     </div>
 
     <!-- Content -->
@@ -300,7 +303,7 @@ onMounted(async  ()=>{
                   <i class="fas fa-user-times me-2"></i>  Waitlist Not for You <span v-if="countWithoutDoctor > 0" class="custom-time"> {{ countWithoutDoctor }}</span>
                 </button>
               </div>
-              <div v-if="role == 'admin'" class="d-flex flex-column align-items-center sm:w-100 w-md-auto">
+              <div v-if="userRole == 'admin'" class="d-flex flex-column align-items-center sm:w-100 w-md-auto">
                 <!-- File Upload -->
                 <div class="custom-file mb-3 w-100">
                   <label for="fileUpload" class="btn btn-primary sm:w-100 premium-file-button">
@@ -325,7 +328,7 @@ onMounted(async  ()=>{
             </div>
 
             <!-- Appointments list -->
-            <AppointmentListItem :appointments="appointments" :userRole="role" :error="error" :doctor-id="doctorId"
+            <AppointmentListItem :appointments="appointments" :userRole="userRole" :error="error" :doctor-id="doctorId"
               @update-appointment="getAppointments(currentFilter)" @update-status="getAppointmentsStatus"
               @get-appointments="handleSearchResults" @filterByDate="handleFilterByDate" />
           </div>

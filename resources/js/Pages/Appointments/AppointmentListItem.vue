@@ -53,6 +53,9 @@ const ShowReasonModel = ref(false);
 const selectedAppointment = ref(null);
 const isModalVisible = ref(false);
 const appointmentId = ref(null);
+const specialization_id = ref(null);
+const ticketDataConfirmation = ref([]);
+
 
 const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -79,7 +82,31 @@ const formatTime = (time) => {
         console.error("Error formatting time:", error);
         return "00:00";
     }
+};const formatDateTime = (input) => {
+    if (!input) return '';
+
+    try {
+        const date = new Date(input);
+
+        const formattedDate = date.toLocaleDateString('fr', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+
+        const formattedTime = date.toLocaleTimeString('fr', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        });
+
+        return `${formattedDate} ${formattedTime}`;
+    } catch (error) {
+        console.error("Error formatting datetime:", error);
+        return '';
+    }
 };
+
 
 const getPatientFullName = (patient) => {
     // Validate input
@@ -88,10 +115,10 @@ const getPatientFullName = (patient) => {
     }
 
     // Extract and sanitize properties
-    const { Parent = '', patient_last_name = '', patient_first_name = '' } = patient;
+    const {  patient_last_name = '', patient_first_name = '' } = patient;
 
     // Construct full name
-    const fullName = [Parent, patient_last_name, patient_first_name]
+    const fullName = [ patient_first_name , patient_last_name]
         .filter(Boolean) // Remove empty strings
         .join(' ')       // Join with spaces
 
@@ -172,6 +199,7 @@ const goToEditAppointmentPage = (appointment) => {
 const openModal = (appointment) => {
     isModalVisible.value = true;
     appointmentId.value = appointment.id;
+    specialization_id.value = appointment.specialization_id;
     emit('updateStatus');
     emit('update-appointment');
 };
@@ -265,6 +293,84 @@ const AddToWaitList = async (appointment) => {
     };
     openAddModal();
 };
+const PrintTicket = async (appointment) => {
+    try {
+        console.log('Printing ticket for appointment:', appointment);
+        // Prepare the ticket data
+        const ticketData = {
+
+            patient_name: getPatientFullName(appointment),
+            patient_first_name: appointment.patient_first_name,
+            patient_last_name: appointment.patient_last_name,
+            doctor_id: null,
+            
+            // patient_phone: appointment.patient_phone,
+            parent_name: appointment.Parent,
+            doctor_name: appointment.doctor_name || 'N/A',
+
+            appointment_date: formatDate(appointment.appointment_date),
+            appointment_time: formatTime(appointment.appointment_time),
+            description: appointment.description || 'N/A'
+        };
+
+        // Send POST request with the ticket data
+        const response = await axios.post('/api/appointments/print-ticket', ticketData, {
+            responseType: 'blob'
+        });
+        
+        // Create PDF URL
+        const pdfUrl = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+        
+        // Open in new tab
+        const printWindow = window.open(pdfUrl);
+        
+        // Automatically trigger print dialog
+        printWindow.onload = function() {
+            printWindow.print();
+        };
+    } catch (error) {
+        console.error('Error printing ticket:', error);
+        toastr.error('Failed to print ticket');
+    }
+}
+const PrintConfirmationTicket = async (appointment) => {
+    try {
+        // Prepare the ticket data
+        const ticketDataConfirmation = {
+
+            patient_name: getPatientFullName(appointment),
+            patient_first_name: appointment.patient_first_name,
+            patient_last_name: appointment.patient_last_name,
+            // patient_phone: appointment.patient_phone,
+            parent_name: appointment.Parent,
+            doctor_name: appointment.doctor_name || 'N/A',
+            specialization_id :appointment.specialization_id,
+
+            appointment_date: formatDate(appointment.appointment_date),
+            appointment_time: formatTime(appointment.appointment_time),
+            description: appointment.description || 'N/A'
+        };
+
+        // Send POST request with the ticket data
+        const response = await axios.post('/api/appointments/Confirmation/print-confirmation-ticket', ticketDataConfirmation, {
+            responseType: 'blob'
+        });
+        
+        // Create PDF URL
+        const pdfUrl = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+        
+        // Open in new tab
+        const printWindow = window.open(pdfUrl);
+        
+        // Automatically trigger print dialog
+        printWindow.onload = function() {
+            printWindow.print();
+        };
+    } catch (error) {
+        console.error('Error printing ticket:', error);
+        toastr.error('Failed to print ticket');
+    }
+}
 const applyDateFilter = async () => {
     if (selectedDate.value) {
         isLoading.value = true;
@@ -341,7 +447,14 @@ watch(searchQuery, (newValue) => {
         debouncedSearch();
     }
 });
-
+const printDropdownStates = ref({});
+                                    
+                                    const togglePrintDropdown = (appointmentId) => {
+                                        printDropdownStates.value = {
+                                            ...printDropdownStates.value,
+                                            [appointmentId]: !printDropdownStates.value[appointmentId]
+                                        };
+                                    };
 watch(searchQuery, debouncedSearch);
 onMounted(() => {
     getAppointmentsStatus();
@@ -355,56 +468,60 @@ onMounted(() => {
                 {{ error }}
             </div>
 
-            <!-- Search and Date Filter -->
-            <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-3 gap-2">
+            <!-- Update the search and filter section -->
+            <div class="d-flex flex-wrap gap-3 mb-4">
                 <!-- Date Filter -->
-                <div class="input-group w-25 w-md-25">
-                    <input type="date" class="form-control rounded-start" v-model="selectedDate"
-                        aria-label="Filter by date" />
-                    <button class="btn btn-outline-primary" type="button" @click="applyDateFilter"
-                        :disabled="isLoading">
-                        <i class="fas fa-filter"></i>
-                    </button>
-                    <button class="btn btn-outline-secondary" type="button" @click="resetToPreviousDate">
-                        <i class="fas fa-undo"></i>
-                    </button>
+                <div class="flex-grow-1" style="min-width: 200px; max-width: 300px;">
+                    <div class="input-group">
+                        <input type="date" class="form-control" v-model="selectedDate" aria-label="Filter by date" />
+                        <button class="btn btn-outline-primary" type="button" @click="applyDateFilter" :disabled="isLoading">
+                            <i class="fas fa-filter"></i>
+                        </button>
+                        <button class="btn btn-outline-secondary" type="button" @click="resetToPreviousDate">
+                            <i class="fas fa-undo"></i>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Search Bar -->
-                <div class="input-group w-25 w-md-50">
-                    <input type="text" class="form-control rounded-start" v-model="searchQuery"
-                        placeholder="Search by patient name or date of birth" aria-label="Search" />
-                    <button class="btn btn-outline-primary" type="button" :disabled="isLoading">
-                        <i class="fas" :class="{ 'fa-search': !isLoading, 'fa-spinner fa-spin': isLoading }"></i>
-                    </button>
+                <div class="flex-grow-1" style="min-width: 250px;">
+                    <div class="input-group">
+                        <input type="text" class="form-control" v-model="searchQuery"
+                            placeholder="Search by patient name or date of birth" />
+                        <button class="btn btn-outline-primary" type="button" :disabled="isLoading">
+                            <i class="fas" :class="{ 'fa-search': !isLoading, 'fa-spinner fa-spin': isLoading }"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
 
-
-
-            <!-- Appointment Table -->
-            <div class="">
+          
+            <!-- Table Container with Responsive Wrapper -->
+            <div class="table-responsive">
                 <table class="table table-hover text-center align-middle">
-                    <thead>
+                    <thead class="table-light">
                         <tr>
-                            <th scope="col">#</th>
-                            <th scope="col">Patient</th>
-                            <th scope="col">Parent </th>
-                            <th scope="col">Phone</th>
-                            <th scope="col">Date Of Birth</th>
-                            <th scope="col">Date</th>
-                            <th scope="col">Time</th>
-                            <th scope="col">Description</th>
-                            <th scope="col">Status</th>
-                            <th scope="col">Reason</th>
-                            <th v-if="userRole === 'admin'" scope="col">created_by</th>
-                            <th v-if="userRole === 'admin'" scope="col">canceled_by</th>
-                            <th scope="col">Actions</th>
+                            <th scope="col" class="text-nowrap">#</th>
+                            <th scope="col" class="text-nowrap">Patient</th>
+                            <th scope="col" class="text-nowrap">Parent</th>
+                            <th scope="col" class="text-nowrap">Phone</th>
+                            <th scope="col" class="text-nowrap">Date Of Birth</th>
+                            <th scope="col" class="text-nowrap">Date</th>
+                            <th scope="col" class="text-nowrap">Time</th>
+                            <th scope="col" class="text-nowrap">Description</th>
+                            <th scope="col" class="text-nowrap">Status</th>
+                            <th scope="col" class="text-nowrap">Reason</th>
+                            <th v-if="userRole === 'admin' || userRole === 'SuperAdmin'" scope="col" class="text-nowrap">Created By</th>
+                            <th v-if="userRole === 'admin' || userRole === 'SuperAdmin'" scope="col" class="text-nowrap">Created at</th>
+                            <th v-if="userRole === 'admin' || userRole === 'SuperAdmin'" scope="col" class="text-nowrap">Canceled By</th>
+                            <th v-if="userRole === 'admin' || userRole === 'SuperAdmin'" scope="col" class="text-nowrap">Updated By</th>
+                            <th v-if="userRole === 'admin' || userRole === 'SuperAdmin'" scope="col" class="text-nowrap">Updated at</th>
+                            <th scope="col" class="text-nowrap">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr v-if="appointments.length === 0">
-                            <td colspan="10" class="text-center">No appointments found</td>
+                            <td colspan="13" class="text-center">No appointments found</td>
                         </tr>
                         <tr v-else v-for="(appointment, index) in appointments" :key="appointment.id">
                             <td>{{ index + 1 }}</td>
@@ -459,27 +576,56 @@ onMounted(() => {
                                     </ul>
                                 </div>
                             </td>
-                            <td >{{ appointment.reason ?? "__" }}</td>
-                            <td v-if="userRole === 'admin'">{{ appointment.created_by ?? "__" }}</td>
-                            <td v-if="userRole === 'admin'">{{ appointment.canceled_by ?? "__" }}</td>
-                            <td>
-                                <div class="d-flex gap-2 justify-content-center">
+                            <td class="text-break">{{ appointment.reason ?? "__" }}</td>
+                            <td v-if="userRole === 'admin'|| userRole === 'SuperAdmin'" class="text-nowrap">{{ appointment.created_by ?? "__" }}</td>
+                            <td v-if="userRole === 'admin'|| userRole === 'SuperAdmin'" class="text-nowrap">{{ formatDateTime(appointment.created_at) ?? "__" }}</td>
+                            <td v-if="userRole === 'admin' || userRole === 'SuperAdmin'" class="text-nowrap">{{ appointment.canceled_by ?? "__" }}</td>
+                            <td v-if="userRole === 'admin' || userRole === 'SuperAdmin'" class="text-nowrap">{{ appointment.updated_by ?? "__" }}</td>
+                            <td v-if="userRole === 'admin'|| userRole === 'SuperAdmin'" class="text-nowrap">{{ formatDateTime(appointment.updated_at) ?? "__" }}</td>
+
+                            <td class="text-nowrap">
+                                <div class="d-flex gap-2 justify-content-center mr-1 ">
+                                    <div class="dropdown d-inline-block mr-1">
+                                            <button class="btn btn-sm btn-outline-info dropdown-toggle" 
+                                                type="button" 
+                                                @click="togglePrintDropdown(appointment.id)">
+                                                <i class="fas fa-print"></i>
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end" 
+                                                :class="{ 'show': printDropdownStates[appointment.id] }">
+                                                <li>
+                                                    <a class="dropdown-item" href="#" @click.prevent="PrintTicket(appointment)">
+                                                        <i class="fas fa-ticket-alt me-2"></i> Ticket
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a class="dropdown-item" href="#" @click.prevent="PrintConfirmationTicket(appointment)">
+                                                        <i class="fas fa-file-alt me-2"></i> Confirmation
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
                                     <button @click="goToEditAppointmentPage(appointment)"
-                                        class="btn btn-sm btn-outline-primary mr-2">
+                                        class="btn btn-sm btn-outline-primary mr-1">
                                         <i class="fas fa-edit"></i>
                                     </button>
-                                    <button v-if="props.userRole === 'admin' || props.userRole === 'doctor'"
-                                        @click="openModal(appointment)" class="btn btn-sm btn-outline-primary mr-2">
+                                    <button @click="openModal(appointment)" 
+                                        class="btn btn-sm btn-outline-primary mr-1">
                                         <i class="fas fa-calendar-plus"></i>
                                     </button>
-
-                                    <button v-if="props.userRole === 'admin'" @click="deleteAppointment(appointment.id)"
-                                        class="btn btn-sm btn-outline-danger mr-2">
+                                    <button v-if="props.userRole === 'admin' || userRole === 'SuperAdmin'" 
+                                        @click="deleteAppointment(appointment.id)"
+                                        class="btn btn-sm btn-outline-danger mr-1">
                                         <i class="fas fa-trash-alt"></i>
                                     </button>
-                                    <button @click="AddToWaitList(appointment)" class="btn btn-sm btn-outline-info">
+                                    <button @click="AddToWaitList(appointment)" 
+                                        class="btn btn-sm btn-outline-info mr-1" >
                                         <i class="fas fa-clock"></i>
                                     </button>
+                                
+                                    
+                                    
+                                   
                                 </div>
                             </td>
                         </tr>
@@ -487,64 +633,80 @@ onMounted(() => {
                 </table>
             </div>
 
-            <!-- Pagination -->
-
-            <!-- Add/Edit Waitlist Modal -->
+            <!-- Modals -->
             <ReasonModel :show="ShowReasonModel" @close="closeAddModal" @submit="SubmitReasonValue" />
             <appointmentWaitlist :show="showAddModal" :editMode="isEditMode" :waitlist="selectedWaitlist"
                 :add_to_waitlist="selectedWaitlist?.add_to_waitlist ?? false" @close="closeAddModal" @save="handleSave"
                 @update="handleUpdate" />
-            <AppointmentModal v-if="isModalVisible" :doctorId="props.doctorId" :appointmentId="appointmentId"
+            <AppointmentModal v-if="isModalVisible" :specialization_id="specialization_id" :doctorId="props.doctorId" :appointmentId="appointmentId"
                 :editMode="true" @close="closeModal" />
         </div>
     </div>
 </template>
 
 <style scoped>
-/* Responsive Table */
-
-
-/* Touch-Friendly Buttons */
-.btn {
-    padding: 0.5rem 1rem;
-    font-size: 1rem;
+.table-responsive {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
-/* Dropdown Adjustments */
+.table {
+    margin-bottom: 0;
+    white-space: normal;
+    min-width: 1200px; /* Ensures table doesn't get too squeezed */
+}
+
+.text-break {
+    word-break: break-word;
+    max-width: 200px; /* Maximum width for description and reason columns */
+}
+
+.text-nowrap {
+    white-space: nowrap;
+}
+
+/* Custom scrollbar for better UX */
+.table-responsive::-webkit-scrollbar {
+    height: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Status button styles */
+.status-button {
+    white-space: nowrap;
+    min-width: 120px;
+}
+
+
+
+
+/* Add these new styles */
 .dropdown-menu {
-    max-height: 200px;
-    overflow-y: auto;
+    position: absolute;
+    right: 0;
+    min-width: 150px;
+    padding: 0.5rem 0;
+    margin: 0;
+    z-index: 1000;
 }
 
-/* Status Indicator */
-.status-indicator {
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    margin-right: 0.5rem;
-}
-
-/* Mobile-Specific Styles */
-@media (max-width: 768px) {
-    .input-group {
-        width: 100% !important;
-    }
-
-    .dropdown-menu {
-        position: absolute;
-        right: 0;
-        left: auto;
-    }
-
-    .btn-sm {
-        padding: 0.5rem;
-        font-size: 0.875rem;
-    }
-
-    .table th,
-    .table td {
-        white-space: nowrap;
-    }
+.actions-column {
+    position: relative;
 }
 </style>

@@ -3,6 +3,8 @@ import { defineProps, defineEmits, ref, onMounted } from 'vue';
 import DoctorModel from '../../Components/DoctorModel.vue';
 import { useRouter } from 'vue-router';
 import { useSweetAlert } from '../../Components/useSweetAlert';
+import { useAuthStore } from '../../stores/auth';
+
 import axios from 'axios';
 
 const swal = useSweetAlert();
@@ -32,26 +34,14 @@ const isModalOpen = ref(false);
 const selectedUser = ref(null);
 const userRole = ref(null); // Track user role
 
-// Fetch user role and initialize doctor ID
-const initializeDoctorId = async () => {
-  try {
-    const user = await axios.get('/api/role');
-   
 
-    if (user.data.role === 'admin') {
-      userRole.value = user.data.role;
-      // console.log('User role:', userRole.value);
-      
-    } 
-  } catch (err) {
-    console.error('Error fetching user role:', err);
-  }
-};
+const authStore = useAuthStore();
+// const { user, isLoading } = storeToRefs(authStore);
 
-// Lifecycle hook
-onMounted(() => {
-  initializeDoctorId();
+onMounted( () => {
+ userRole.value =authStore.user.role 
 });
+
 
 // Modal and user actions
 const closeModal = () => {
@@ -146,7 +136,7 @@ const handleDelete = async (id) => {
       {{ `${doctor.time_slots} min slots`  }}
     </td>
     <td class="doctor-actions">
-      <div class="btn-group" v-if="userRole === 'admin'">
+      <div class="btn-group" v-if="userRole === 'admin' || userRole === 'SuperAdmin'">
         <button 
           class="btn btn-sm btn-outline-primary mx-1" 
           title="Edit"

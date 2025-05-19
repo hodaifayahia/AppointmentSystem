@@ -190,8 +190,8 @@ onMounted(() => {
             <!-- Add Doctor Button -->
             <div class="row mb-3">
               <div class="col-12 d-flex flex-wrap justify-content-end gap-2">
+                
                 <button 
-                v-if="userRole === 'admin'"
                   class="btn btn-primary btn-sm d-flex align-items-center gap-1 px-3 py-2" 
                   title="Add Doctor"
                   @click="openModal"

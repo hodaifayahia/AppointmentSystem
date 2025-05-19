@@ -43,27 +43,58 @@ const results = reactive({
   success: [],
   errors: []
 });
-
-const authStore = useAuthStore();
-// const { user, isLoading } = storeToRefs(authStore);
 const appointmentStore = useAppointmentStore();
-onMounted(async () => {
-  await authStore.getUser();
-  await appointmentStore.getAppointments(doctorId, 1, 0);
+const authStore = useAuthStore();
+const { appointments: storeAppointments, pagination: storePagination } = storeToRefs(appointmentStore);
+
+// const { user, isLoading } = storeToRefs(authStore);
+
+// Initialize with loading state and fetch data
+onMounted(() => {
+  loading.value = true;
   
-  appointments.value = appointmentStore.appointments;
-  pagination.value = appointmentStore.pagination;
+  // Load user data - no need to await this if not dependent
+  authStore.getUser();
+  userRole.value = authStore.user.role;
+
+  
+  // Fetch appointments for the current doctor
+  appointmentStore.getAppointments(doctorId, 1, 0)
+    .then(() => {
+      // This will run after the appointments are fetched
+      loading.value = false;
+    })
+    .catch(error => {
+      console.error('Error loading appointments:', error);
+      loading.value = false;
+    });
 });
 
+// Create a watcher for the store values to keep local refs updated
+watch(
+  [storeAppointments, storePagination],
+  ([newAppointments, newPagination]) => {
+    appointments.value = newAppointments;
+    pagination.value = newPagination;
+  },
+  { immediate: true } // This will update as soon as the store values change
+);
+
+// Watch for doctor ID changes to reload appointments
 watch(
   () => route.params.id,
-  async (newDoctorId) => {
-    if (newDoctorId) {
+  (newDoctorId, oldDoctorId) => {
+    if (newDoctorId && newDoctorId !== oldDoctorId) {
       loading.value = true;
-      await appointmentStore.getAppointments(newDoctorId, 1, 0);
-      appointments.value = appointmentStore.appointments;
-      pagination.value = appointmentStore.pagination;
-      loading.value = false;
+      
+      appointmentStore.getAppointments(newDoctorId, 1, 0)
+        .then(() => {
+          loading.value = false;
+        })
+        .catch(error => {
+          console.error('Error loading appointments:', error);
+          loading.value = false;
+        });
     }
   }
 );
@@ -91,7 +122,6 @@ const showResults = () => {
     type: results.errors.length ? 'warning' : 'success'
   });
 };
-userRole.value = authStore.user.role;
 
 const getAppointments = async (page = 1, status = null, filter = null, date = null) => {
   try {
@@ -103,7 +133,6 @@ const getAppointments = async (page = 1, status = null, filter = null, date = nu
     };
 
     const { data } = await axios.get(`/api/appointments/${doctorId}`, { params });
-    console.log();
     
     if (data.success) {
       appointments.value = data.data;
@@ -407,7 +436,7 @@ watch(
 <template>
   <div class="appointment-page">
     <!-- Page header -->
-    <div class="p-2">
+    <div class="pb-2">
       <!-- Ensure header-doctor-appointment is rendered only after doctorId is initialized -->
       <header-doctor-appointment v-if="doctorId" :isDcotro="isDcotro" :doctor-id="doctorId" />
     </div>
@@ -472,7 +501,7 @@ watch(
               </button>
 
               <!-- Waitlist Not for You Button -->
-              <button class="btn btn-outline-warning position-relative" type="button" @click="openWaitlistNotForYouModal">
+              <button class="btn btn-outline-warning position-relative ml-1" type="button" @click="openWaitlistNotForYouModal">
                 <i class="fas fa-user-times me-2"></i>
                 Waitlist Not for You
                 <span v-if="countWithoutDoctor > 0" class="badge bg-danger ms-1">{{ countWithoutDoctor }}</span>

@@ -144,9 +144,31 @@ const addDate = () => {
   emitUpdate();
 };
 
-const removeDate = (index) => {
-  dates.value.splice(index, 1);
-  emitUpdate();
+import axios from 'axios'; // Import Axios
+
+const removeDate = async (index) => {
+  const removedDate = dates.value[index];
+  console.log(props.doctorId);
+  
+
+  // Only send a delete request if the schedule exists in the backend
+  if (removedDate.date && props.doctorId) {
+    try {
+      await axios.delete(`/api/schedules/${props.doctorId}`, {
+        data: { date: removedDate.date }, // Pass the date to identify the record
+      });
+
+      // Remove from the local state only after successful API response
+      dates.value.splice(index, 1);
+      emitUpdate();
+    } catch (error) {
+      console.error('Error deleting schedule:', error);
+    }
+  } else {
+    // If not in backend, just remove from the UI
+    dates.value.splice(index, 1);
+    emitUpdate();
+  }
 };
 
 const handleChange = (index, field, event) => {

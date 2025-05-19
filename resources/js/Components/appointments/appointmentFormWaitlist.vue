@@ -46,16 +46,15 @@ const form = reactive({
     status: {},
 });
 
-// Fetch list of doctors if doctorId is null
 const fetchDoctors = async () => {
-    if (!props.waitlist?.doctor_id) {
-        try {
-            const response = await axios.get(`/api/doctors/specializations/${props.waitlist.specialization_id}`);
-            doctors.value = response.data.data;
-        } catch (error) {
-            console.error('Failed to fetch doctors:', error);
-        }
+  if (!props.waitlist?.doctor_id) {
+    try {
+      const response = await axios.get(`/api/doctors/specializations/${props.waitlist.specialization_id}`);
+      doctors.value = response.data.data;
+    } catch (error) {
+      console.error('Failed to fetch doctors:', error);
     }
+  }
 };
 
 // Handle date selection from calendar
@@ -118,7 +117,7 @@ watch(() => form.doctor_id, (newDoctorId) => {
 });
 
 // Load data when component is mounted
-onMounted(async () => {
+onMounted( () => {
     fetchImportanceEnum();
     fetchDoctors();
 });
@@ -144,7 +143,9 @@ const closeModal = () => {
                     <Form @submit="handleSubmit" v-slot="{ errors }">
                         <!-- Doctor Dropdown -->
                         <div class="mb-3" v-if="!props.waitlist?.doctor_id">
+                            {{ doctors.length }} <!-- To check if array has content -->
                             <label for="doctor_id" class="form-label">Select Doctor</label>
+
                             <Field as="select" id="doctor_id" name="doctor_id" v-model="form.doctor_id"
                                 class="form-control" required>
                                 <option value="" disabled>Select a doctor</option>

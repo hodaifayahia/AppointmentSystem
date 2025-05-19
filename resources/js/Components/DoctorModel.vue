@@ -24,6 +24,7 @@ const toaster = useToastr();
 const errors = ref({});
 const specializations = ref({});
 const showPassword = ref(false);
+const isLoading = ref(false);
 const patients_based_on_time = ref(props.doctorData.patients_based_on_time);
 const numberOfPatients = ref(
   Array.isArray(props.doctorData?.schedules)
@@ -33,11 +34,15 @@ const numberOfPatients = ref(
 
 const selectedMonths = ref([]);
 const time_slot = ref(props.doctorData.time_slot);
+
 const doctor = ref({
   id: props.doctorData?.id || null,
   name: props.doctorData?.name || '',
   email: props.doctorData?.email || '',
   phone: props.doctorData?.phone || '',
+  start_time_force: props.doctorData?.start_time_force || '',
+  end_time_force: props.doctorData?.end_time_force || '',
+  number_of_patients: props.doctorData?.number_of_patients || '',
   patients_based_on_time: props.doctorData?.patients_based_on_time || false,
   specialization: props.doctorData?.specialization || '',
   specialization_id: props.doctorData?.specialization_id || '',
@@ -91,8 +96,7 @@ const getDoctorSchema = (isEditMode) => {
     name: yup.string().required('Name is required'),
     email: yup.string('the Username should not be the same as another username'),
     phone: yup
-      .string()
-      .matches(/^[0-9]{10,15}$/, 'Phone number must be between 10 and 15 digits'),
+      .string(),
     specialization: yup.string().required('Specialization is required'),
     frequency: yup.string().required('Frequency is required'),
   };
@@ -112,7 +116,10 @@ const getDoctorSchema = (isEditMode) => {
 };
 watch(
   () => props.doctorData,
+
   (newValue) => {
+    console.log(props.doctorData);
+
     if (newValue) {
       // Compute the number from schedules
       const computedNumber = Array.isArray(newValue?.schedules)
@@ -125,6 +132,9 @@ watch(
         name: newValue?.name || '',
         email: newValue?.email || '',
         phone: newValue?.phone || '',
+        start_time_force: newValue?.start_time_force || '',
+        end_time_force: newValue?.end_time_force || '',
+        number_of_patients: newValue?.number_of_patients || '',
         patients_based_on_time: newValue?.patients_based_on_time || false,
         specialization: newValue?.specialization || '',
         specialization_id: newValue?.specialization_id || '',
@@ -159,12 +169,6 @@ watch(
 );
 
 
-const calculatePatientsPerDay = (startTime, endTime, timeSlot) => {
-  const start = new Date(`2000-01-01 ${startTime}`);
-  const end = new Date(`2000-01-01 ${endTime}`);
-  const diffInMinutes = (end - start) / (1000 * 60);
-  return Math.floor(diffInMinutes / timeSlot);
-};
 
 const handleSchedulesUpdated = (newSchedules) => {
   if (Array.isArray(newSchedules)) {
@@ -231,6 +235,8 @@ onUnmounted(() => {
   }
 });
 const submitForm = async (values, { setErrors, resetForm }) => {
+
+  isLoading.value = true;    //
   try {
     // Update appointmentBookingWindow with the latest selected months
     doctor.value.appointmentBookingWindow = selectedMonths.value.map((month) => ({
@@ -251,9 +257,13 @@ const submitForm = async (values, { setErrors, resetForm }) => {
     formData.append('patients_based_on_time', doctor.value.patients_based_on_time ? 1 : 0);
 
     // Other fields
+
     formData.append('id', doctor.value.id);
     formData.append('specialization', doctor.value.specialization_id);
     formData.append('time_slot', doctor.value.time_slot);
+    formData.append('start_time', doctor.value.start_time_force);
+    formData.append('end_time', doctor.value.end_time_force);
+    formData.append('number_of_patients', doctor.value.number_of_patients);
 
     // Handle appointmentBookingWindow
     if (doctor.value.appointmentBookingWindow && Array.isArray(doctor.value.appointmentBookingWindow)) {
@@ -321,10 +331,10 @@ const submitForm = async (values, { setErrors, resetForm }) => {
     await axios.post(url, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
-    watch
+
 
     toaster.success(`Doctor ${isEditMode.value ? 'updated' : 'added'} successfully`);
-    handleUserUpdate();
+    isLoading.value = false; handleUserUpdate();
     resetForm();
   } catch (error) {
     if (error.response?.data?.errors) {
@@ -343,6 +353,7 @@ onMounted(() => {
 });
 </script>
 <template>
+
   <div class="modal fade overflow-auto" :class="{ show: showModal }" tabindex="-1" aria-labelledby="doctorModalLabel"
     aria-hidden="true" v-if="showModal">
 
@@ -373,123 +384,168 @@ onMounted(() => {
               </div>
             </div>
             <!-- Second Row: Phone and Specialization -->
-            <div class="row">
-
-              <div class="col-md-6 mb-4">
-                <label for="phone" class="form-label fs-5">Phone</label>
-                <Field type="tel" id="phone" name="phone" :class="{ 'is-invalid': validationErrors.phone }"
-                  v-model="doctor.phone" class="form-control form-control-md" />
-                <span class="text-sm invalid-feedback">{{ validationErrors.phone }}</span>
-              </div>
-              <div class="col-md-6 mb-4">
-                <label for="specialization" class="form-label fs-5">Specialization</label>
-                <Field as="select" id="specialization" name="specialization"
-                  :class="{ 'is-invalid': validationErrors.specialization }" v-model="doctor.specialization_id"
-                  class="form-control form-control-md">
-                  <option value="">Select Specialization</option>
-                  <option v-for="spec in specializations" :key="spec.id" :value="spec.id">
-                    {{ spec.name }}
-                  </option>
-                </Field>
-                <span class="text-sm invalid-feedback">{{ validationErrors.specialization }}</span>
+            <div class="row ms-4">
+              <!-- Force Setting Label -->
+              <div class="col-12 mb-3">
+                <h5 class="mb-0">Force Setting</h5>
+                <small class="text-muted">Configure the appointment booking window.</small>
               </div>
 
-            </div>
+              <!-- Start Time -->
+              <div class="col-md-6 mb-3">
+                <label for="start_time_force" class="form-label">Start Time</label>
+                <Field type="time" id="start_time_force" name="start_time_force" v-model="doctor.start_time_force"
+                  :class="{ 'is-invalid': validationErrors.start_time_force }" class="form-control form-control-md" />
+                <span class="text-sm invalid-feedback">{{ validationErrors.start_time_force }}</span>
+              </div>
 
-            <!-- Patient Selection Row -->
-            <div class="row">
-    <div class="mb-4" :class="{'col-md-6': doctor.patients_based_on_time, 'col-md-12': !doctor.patients_based_on_time}">
-        <label for="patients_based_on_time" class="form-label fs-5">Patients Based on Time</label>
-        <select v-model="doctor.patients_based_on_time" class="form-control form-control-md"
-                @change="handlePatientSelectionChange">
-            <option :value="false">Fixed Number of Patients</option>
-            <option :value="true">Based on Time</option>
-        </select>
-    </div>
+              <!-- End Time -->
+              <div class="col-md-6 mb-3">
+                <label for="end_time_force" class="form-label">End Time</label>
+                <Field type="time" id="end_time_force" name="end_time_force" v-model="doctor.end_time_force"
+                  :class="{ 'is-invalid': validationErrors.end_time_force }" class="form-control form-control-md" />
+                <span class="text-sm invalid-feedback">{{ validationErrors.end_time_force }}</span>
+              </div>
 
-
-              <div v-if="doctor.patients_based_on_time" class="col-md-6 mb-4">
-                <label for="time_slot" class="form-label fs-5">Time Slot for Patients</label>
-                <input v-model="doctor.time_slot" class="form-control form-control-md" placeholder="Select time slot" />
+              <!-- Number of Patients -->
+              <div class="col-md-4 mb-3">
+                <label for="number_of_patients" class="form-label">Patients</label>
+                <Field type="text" id="number_of_patients" name="number_of_patients" v-model="doctor.number_of_patients"
+                  :class="{ 'is-invalid': validationErrors.number_of_patients }" class="form-control form-control-md" />
+                <span class="text-sm invalid-feedback">{{ validationErrors.number_of_patients }}</span>
               </div>
             </div>
 
-            <!-- Frequency and Start Time -->
-            <div class="row">
-              <div class="col-md-6 mb-4">
-                <label for="frequency" class="form-label fs-5">Frequency</label>
-                <Field as="select" id="frequency" name="frequency" :class="{ 'is-invalid': validationErrors.frequency }"
-                  v-model="doctor.frequency" @change="handleFrequencySelectionChange"
-                  class="form-control form-control-md">
-                  <option value="" disabled>Select Frequency</option>
-                  <option value="Daily">Daily</option>
-                  <option value="Weekly">Weekly</option>
-                  <option value="Monthly">Monthly</option>
-                </Field>
-                <span class="invalid-feedback text-sm" v-if="validationErrors.frequency">
-                  {{ validationErrors.frequency }}
-                </span>
+              <div class="row">
+
+                <div class="col-md-6 mb-4">
+                  <label for="phone" class="form-label fs-5">Phone</label>
+                  <Field type="tel" id="phone" name="phone" :class="{ 'is-invalid': validationErrors.phone }"
+                    v-model="doctor.phone" class="form-control form-control-md" />
+                  <span class="text-sm invalid-feedback">{{ validationErrors.phone }}</span>
+                </div>
+                <div class="col-md-6 mb-4">
+                  <label for="specialization" class="form-label fs-5">Specialization</label>
+                  <Field as="select" id="specialization" name="specialization"
+                    :class="{ 'is-invalid': validationErrors.specialization }" v-model="doctor.specialization_id"
+                    class="form-control form-control-md">
+                    <option value="">Select Specialization</option>
+                    <option v-for="spec in specializations" :key="spec.id" :value="spec.id">
+                      {{ spec.name }}
+                    </option>
+                  </Field>
+                  <span class="text-sm invalid-feedback">{{ validationErrors.specialization }}</span>
+                </div>
+
               </div>
 
-              <div class="col-md-6 mb-4">
-                <div class="form-group">
-                  <label for="avatar" class="form-label">Doctor's Photo</label>
-                  <input type="file" id="avatar" accept="image/*" @change="handleImageChange" class="form-control-file"
-                    :class="{ 'is-invalid': errors.avatar }" />
-                  <div v-if="imagePreview" class="mt-2">
-                    <img :src="imagePreview" class="img-thumbnail" style="max-height: 150px;">
+              <!-- Patient Selection Row -->
+              <div class="row">
+                <div class="mb-4"
+                  :class="{ 'col-md-6': doctor.patients_based_on_time, 'col-md-12': !doctor.patients_based_on_time }">
+                  <label for="patients_based_on_time" class="form-label fs-5">Patients Based on Time</label>
+                  <select v-model="doctor.patients_based_on_time" class="form-control form-control-md"
+                    @change="handlePatientSelectionChange">
+                    <option :value="false">Fixed Number of Patients</option>
+                    <option :value="true">Based on Time</option>
+                  </select>
+                </div>
+
+
+                <div v-if="doctor.patients_based_on_time" class="col-md-6 mb-4">
+                  <label for="time_slot" class="form-label fs-5">Time Slot for Patients</label>
+                  <input v-model="doctor.time_slot" class="form-control form-control-md"
+                    placeholder="Select time slot" />
+                </div>
+              </div>
+
+              <!-- Frequency and Start Time -->
+              <div class="row">
+                <div class="col-md-6 mb-4">
+                  <label for="frequency" class="form-label fs-5">Frequency</label>
+                  <Field as="select" id="frequency" name="frequency"
+                    :class="{ 'is-invalid': validationErrors.frequency }" v-model="doctor.frequency"
+                    @change="handleFrequencySelectionChange" class="form-control form-control-md">
+                    <option value="" disabled>Select Frequency</option>
+                    <option value="Daily">Daily</option>
+                    <option value="Weekly">Weekly</option>
+                    <option value="Monthly">Monthly</option>
+                  </Field>
+                  <span class="invalid-feedback text-sm" v-if="validationErrors.frequency">
+                    {{ validationErrors.frequency }}
+                  </span>
+                </div>
+
+                <div class="col-md-6 mb-4">
+                  <div class="form-group">
+                    <label for="avatar" class="form-label">Doctor's Photo</label>
+                    <input type="file" id="avatar" accept="image/*" @change="handleImageChange"
+                      class="form-control-file" :class="{ 'is-invalid': errors.avatar }" />
+                    <div v-if="imagePreview" class="mt-2">
+                      <img :src="imagePreview" class="img-thumbnail" style="max-height: 150px;">
+                    </div>
+                    <span v-if="errors.avatar" class="invalid-feedback">{{ errors.avatar }}</span>
                   </div>
-                  <span v-if="errors.avatar" class="invalid-feedback">{{ errors.avatar }}</span>
                 </div>
               </div>
-            </div>
 
-
-            <div class="row">
-              <div class="col-md-6 mb-4">
-                <AppointmentBookingWindowModel :isEditMode="isEditMode"
-                  :appointment-booking-window="doctor.appointmentBookingWindow" v-model="selectedMonths" />
-              </div>
-              <div class="col-md-6 mb-4">
-                <label for="password" class="form-label fs-5">
-                  {{ isEditMode ? 'Password (leave blank to keep current)' : 'Password' }}
-                </label>
-                <div class="input-group">
-                  <Field :type="showPassword ? 'text' : 'password'" id="password" name="password"
-                    :class="{ 'is-invalid': validationErrors.password }" v-model="doctor.password"
-                    class="form-control form-control-md" />
-                  <button type="button" class="btn btn-outline-secondary" @click="togglePasswordVisibility">
-                    <i :class="showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
-                  </button>
+              <div class="row">
+                <div class="col-md-6 mb-4">
+                  <AppointmentBookingWindowModel :isEditMode="isEditMode"
+                    :appointment-booking-window="doctor.appointmentBookingWindow" v-model="selectedMonths" />
                 </div>
-                <span class="text-sm invalid-feedback">{{ validationErrors.password }}</span>
-              </div>
-            </div>
-            <div class="row">
-              <div class="col-12" v-if="doctor.frequency === 'Daily' || doctor.frequency === 'Weekly'">
-                <DoctorSchedules :doctorId="doctor.id" :existingSchedules="doctor.schedules"
-                  :patients_based_on_time="doctor.patients_based_on_time" :time_slot="doctor.time_slot"
-                  v-model="doctor.schedules" 
-                  @schedulesUpdated="handleSchedulesUpdated" />
-              </div>
-              <div class="col-md-12 mb-4" v-if="doctor.frequency === 'Monthly'">
-                <label class="form-label fs-5">Custom Dates</label>
-                <CustomDates :existingSchedules="doctor.schedules" v-model="doctor.customDates"
-                  :patients_based_on_time="doctor.patients_based_on_time" :time_slot="doctor.time_slot"
-                  :number_of_patients_per_day="doctor.number_of_patients_per_day"
-                  @schedulesUpdated="handlecustomDatesUpdated" />
+                <div class="col-md-6 mb-4">
+                  <label for="password" class="form-label fs-5">
+                    {{ isEditMode ? 'Password (leave blank to keep current)' : 'Password' }}
+                  </label>
+                  <div class="input-group">
+                    <Field :type="showPassword ? 'text' : 'password'" id="password" name="password"
+                      :class="{ 'is-invalid': validationErrors.password }" v-model="doctor.password"
+                      class="form-control form-control-md" />
+                    <button type="button" class="btn btn-outline-secondary" @click="togglePasswordVisibility">
+                      <i :class="showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+                    </button>
+                  </div>
+                  <span class="text-sm invalid-feedback">{{ validationErrors.password }}</span>
+                </div>
               </div>
 
-            </div>
+              <div class="row">
+                <div class="col-12" v-if="doctor.frequency === 'Daily' || doctor.frequency === 'Weekly'">
+                  <DoctorSchedules :doctorId="doctor.id" :existingSchedules="doctor.schedules"
+                    :patients_based_on_time="doctor.patients_based_on_time" :time_slot="doctor.time_slot"
+                    v-model="doctor.schedules" @schedulesUpdated="handleSchedulesUpdated" />
+                </div>
+                <div class="col-md-12 mb-4" v-if="doctor.frequency === 'Monthly'">
+                  <label class="form-label fs-5">Custom Dates</label>
+                  <CustomDates :doctorId="doctor.id" :existingSchedules="doctor.schedules" v-model="doctor.customDates"
+                    :patients_based_on_time="doctor.patients_based_on_time" :time_slot="doctor.time_slot"
+                    :number_of_patients_per_day="doctor.number_of_patients_per_day"
+                    @schedulesUpdated="handlecustomDatesUpdated" />
+                </div>
 
+              </div>
 
-            <!-- Modal Footer -->
-            <div class="modal-footer">
-              <button type="button" class="btn btn-outline-secondary" @click="closeModal">Cancel</button>
-              <button type="submit" class="btn btn-outline-primary">
-                {{ isEditMode ? 'Update Doctor' : 'Add Doctor' }}
-              </button>
-            </div>
+              <div v-if="loading" class="modal-overlay">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+              </div>
+
+              <!-- Modal Footer -->
+              <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" @click="closeModal">Cancel</button>
+                <button type="submit" class="btn btn-outline-primary" :disabled="isLoading">
+                  {{ isEditMode ? 'Update Doctor' : 'Add Doctor' }}
+                  <span v-if="isLoading" class="spinner-border spinner-border-sm ms-2" role="status"
+                    aria-hidden="true"></span>
+                </button>
+              </div>
+              <div v-if="loading" class="modal-overlay">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+              </div>
           </Form>
         </div>
       </div>

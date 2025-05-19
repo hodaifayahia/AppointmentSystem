@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Imports\AppointmentImport;
+use App\Imports\AttributeImport;
 use App\Imports\PatientsImport;
+use App\Imports\PlaceholderImport;
 use App\Imports\UsersImport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -147,5 +149,30 @@ class ImportController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    public function Importplaceholders()  {
+        $request->validate([
+            'files.*' => 'required|file|mimes:xlsx,xls,csv|max:2048',
+        ]);
+    
+        foreach ($request->file('files') as $file) {
+            Excel::import(new PlaceholderImport, $file);
+        }
+    
+        return response()->json(['message' => 'Files imported successfully'], 200);
+        
+    }
+    public function ImportAttributes()  {
+        $request->validate([
+            'files.*' => 'required|file|mimes:xlsx,xls,csv|max:2048',
+        ]);
+    
+        foreach ($request->file('files') as $file) {
+            Excel::import(new AttributeImport, $file);
+        }
+    
+        return response()->json(['message' => 'Files imported successfully'], 200);
+        
     }
 }

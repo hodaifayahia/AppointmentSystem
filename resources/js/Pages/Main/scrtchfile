@@ -1,0 +1,1250 @@
+<script setup>
+import { useRouter } from 'vue-router';
+
+const router = useRouter();
+
+const props = defineProps({
+    user: {
+        type: Object,
+        required: true,
+        default: () => ({})
+    }
+})
+
+// Logout Function
+const logout = async () => {
+    try {
+        await axios.post('/logout');
+        window.location.href = '/dashboard';
+    } catch (error) {
+        console.error('Error logging out:', error);
+    }
+};
+</script>
+
+<template>
+    <aside class="modern-sidebar">
+        <!-- Brand Logo -->
+        <div class="sidebar-brand">
+            <div class="brand-logo">
+                <img :src="'/storage/doctor.png'" alt="Clinic Logo">
+            </div>
+            <span class="brand-text">Clinic</span>
+        </div>
+
+        <!-- Sidebar Content -->
+        <div class="sidebar-content">
+            <!-- User Panel -->
+            <div class="user-panel">
+                <div class="user-avatar">
+                    <img :src="user.avatar" alt="User Avatar">
+                    <div class="status-indicator"></div>
+                </div>
+                <div class="user-info">
+                    <h4 class="user-name">{{ user.name }}</h4>
+                    <span class="user-role">{{ user.role }}</span>
+                </div>
+            </div>
+
+            <!-- Navigation Menu -->
+            <nav class="sidebar-nav">
+                <!-- Main Navigation -->
+                <div class="nav-section">
+                    <span class="nav-section-title">Main</span>
+                    <ul class="nav-list">
+                        <li class="nav-item">
+                            <router-link to="/dashboard" class="nav-link">
+                                <div class="nav-icon">
+                                    <i class="fas fa-chart-line"></i>
+                                </div>
+                                <span class="nav-text">Dashboard</span>
+                            </router-link>
+                        </li>
+                        <li class="nav-item">
+                            <router-link to="/calander" class="nav-link">
+                                <div class="nav-icon">
+                                    <i class="fas fa-calendar-alt"></i>
+                                </div>
+                                <span class="nav-text">Calendar</span>
+                            </router-link>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Admin Section -->
+                <div class="nav-section" v-if="user.role === 'admin' || user.role === 'SuperAdmin'">
+                    <span class="nav-section-title">Administration</span>
+                    <ul class="nav-list">
+                        <li class="nav-item">
+                            <router-link to="/admin/users" class="nav-link">
+                                <div class="nav-icon">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                                <span class="nav-text">Users</span>
+                            </router-link>
+                        </li>
+                        <li class="nav-item">
+                            <router-link to="/admin/specializations" class="nav-link">
+                                <div class="nav-icon">
+                                    <i class="fas fa-briefcase"></i>
+                                </div>
+                                <span class="nav-text">Specializations</span>
+                            </router-link>
+                        </li>
+                        <li class="nav-item">
+                            <router-link to="/admin/excludeDates" class="nav-link">
+                                <div class="nav-icon">
+                                    <i class="fas fa-calendar-times"></i>
+                                </div>
+                                <span class="nav-text">Exclude Dates</span>
+                            </router-link>
+                        </li>
+                        <li class="nav-item">
+                            <router-link to="/admin/doctor/forceAppointment" class="nav-link">
+                                <div class="nav-icon">
+                                    <i class="fas fa-user-shield"></i>
+                                </div>
+                                <span class="nav-text">Forced Appointments</span>
+                            </router-link>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Clinic Management Section -->
+                <div class="nav-section" v-if="user.role === 'admin' || user.role === 'receptionist' || user.role === 'SuperAdmin'">
+                    <span class="nav-section-title">Clinic Management</span>
+                    <ul class="nav-list">
+                        <li class="nav-item">
+                            <router-link to="/admin/doctors" class="nav-link">
+                                <div class="nav-icon">
+                                    <i class="fas fa-user-md"></i>
+                                </div>
+                                <span class="nav-text">Doctors</span>
+                            </router-link>
+                        </li>
+                        <li class="nav-item">
+                            <router-link to="/admin/appointments/specialization" class="nav-link">
+                                <div class="nav-icon">
+                                    <i class="fas fa-calendar-check"></i>
+                                </div>
+                                <span class="nav-text">Appointments</span>
+                            </router-link>
+                        </li>
+                        <li class="nav-item">
+                            <router-link to="/admin/patient" class="nav-link">
+                                <div class="nav-icon">
+                                    <i class="fas fa-user-injured"></i>
+                                </div>
+                                <span class="nav-text">Patients</span>
+                            </router-link>
+                        </li>
+                        <li class="nav-item">
+                            <router-link to="/admin/pending" class="nav-link">
+                                <div class="nav-icon">
+                                    <i class="fas fa-tasks"></i>
+                                </div>
+                                <span class="nav-text">Pending List</span>
+                                <span class="nav-badge">3</span>
+                            </router-link>
+                        </li>
+                        <li class="nav-item">
+                            <router-link to="/admin/Waitlist" class="nav-link">
+                                <div class="nav-icon">
+                                    <i class="fas fa-clock"></i>
+                                </div>
+                                <span class="nav-text">Waitlist</span>
+                            </router-link>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Doctor Section -->
+                <div class="nav-section" v-if="user.role === 'doctor'">
+                    <span class="nav-section-title">Doctor Panel</span>
+                    <ul class="nav-list">
+                        <li class="nav-item">
+                            <router-link to="/doctor/appointments" class="nav-link">
+                                <div class="nav-icon">
+                                    <i class="fas fa-calendar-check"></i>
+                                </div>
+                                <span class="nav-text">My Appointments</span>
+                            </router-link>
+                        </li>
+                        <li class="nav-item">
+                            <router-link to="/doctor/excludeDates" class="nav-link">
+                                <div class="nav-icon">
+                                    <i class="fas fa-ban"></i>
+                                </div>
+                                <span class="nav-text">Day Offs</span>
+                            </router-link>
+                        </li>
+                        <li class="nav-item">
+                            <router-link to="/doctor/avilability" class="nav-link">
+                                <div class="nav-icon">
+                                    <i class="fas fa-user-clock"></i>
+                                </div>
+                                <span class="nav-text">Availability</span>
+                            </router-link>
+                        </li>
+                        <li class="nav-item">
+                            <router-link to="/admin/doctors/schedule" class="nav-link">
+                                <div class="nav-icon">
+                                    <i class="fas fa-calendar-alt"></i>
+                                </div>
+                                <span class="nav-text">Schedule</span>
+                            </router-link>
+                        </li>
+                        <li class="nav-item">
+                            <router-link to="/doctor/users" class="nav-link">
+                                <div class="nav-icon">
+                                    <i class="fas fa-user-shield"></i>
+                                </div>
+                                <span class="nav-text">Forced Appointments</span>
+                            </router-link>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Consultations Dropdown -->
+                <div class="nav-section">
+                    <div class="nav-dropdown">
+                        <div class="nav-dropdown-header">
+                            <div class="nav-icon">
+                                <i class="fas fa-stethoscope"></i>
+                            </div>
+                            <span class="nav-text">Consultation Parameters</span>
+                            <i class="fas fa-chevron-down dropdown-arrow"></i>
+                        </div>
+                        <ul class="nav-dropdown-list">
+                            <li class="nav-item">
+                                <router-link to="/admin/consultations/placeholders" class="nav-link">
+                                    <span class="nav-text">Sections</span>
+                                </router-link>
+                            </li>
+                            <li class="nav-item">
+                                <router-link to="/admin/consultations/template" class="nav-link">
+                                    <span class="nav-text">Template</span>
+                                </router-link>
+                            </li>
+                            <li class="nav-item">
+                                <router-link to="/admin/consultations/consulation" class="nav-link">
+                                    <span class="nav-text">Consultation</span>
+                                </router-link>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Settings & Logout -->
+                <div class="nav-section">
+                    <span class="nav-section-title">System</span>
+                    <ul class="nav-list">
+                        <li class="nav-item">
+                            <router-link to="/admin/settings" class="nav-link">
+                                <div class="nav-icon">
+                                    <i class="fas fa-cogs"></i>
+                                </div>
+                                <span class="nav-text">Settings</span>
+                            </router-link>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#" @click.prevent="logout" class="nav-link logout-link">
+                                <div class="nav-icon">
+                                    <i class="fas fa-sign-out-alt"></i>
+                                </div>
+                                <span class="nav-text">Logout</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+        </div>
+    </aside>
+</template>
+
+<style scoped>
+.modern-sidebar {
+    width: 280px;
+    height: 100vh;
+    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    border-right: 1px solid #334155;
+    position: fixed;
+    left: 0;
+    top: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    transition: all 0.3s ease;
+    z-index: 1000;
+}
+
+.modern-sidebar::-webkit-scrollbar {
+    width: 4px;
+}
+
+.modern-sidebar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.modern-sidebar::-webkit-scrollbar-thumb {
+    background: #475569;
+    border-radius: 2px;
+}
+
+.modern-sidebar::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+}
+
+/* Brand */
+.sidebar-brand {
+    display: flex;
+    align-items: center;
+    padding: 24px 24px 32px;
+    border-bottom: 1px solid #334155;
+    position: relative;
+}
+
+.brand-logo {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-right: 16px;
+    background: #3b82f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.brand-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.brand-text {
+    font-size: 24px;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: -0.025em;
+}
+
+/* Sidebar Content */
+.sidebar-content {
+    padding: 0 0 24px;
+}
+
+/* User Panel */
+.user-panel {
+    padding: 24px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    background: rgba(59, 130, 246, 0.1);
+    border-radius: 16px;
+    margin: 24px 16px;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    transition: all 0.3s ease;
+}
+
+.user-panel:hover {
+    background: rgba(59, 130, 246, 0.15);
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+.user-avatar {
+    position: relative;
+    margin-right: 16px;
+}
+
+.user-avatar img {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    object-fit: cover;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.status-indicator {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 12px;
+    height: 12px;
+    background: #10b981;
+    border: 2px solid #1e293b;
+    border-radius: 50%;
+}
+
+.user-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.user-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: #ffffff;
+    margin: 0 0 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.user-role {
+    font-size: 13px;
+    color: #94a3b8;
+    text-transform: capitalize;
+    font-weight: 500;
+}
+
+/* Navigation Sections */
+.nav-section {
+    margin-bottom: 32px;
+}
+
+.nav-section-title {
+    display: block;
+    padding: 0 24px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.nav-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.nav-item {
+    margin-bottom: 4px;
+}
+
+/* Navigation Links */
+.nav-link {
+    display: flex;
+    align-items: center;
+    padding: 12px 24px;
+    color: #cbd5e1;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    position: relative;
+    border-radius: 0;
+    margin: 0 8px;
+    border-radius: 12px;
+}
+
+.nav-link:hover {
+    background: rgba(59, 130, 246, 0.1);
+    color: #ffffff;
+    text-decoration: none;
+    transform: translateX(4px);
+}
+
+.nav-link.router-link-active {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.nav-link.router-link-active::before {
+    content: '';
+    position: absolute;
+    left: -8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 24px;
+    background: #3b82f6;
+    border-radius: 0 2px 2px 0;
+}
+
+.nav-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    transition: all 0.2s ease;
+}
+
+.nav-link:hover .nav-icon {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.05);
+}
+
+.nav-link.router-link-active .nav-icon {
+    background: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.nav-icon i {
+    font-size: 16px;
+}
+
+.nav-text {
+    font-size: 15px;
+    font-weight: 500;
+    flex: 1;
+}
+
+.nav-badge {
+    background: #ef4444;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 12px;
+    min-width: 20px;
+    text-align: center;
+}
+
+/* Dropdown */
+.nav-dropdown {
+    margin: 0 8px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.nav-dropdown-header {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.nav-dropdown-header:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.dropdown-arrow {
+    margin-left: auto;
+    font-size: 12px;
+    transition: transform 0.2s ease;
+    color: #94a3b8;
+}
+
+.nav-dropdown.active .dropdown-arrow {
+    transform: rotate(180deg);
+}
+
+.nav-dropdown-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.nav-dropdown-list .nav-link {
+    padding-left: 68px;
+    margin: 0;
+    border-radius: 0;
+    color: #94a3b8;
+    font-size: 14px;
+}
+
+.nav-dropdown-list .nav-link:hover {
+    background: rgba(59, 130, 246, 0.1);
+    color: #ffffff;
+    transform: none;
+}
+
+.nav-dropdown-list .nav-link.router-link-active {
+    background: rgba(59, 130, 246, 0.2);
+    color: #ffffff;
+    position: relative;
+    box-shadow: none;
+}
+
+.nav-dropdown-list .nav-link.router-link-active::before {
+    display: none;
+}
+
+/* Logout Link */
+.logout-link {
+    color: #ef4444 !important;
+}
+
+.logout-link:hover {
+    background: rgba(239, 68, 68, 0.1) !important;
+    color: #ffffff !important;
+}
+
+.logout-link .nav-icon {
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.logout-link:hover .nav-icon {
+    background: rgba(239, 68, 68, 0.2);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .modern-sidebar {
+        transform: translateX(-100%);
+    }
+    
+    .modern-sidebar.open {
+        transform: translateX(0);
+    }
+}
+
+/* Animations */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.nav-item {
+    animation: slideIn 0.3s ease forwards;
+}
+
+.nav-item:nth-child(1) { animation-delay: 0.1s; }
+.nav-item:nth-child(2) { animation-delay: 0.2s; }
+.nav-item:nth-child(3) { animation-delay: 0.3s; }
+.nav-item:nth-child(4) { animation-delay: 0.4s; }
+.nav-item:nth-child(5) { animation-delay: 0.5s; }
+</style>
+
+
+
+
+<script setup>
+    import { ref } from 'vue';
+    
+    // Sidebar toggle state
+    const sidebarCollapsed = ref(false);
+    
+    // Toggle sidebar function
+    const toggleSidebar = () => {
+        sidebarCollapsed.value = !sidebarCollapsed.value;
+        // Emit event to parent component or use global state management
+        document.body.classList.toggle('sidebar-collapsed', sidebarCollapsed.value);
+        
+        // Dispatch custom event for sidebar
+        window.dispatchEvent(new CustomEvent('sidebar-toggle', { 
+            detail: { collapsed: sidebarCollapsed.value } 
+        }));
+    };
+    
+    // Logout Function
+    const logout = async () => {
+        try {
+            await axios.post('/logout');
+            window.location.href = '/login';
+        } catch (error) {
+            console.error('Error logging out:', error);
+        }
+    };
+    
+    // Fullscreen toggle
+    const toggleFullscreen = () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen();
+        } else {
+            document.exitFullscreen();
+        }
+    };
+    </script>
+    
+    <template>
+        <nav class="modern-navbar">
+            <div class="navbar-container">
+                <!-- Left Side -->
+                <div class="navbar-left">
+                    <button 
+                        class="sidebar-toggle-btn"
+                        @click="toggleSidebar"
+                        :class="{ 'active': sidebarCollapsed }"
+                        title="Toggle Sidebar"
+                    >
+                        <span class="hamburger-line"></span>
+                        <span class="hamburger-line"></span>
+                        <span class="hamburger-line"></span>
+                    </button>
+                    
+                    <div class="navbar-breadcrumb">
+                        <span class="breadcrumb-text">Dashboard</span>
+                    </div>
+                </div>
+    
+                <!-- Right Side -->
+                <div class="navbar-right">
+                    <!-- Search -->
+                    <div class="navbar-search">
+                        <div class="search-input-wrapper">
+                            <i class="fas fa-search search-icon"></i>
+                            <input 
+                                type="text" 
+                                class="search-input" 
+                                placeholder="Search..."
+                            >
+                        </div>
+                    </div>
+    
+                    <!-- Fullscreen Toggle -->
+                    <button 
+                        class="navbar-action-btn" 
+                        @click="toggleFullscreen"
+                        title="Toggle Fullscreen"
+                    >
+                        <i class="fas fa-expand-arrows-alt"></i>
+                    </button>
+    
+                    <!-- Notifications -->
+                    <div class="navbar-dropdown notifications-dropdown">
+                        <button class="navbar-action-btn dropdown-trigger">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge">15</span>
+                        </button>
+                        
+                        <div class="dropdown-menu">
+                            <div class="dropdown-header">
+                                <h4>Notifications</h4>
+                                <span class="notification-count">15 new</span>
+                            </div>
+                            
+                            <div class="dropdown-content">
+                                <div class="notification-item">
+                                    <div class="notification-icon message">
+                                        <i class="fas fa-envelope"></i>
+                                    </div>
+                                    <div class="notification-content">
+                                        <div class="notification-title">4 new messages</div>
+                                        <div class="notification-time">3 mins ago</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="notification-item">
+                                    <div class="notification-icon users">
+                                        <i class="fas fa-users"></i>
+                                    </div>
+                                    <div class="notification-content">
+                                        <div class="notification-title">8 friend requests</div>
+                                        <div class="notification-time">12 hours ago</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="notification-item">
+                                    <div class="notification-icon report">
+                                        <i class="fas fa-file-alt"></i>
+                                    </div>
+                                    <div class="notification-content">
+                                        <div class="notification-title">3 new reports</div>
+                                        <div class="notification-time">2 days ago</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="dropdown-footer">
+                                <a href="#" class="view-all-btn">View All Notifications</a>
+                            </div>
+                        </div>
+                    </div>
+    
+                    <!-- User Profile -->
+                    <div class="navbar-dropdown user-dropdown">
+                        <button class="user-profile-btn dropdown-trigger">
+                            <div class="user-avatar">
+                                <img src="/api/placeholder/40/40" alt="User Avatar">
+                                <div class="user-status"></div>
+                            </div>
+                            <div class="user-info">
+                                <span class="user-name">John Doe</span>
+                                <span class="user-role">Administrator</span>
+                            </div>
+                            <i class="fas fa-chevron-down dropdown-arrow"></i>
+                        </button>
+                        
+                        <div class="dropdown-menu">
+                            <div class="dropdown-content">
+                                <router-link to="/profile" class="dropdown-item">
+                                    <i class="fas fa-user"></i>
+                                    <span>My Profile</span>
+                                </router-link>
+                                
+                                <router-link to="/admin/settings" class="dropdown-item">
+                                    <i class="fas fa-cog"></i>
+                                    <span>Settings</span>
+                                </router-link>
+                                
+                                <div class="dropdown-divider"></div>
+                                
+                                <a href="#" @click.prevent="logout" class="dropdown-item logout-item">
+                                    <i class="fas fa-sign-out-alt"></i>
+                                    <span>Logout</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </nav>
+    </template>
+    
+    <style scoped>
+    .modern-navbar {
+        position: fixed;
+        top: 0;
+        right: 0;
+        left: 280px; /* Should match sidebar width */
+        height: 70px;
+        background: #ffffff;
+        border-bottom: 1px solid #e2e8f0;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        z-index: 999;
+        transition: left 0.3s ease;
+    }
+    
+    /* When sidebar is collapsed */
+    body.sidebar-collapsed .modern-navbar {
+        left: 80px; /* Collapsed sidebar width */
+    }
+    
+    .navbar-container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 100%;
+        padding: 0 24px;
+    }
+    
+    /* Left Side */
+    .navbar-left {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+    }
+    
+    .sidebar-toggle-btn {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        padding: 8px;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+        gap: 4px;
+    }
+    
+    .sidebar-toggle-btn:hover {
+        background: #f1f5f9;
+    }
+    
+    .hamburger-line {
+        width: 20px;
+        height: 2px;
+        background: #64748b;
+        border-radius: 1px;
+        transition: all 0.3s ease;
+        transform-origin: center;
+    }
+    
+    .sidebar-toggle-btn.active .hamburger-line:nth-child(1) {
+        transform: translateY(6px) rotate(45deg);
+    }
+    
+    .sidebar-toggle-btn.active .hamburger-line:nth-child(2) {
+        opacity: 0;
+    }
+    
+    .sidebar-toggle-btn.active .hamburger-line:nth-child(3) {
+        transform: translateY(-6px) rotate(-45deg);
+    }
+    
+    .navbar-breadcrumb {
+        font-size: 18px;
+        font-weight: 600;
+        color: #1e293b;
+    }
+    
+    .breadcrumb-text {
+        background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    /* Right Side */
+    .navbar-right {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+    
+    /* Search */
+    .navbar-search {
+        display: none; /* Hidden on mobile, shown on larger screens */
+    }
+    
+    @media (min-width: 768px) {
+        .navbar-search {
+            display: block;
+        }
+    }
+    
+    .search-input-wrapper {
+        position: relative;
+    }
+    
+    .search-icon {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #64748b;
+        font-size: 14px;
+    }
+    
+    .search-input {
+        width: 280px;
+        padding: 10px 16px 10px 40px;
+        border: 1px solid #e2e8f0;
+        border-radius: 24px;
+        font-size: 14px;
+        background: #f8fafc;
+        transition: all 0.2s ease;
+    }
+    
+    .search-input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        background: #ffffff;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    /* Action Buttons */
+    .navbar-action-btn {
+        width: 44px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+        border: none;
+        border-radius: 12px;
+        cursor: pointer;
+        color: #64748b;
+        transition: all 0.2s ease;
+        position: relative;
+    }
+    
+    .navbar-action-btn:hover {
+        background: #f1f5f9;
+        color: #3b82f6;
+        transform: translateY(-1px);
+    }
+    
+    .notification-badge {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: 18px;
+        height: 18px;
+        background: #ef4444;
+        color: white;
+        font-size: 11px;
+        font-weight: 600;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    /* Dropdowns */
+    .navbar-dropdown {
+        position: relative;
+    }
+    
+    .dropdown-trigger {
+        background: transparent;
+        border: none;
+        cursor: pointer;
+    }
+    
+    .user-profile-btn {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 6px 12px;
+        border-radius: 12px;
+        transition: all 0.2s ease;
+    }
+    
+    .user-profile-btn:hover {
+        background: #f1f5f9;
+    }
+    
+    .user-avatar {
+        position: relative;
+        width: 40px;
+        height: 40px;
+    }
+    
+    .user-avatar img {
+        width: 100%;
+        height: 100%;
+        border-radius: 10px;
+        object-fit: cover;
+        border: 2px solid #e2e8f0;
+    }
+    
+    .user-status {
+        position: absolute;
+        bottom: 2px;
+        right: 2px;
+        width: 10px;
+        height: 10px;
+        background: #10b981;
+        border: 2px solid #ffffff;
+        border-radius: 50%;
+    }
+    
+    .user-info {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .user-name {
+        font-size: 14px;
+        font-weight: 600;
+        color: #1e293b;
+        line-height: 1.2;
+    }
+    
+    .user-role {
+        font-size: 12px;
+        color: #64748b;
+        line-height: 1.2;
+    }
+    
+    .dropdown-arrow {
+        font-size: 12px;
+        color: #64748b;
+        transition: transform 0.2s ease;
+    }
+    
+    .navbar-dropdown:hover .dropdown-arrow {
+        transform: rotate(180deg);
+    }
+    
+    /* Dropdown Menus */
+    .dropdown-menu {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        min-width: 280px;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-10px);
+        transition: all 0.2s ease;
+        margin-top: 8px;
+        z-index: 1000;
+    }
+    
+    .navbar-dropdown:hover .dropdown-menu {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+    }
+    
+    .dropdown-header {
+        padding: 20px;
+        border-bottom: 1px solid #f1f5f9;
+        display: flex;
+        justify-content: between;
+        align-items: center;
+    }
+    
+    .dropdown-header h4 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+        color: #1e293b;
+    }
+    
+    .notification-count {
+        font-size: 12px;
+        color: #64748b;
+        background: #f1f5f9;
+        padding: 4px 8px;
+        border-radius: 12px;
+    }
+    
+    .dropdown-content {
+        padding: 8px 0;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    /* Notification Items */
+    .notification-item {
+        display: flex;
+        align-items: center;
+        padding: 12px 20px;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    
+    .notification-item:hover {
+        background: #f8fafc;
+    }
+    
+    .notification-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 12px;
+    }
+    
+    .notification-icon.message {
+        background: rgba(59, 130, 246, 0.1);
+        color: #3b82f6;
+    }
+    
+    .notification-icon.users {
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+    }
+    
+    .notification-icon.report {
+        background: rgba(245, 158, 11, 0.1);
+        color: #f59e0b;
+    }
+    
+    .notification-content {
+        flex: 1;
+    }
+    
+    .notification-title {
+        font-size: 14px;
+        font-weight: 500;
+        color: #1e293b;
+        margin-bottom: 2px;
+    }
+    
+    .notification-time {
+        font-size: 12px;
+        color: #64748b;
+    }
+    
+    /* Dropdown Items */
+    .dropdown-item {
+        display: flex;
+        align-items: center;
+        padding: 12px 20px;
+        color: #64748b;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        gap: 12px;
+    }
+    
+    .dropdown-item:hover {
+        background: #f8fafc;
+        color: #1e293b;
+        text-decoration: none;
+    }
+    
+    .dropdown-item i {
+        width: 20px;
+        font-size: 14px;
+    }
+    
+    .dropdown-divider {
+        height: 1px;
+        background: #f1f5f9;
+        margin: 8px 0;
+    }
+    
+    .logout-item {
+        color: #ef4444;
+    }
+    
+    .logout-item:hover {
+        background: rgba(239, 68, 68, 0.1);
+        color: #ef4444;
+    }
+    
+    .dropdown-footer {
+        padding: 12px 20px;
+        border-top: 1px solid #f1f5f9;
+    }
+    
+    .view-all-btn {
+        display: block;
+        text-align: center;
+        color: #3b82f6;
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 500;
+        padding: 8px 16px;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+    }
+    
+    .view-all-btn:hover {
+        background: #f1f5f9;
+        text-decoration: none;
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+        .modern-navbar {
+            left: 0;
+        }
+        
+        .user-info {
+            display: none;
+        }
+        
+        .search-input {
+            width: 200px;
+        }
+        
+        .navbar-container {
+            padding: 0 16px;
+        }
+    }
+    
+    /* Custom scrollbar for dropdown */
+    .dropdown-content::-webkit-scrollbar {
+        width: 4px;
+    }
+    
+    .dropdown-content::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    
+    .dropdown-content::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 2px;
+    }
+    </style>

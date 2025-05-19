@@ -4,6 +4,7 @@ import { Field, Form } from 'vee-validate';
 import * as yup from 'yup';
 import axios from 'axios';
 import { useToastr } from './toster';
+import { useAuthStore } from '../stores/auth'
 
 const props = defineProps({
   showModal: {
@@ -16,10 +17,13 @@ const props = defineProps({
   },
 });
 
+
 const emit = defineEmits(['close', 'userUpdated']);
 const toaster = useToastr();
 const errors = ref({});
 const imagePreview = ref(null);
+const userRole = ref(null);
+const authStore = useAuthStore();
 const existingImage = ref(null);
 const fileInput = ref(null);
 const user = ref({
@@ -33,7 +37,7 @@ const user = ref({
 });
 const isEditMode = computed(() => !!props.userData?.id);
 const showPassword = ref(false);
-
+userRole.value = authStore.user?.role;
 watch(
   () => props.userData,
   (newValue) => {
@@ -66,7 +70,7 @@ const userSchema = computed(() =>
       .string()
       .matches(/^[0-9]{10,15}$/, 'Phone number must be between 10 and 15 digits')
       .required('Phone number is required'),
-    role: yup.string().oneOf(['admin', 'receptionist', 'doctor'], 'Invalid role').required('Role is required'),
+    role: yup.string().oneOf(['admin', 'receptionist', 'doctor' ,'SuperAdmin'], 'Invalid role').required('Role is required'),
     avatar: yup
       .mixed()
       .nullable()
@@ -172,13 +176,14 @@ const submitForm = async (values) => {
     handleBackendErrors(error);
   }
 };
+
 </script>
 
 <template>
-  <div class="modal fade" :class="{ show: showModal }" tabindex="-1" aria-labelledby="userModalLabel" aria-hidden="true"
+  <div class="modal fade overflow-auto" :class="{ show: showModal }" tabindex="-1" aria-labelledby="userModalLabel" aria-hidden="true"
     v-if="showModal">
-    <div class="modal-dialog">
-      <div class="modal-content">
+    <div class="modal-dialog ">
+      <div class="modal-content ">
         <div class="modal-header">
           <h5 class="modal-title">{{ isEditMode ? 'Edit User' : 'Add User' }}</h5>
           <button type="button" class="btn btn-danger" @click="closeModal" aria-label="Close">
@@ -240,7 +245,8 @@ const submitForm = async (values) => {
               <label for="role" class="form-label">Role</label>
               <Field as="select" id="role" name="role" :class="{ 'is-invalid': validationErrors.role || errors.role }"
                 v-model="user.role" class="form-control">
-                <option value="admin">Admin</option>
+                <option v-if="userRole === 'SuperAdmin'"  value="SuperAdmin">SuperAdmin</option>
+                <option  value="admin">Admin</option>
                 <option value="receptionist">Receptionist</option>
                 <option value="doctor">Doctor</option>
               </Field>

@@ -10,8 +10,6 @@ use Illuminate\Support\Carbon;
 class AppointmentStatus extends Controller
 {
     public function appointmentStatus(Request $request, $doctorid) {
-      
-        
         if (!$doctorid) {
             return response()->json([
                 'success' => false,
@@ -19,44 +17,49 @@ class AppointmentStatus extends Controller
             ], 400);
         }
     
-        $casces = AppointmentSatatusEnum::cases();
+        // Get count of appointments grouped by status (Single Query)
+        $statusCounts = Appointment::where('doctor_id', $doctorid)
+            ->selectRaw('status, COUNT(*) as count')
+            ->groupBy('status')
+            ->pluck('count', 'status');
     
-        return collect($casces)->map(function ($status) use ($doctorid) {
+        // Map status cases
+        return collect(AppointmentSatatusEnum::cases())->map(function ($status) use ($statusCounts) {
             return [
                 'name' => $status->name,
                 'value' => $status->value,
-                'count' => Appointment::where('status', $status->value)
-                            ->where('doctor_id', $doctorid)
-                            ->count(),
+                'count' => $statusCounts[$status->value] ?? 0, // Use count if available, else 0
                 'color' => AppointmentSatatusEnum::from($status->value)->color(),
-                'icon' => $status->icon(), // Include icon in the response
+                'icon' => $status->icon(),
             ];
         });
     }
     public function appointmentStatusPatient(Request $request, $patientid) {
-      
-        
         if (!$patientid) {
             return response()->json([
                 'success' => false,
-                'message' => 'Doctor ID is required.'
+                'message' => 'Patient ID is required.'
             ], 400);
         }
     
-        $casces = AppointmentSatatusEnum::cases();
+        // Get count of appointments grouped by status (Single Query)
+        $statusCounts = Appointment::where('patient_id', $patientid)
+            ->selectRaw('status, COUNT(*) as count')
+            ->groupBy('status')
+            ->pluck('count', 'status');
     
-        return collect($casces)->map(function ($status) use ($patientid) {
+        // Map status cases
+        return collect(AppointmentSatatusEnum::cases())->map(function ($status) use ($statusCounts) {
             return [
                 'name' => $status->name,
                 'value' => $status->value,
-                'count' => Appointment::where('status', $status->value)
-                            ->where('patient_id', $patientid)
-                            ->count(),
+                'count' => $statusCounts[$status->value] ?? 0, // Use count if available, else 0
                 'color' => AppointmentSatatusEnum::from($status->value)->color(),
-                'icon' => $status->icon(), // Include icon in the response
+                'icon' => $status->icon(),
             ];
         });
     }
+    
     public function todaysAppointments(Request $request, $doctorid) {
         // Debugging: Check the value of doctorid
  

@@ -31,16 +31,14 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 
 const fetchDoctors = async () => {
-  try {
-    const response = await axios.get(`/api/doctors/specializations/${props.specialization_id}`);
-    doctors.value = response.data.data;
-    
-    // If in edit mode and doctorId is provided, set it as the selected doctor
-    if (props.editMode && props.doctorId && !form.doctor_id) {
-      form.doctor_id = props.doctorId;
+  if (props.editMode ) {
+    try {
+      const response = await axios.get(`/api/doctors/specializations/${props.specialization_id}`);
+      doctors.value = response.data.data;
+      
+    } catch (error) {
+      console.error('Failed to fetch doctors:', error);
     }
-  } catch (error) {
-    console.error('Failed to fetch doctors:', error);
   }
 };
 
@@ -114,6 +112,24 @@ const handlePatientSelect = (patient) => {
   form.patient_id = patient.id;
 };
 
+const getPatientFullName = (patient) => {
+    // Validate input
+    if (!patient || typeof patient !== 'object') {
+        return 'N/A';
+    }
+
+    // Extract and sanitize properties
+    const {  patient_last_name = '', patient_first_name = '' } = patient;
+
+    // Construct full name
+    const fullName = [ patient_first_name , patient_last_name]
+        .filter(Boolean) // Remove empty strings
+        .join(' ')       // Join with spaces
+
+    // Capitalize the result (assuming capitalize is defined elsewhere)
+    return fullName ? capitalize(fullName) : 'N/A';
+};
+
 const handleDaysChange = (days) => {
   form.days = days;
 };
@@ -127,6 +143,10 @@ const handleTimeSelected = (time) => {
   form.appointment_time = time;
 };
 
+// Add this ref at the top with other refs
+const autoPrint = ref(false);
+
+// Update the handleSubmit function
 const handleSubmit = async (values, { setErrors }) => {
   try {
     let url = '/api/appointments';
@@ -144,6 +164,11 @@ const handleSubmit = async (values, { setErrors }) => {
     const response = await axios[method](url, form);
     toastr.success(`${props.editMode ? 'Appointment updated' : 'Appointment created'} successfully`);
 
+    // Print ticket if autoPrint is checked
+    if (autoPrint.value && response.data.data) {
+      await PrintTicket(response.data.data);
+    }
+
     if (props.NextAppointment) {
       emit('close');
     } else {
@@ -155,6 +180,40 @@ const handleSubmit = async (values, { setErrors }) => {
   }
 };
 
+// Update the PrintTicket function
+const PrintTicket = async () => {
+    try {
+        // Prepare the ticket data
+        const ticketData = {
+            patient_name: `${form.first_name} ${form.last_name}`,
+            patient_first_name: form.first_name,
+            patient_last_name: form.last_name,
+            doctor_id: form.doctor_id || 'N/A',
+            appointment_date: form.appointment_date,
+            appointment_time: form.appointment_time,
+            description: form.description || 'N/A'
+        };
+
+        // Send POST request with the ticket data
+        const response = await axios.post('/api/appointments/print-ticket', ticketData, {
+            responseType: 'blob'
+        });
+        
+        // Create PDF URL
+        const pdfUrl = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+        
+        // Open in new tab
+        const printWindow = window.open(pdfUrl);
+        
+        // Automatically trigger print dialog
+        printWindow.onload = function() {
+            printWindow.print();
+        };
+    } catch (error) {
+        console.error('Error printing ticket:', error);
+        toastr.error('Failed to print ticket');
+    }
+}
 const resetSelection = () => {
   if (form.selectionMethod === 'days') {
     form.appointment_date = '';
@@ -247,6 +306,14 @@ onMounted(async () => {
         rows="3"
         placeholder="Enter appointment details..."
       ></textarea>
+    </div>
+
+    <!-- Auto Print Checkbox -->
+    <div class="form-group mb-4">
+      <label for="autoPrint" class="form-label">
+        <input type="checkbox" id="autoPrint" v-model="autoPrint"  />
+        Print ticket automatically after creating appointment
+      </label>
     </div>
 
     <!-- Submit Button -->

@@ -26,6 +26,11 @@ const toaster = useToastr();
 const errors = ref({});
 const specializations = ref({});
 const showPassword = ref(false);
+const isLoading = ref(false);
+
+
+
+
 const patients_based_on_time = ref(doctors.doctorData.patients_based_on_time);
 const numberOfPatients = ref(
     Array.isArray(doctors.doctorData?.schedules)
@@ -235,112 +240,119 @@ onUnmounted(() => {
     }
 });
 const submitForm = async (values, { setErrors, resetForm }) => {
-    try {
-        // Update appointmentBookingWindow with the latest selected months
-        doctor.value.appointmentBookingWindow = selectedMonths.value.map((month) => ({
-            month: month.value,
-            is_available: month.is_available,
-        }));
 
-        const formData = new FormData();
+isLoading.value = true;    //
+try {
+  // Update appointmentBookingWindow with the latest selected months
+  doctor.value.appointmentBookingWindow = selectedMonths.value.map((month) => ({
+    month: month.value,
+    is_available: month.is_available,
+  }));
 
-        // Basic fields
-        Object.entries(values).forEach(([key, value]) => {
-            if (value !== null && value !== undefined && key !== 'avatar') {
-                formData.append(key, value);
-            }
-        });
+  const formData = new FormData();
 
-        // Handle boolean value explicitly
-        formData.append('patients_based_on_time', doctor.value.patients_based_on_time ? 1 : 0);
-
-        // Other fields
-        formData.append('id', doctor.value.id);
-        formData.append('specialization', doctor.value.specialization_id);
-        formData.append('time_slot', doctor.value.time_slot);
-        formData.append('number_of_patients_per_day', doctor.value.number_of_patients_per_day);
-
-        // Handle appointmentBookingWindow
-        if (doctor.value.appointmentBookingWindow && Array.isArray(doctor.value.appointmentBookingWindow)) {
-            doctor.value.appointmentBookingWindow.forEach((month, index) => {
-                formData.append(`appointmentBookingWindow[${index}][month]`, parseInt(month.month, 10)); // Ensure month is an integer
-                formData.append(`appointmentBookingWindow[${index}][is_available]`, month.is_available ? 1 : 0); // Convert boolean to 1 or 0
-            });
-        } else {
-            console.error('appointmentBookingWindow is missing or not an array:', doctor.value.appointmentBookingWindow);
-            throw new Error('appointmentBookingWindow is required and must be an array.');
-        }
-
-        // Handle schedules or customDates based on frequency
-        if (doctor.value.frequency === 'Monthly') {
-            if (doctor.value.customDates && Array.isArray(doctor.value.customDates)) {
-                doctor.value.customDates.forEach((dateObj, index) => {
-                    if (typeof dateObj === 'object' && dateObj !== null) {
-                        Object.entries(dateObj).forEach(([key, value]) => {
-                            formData.append(`customDates[${index}][${key}]`, value);
-                        });
-                    } else {
-                        formData.append(`customDates[${index}]`, dateObj);
-                    }
-                });
-            } else {
-                console.error('Custom dates is not an array:', doctor.value.customDates);
-                throw new Error('Custom dates are required for Monthly frequency.');
-            }
-        } else {
-            // Ensure schedules is always an array
-            const schedulesArray = Array.isArray(doctor.value.schedules)
-                ? doctor.value.schedules
-                : doctor.value.schedules?.schedules
-                    ? doctor.value.schedules.schedules
-                    : [];
-
-            if (schedulesArray && Array.isArray(schedulesArray)) {
-                schedulesArray.forEach((schedule, index) => {
-                    if (schedule && typeof schedule === 'object') {
-                        Object.entries(schedule).forEach(([key, value]) => {
-                            formData.append(`schedules[${index}][${key}]`, value);
-                        });
-                    } else {
-                        console.error('Schedule is not an object:', schedule);
-                    }
-                });
-            } else {
-                console.error('Schedules is not an array:', schedulesArray);
-                throw new Error('Schedules are required for Daily or Weekly frequency.');
-            }
-        }
-
-        // Handle avatar
-        if (doctor.value.avatar instanceof File) {
-            formData.append('avatar', doctor.value.avatar);
-        }
-
-        // Method handling
-        const method = isEditMode.value ? 'PUT' : 'POST';
-        formData.append('_method', method);
-
-        const url = isEditMode.value ? `/api/doctors/${doctor.value.id}` : '/api/doctors';
-
-
-        await axios.post(url, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        watch
-
-        toaster.success(`Doctor ${isEditMode.value ? 'updated' : 'added'} successfully`);
-        handleUserUpdate();
-        resetForm();
-    } catch (error) {
-        if (error.response?.data?.errors) {
-            setErrors(error.response.data.errors);
-        } else if (error.response?.data?.message) {
-            toaster.error(error.response.data.message);
-        } else {
-            toaster.error('An unexpected error occurred');
-        }
+  // Basic fields
+  Object.entries(values).forEach(([key, value]) => {
+    if (value !== null && value !== undefined && key !== 'avatar') {
+      formData.append(key, value);
     }
+  });
+
+  // Handle boolean value explicitly
+  formData.append('patients_based_on_time', doctor.value.patients_based_on_time ? 1 : 0);
+
+  // Other fields
+
+  formData.append('id', doctor.value.id);
+  formData.append('specialization', doctor.value.specialization_id);
+  formData.append('time_slot', doctor.value.time_slot);
+  //formData.append('number_of_patients', doctor.value.number_of_patients);
+  //formData.append('end_time', doctor.value.end_time);
+  //formData.append('start_time', doctor.value.start_time);
+
+  // Handle appointmentBookingWindow
+  if (doctor.value.appointmentBookingWindow && Array.isArray(doctor.value.appointmentBookingWindow)) {
+    doctor.value.appointmentBookingWindow.forEach((month, index) => {
+      formData.append(`appointmentBookingWindow[${index}][month]`, parseInt(month.month, 10)); // Ensure month is an integer
+      formData.append(`appointmentBookingWindow[${index}][is_available]`, month.is_available ? 1 : 0); // Convert boolean to 1 or 0
+    });
+  } else {
+    console.error('appointmentBookingWindow is missing or not an array:', doctor.value.appointmentBookingWindow);
+    throw new Error('appointmentBookingWindow is required and must be an array.');
+  }
+
+  // Handle schedules or customDates based on frequency
+  if (doctor.value.frequency === 'Monthly') {
+    if (doctor.value.customDates && Array.isArray(doctor.value.customDates)) {
+      doctor.value.customDates.forEach((dateObj, index) => {
+        if (typeof dateObj === 'object' && dateObj !== null) {
+          Object.entries(dateObj).forEach(([key, value]) => {
+            formData.append(`customDates[${index}][${key}]`, value);
+          });
+        } else {
+          formData.append(`customDates[${index}]`, dateObj);
+        }
+      });
+    } else {
+      console.error('Custom dates is not an array:', doctor.value.customDates);
+      throw new Error('Custom dates are required for Monthly frequency.');
+    }
+  } else {
+    // Ensure schedules is always an array
+    const schedulesArray = Array.isArray(doctor.value.schedules)
+      ? doctor.value.schedules
+      : doctor.value.schedules?.schedules
+        ? doctor.value.schedules.schedules
+        : [];
+
+    if (schedulesArray && Array.isArray(schedulesArray)) {
+      schedulesArray.forEach((schedule, index) => {
+        if (schedule && typeof schedule === 'object') {
+          Object.entries(schedule).forEach(([key, value]) => {
+            formData.append(`schedules[${index}][${key}]`, value);
+          });
+        } else {
+          console.error('Schedule is not an object:', schedule);
+        }
+      });
+    } else {
+      console.error('Schedules is not an array:', schedulesArray);
+      throw new Error('Schedules are required for Daily or Weekly frequency.');
+    }
+  }
+
+  // Handle avatar
+  if (doctor.value.avatar instanceof File) {
+    formData.append('avatar', doctor.value.avatar);
+  }
+
+  // Method handling
+  const method = isEditMode.value ? 'PUT' : 'POST';
+  formData.append('_method', method);
+
+  const url = isEditMode.value ? `/api/doctors/${doctor.value.id}` : '/api/doctors';
+
+
+  await axios.post(url, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+  
+
+  toaster.success(`Doctor ${isEditMode.value ? 'updated' : 'added'} successfully`);
+  isLoading.value = false;    handleUserUpdate();
+  resetForm();
+} catch (error) {
+  if (error.response?.data?.errors) {
+    setErrors(error.response.data.errors);
+  } else if (error.response?.data?.message) {
+    toaster.error(error.response.data.message);
+  } else {
+    toaster.error('An unexpected error occurred');
+  }
+}
 };
+
+
 
 
 onMounted(() => {
@@ -401,7 +413,8 @@ onMounted(() => {
 
                         <!-- Patient Selection Row -->
                         <div class="row">
-                            <div class="col-md-6 mb-4">
+                            <div class="mb-4"
+                                :class="{ 'col-md-6': doctor.patients_based_on_time, 'col-md-12': !doctor.patients_based_on_time }">
                                 <label for="patients_based_on_time" class="form-label fs-5">Patients Based on
                                     Time</label>
                                 <select v-model="doctor.patients_based_on_time" class="form-control form-control-md"
@@ -409,12 +422,6 @@ onMounted(() => {
                                     <option :value="false">Fixed Number of Patients</option>
                                     <option :value="true">Based on Time</option>
                                 </select>
-                            </div>
-                            <div v-if="!doctor.patients_based_on_time" class="col-md-6 mb-4">
-                                <label for="number_of_patients_per_day" class="form-label fs-5">Number of Patients Per
-                                    Day</label>
-                                <input type="number" v-model="doctor.number_of_patients_per_day"
-                                    class="form-control form-control-md" min="0" />
                             </div>
 
 
@@ -489,8 +496,8 @@ onMounted(() => {
                             </div>
                             <div class="col-md-12 mb-4" v-if="doctor.frequency === 'Monthly'">
                                 <label class="form-label fs-5">Custom Dates</label>
-                                <CustomDates :existingSchedules="doctor.schedules" v-model="doctor.customDates"
-                                    :patients_based_on_time="doctor.patients_based_on_time"
+                                <CustomDates :doctorId="doctor.id" :existingSchedules="doctor.schedules"
+                                    v-model="doctor.customDates" :patients_based_on_time="doctor.patients_based_on_time"
                                     :time_slot="doctor.time_slot"
                                     :number_of_patients_per_day="doctor.number_of_patients_per_day"
                                     @schedulesUpdated="handlecustomDatesUpdated" />
@@ -501,13 +508,18 @@ onMounted(() => {
 
                         <!-- Modal Footer -->
                         <div class="modal-footer">
-                            <button hidden type="button" class="btn btn-outline-secondary"
-                                @click="closeModal">Cancel</button>
-                            <button type="submit" class="btn btn-outline-primary">
-                                {{ isEditMode ? 'Update Doctor' : 'Add Doctor' }}
-                            </button>
-                        </div>
-                    </Form>
+              <button type="button" class="btn btn-outline-secondary" @click="closeModal">Cancel</button>
+              <button type="submit" class="btn btn-outline-primary" :disabled="isLoading">
+                {{ isEditMode ? 'Update Doctor' : 'Add Doctor' }}
+                <span v-if="isLoading" class="spinner-border spinner-border-sm ms-2" role="status" aria-hidden="true"></span>
+              </button>
+            </div>
+            <div v-if="loading" class="modal-overlay">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+            </div>
+          </Form>
                 </div>
             </div>
         </div>

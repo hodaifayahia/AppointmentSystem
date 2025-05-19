@@ -41,12 +41,18 @@ const fetchSpecializations = async () => {
 };
 
 // Fetch doctors based on specialization
-const fetchDoctors = async (specialization_id) => {
-  if (specialization_id) {
-    const response = await axios.get(`/api/doctors/specializations/${specialization_id}`);
+// can u add try and catch
+// Fetch doctors based on specialization
+
+const fetchDoctors = async (specializationId) => {
+  try {
+    console.log('Fetched specializations:', specializationId);
+    const response = await axios.get(`/api/doctors`);
     doctors.value = response.data.data;
-  } else {
-    doctors.value = [];
+  
+  } catch (error) {
+    console.error('Error fetching doctors:', error);
+    toastr.error('Failed to fetch doctors. Please try again later.');
   }
 };
 
@@ -116,6 +122,8 @@ const closeModal = () => {
 watch(() => props.specializationId, (newSpecializationId) => {
   if (newSpecializationId) {
     form.specialization_id = newSpecializationId;
+    console.log('New specialization ID:', newSpecializationId);
+    
     fetchDoctors(newSpecializationId);
   }
 });

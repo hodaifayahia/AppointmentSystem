@@ -175,7 +175,7 @@ const closeModal = () => {
       <button v-if="(userRole !== 'admin' || userRole !== 'receptionist')" class="btn btn-sm btn-outline-primary ml-2" @click="$emit('update', waitlist.id)">
         <i class="fas fa-edit"></i>
       </button>
-      <button v-if="(userRole === 'admin' || userRole === 'receptionist' ) "  class="btn btn-sm btn-outline-danger ml-2" @click="$emit('delete', waitlist.id)">
+      <button   class="btn btn-sm btn-outline-danger ml-2" @click="$emit('delete', waitlist.id)">
         <i class="fas fa-trash"></i>
       </button>
       <button v-if="userRole ==='doctor'  || userRole ==='admin'" class="btn btn-sm btn-outline-success ml-2" @click="$emit('move-to-appointments', waitlist)">

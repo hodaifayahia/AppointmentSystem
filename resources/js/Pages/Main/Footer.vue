@@ -5,7 +5,7 @@
         </div>
         <strong>
             Copyright &copy; {{ currentYear }}
-            <a href="https://yourwebsite.com">Clinic Oasis</a>.
+            <a href="https://yourwebsite.com">Clinic </a>.
         </strong>
         All rights reserved.
     </footer>

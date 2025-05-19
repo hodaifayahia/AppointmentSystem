@@ -87,7 +87,7 @@
         <thead>
             <tr>
                 <th>#</th>
-                <th>Appointment Time</th>
+                <!-- <th>Appointment Time</th> -->
                 <th>Patient Name</th>
                 <th>Status</th>
             </tr>
@@ -96,7 +96,7 @@
             @foreach ($appointments as $index => $appointment)
                 <tr>
                     <td>{{ $index + 1 }}</td>
-                    <td>{{ date('H:i', strtotime($appointment->appointment_time)) }}</td>
+                    <!-- <td>{{ date('H:i', strtotime($appointment->appointment_time)) }}</td> -->
                     <td>{{ $appointment->patient->Firstname }} {{ $appointment->patient->Lastname }}</td>
                     <td></td>
                 </tr>

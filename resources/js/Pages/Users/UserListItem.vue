@@ -5,6 +5,8 @@ import DeleteUserModel from '@/Components/DeleteUserModel.vue';
 import { useToastr } from '../../Components/toster';
 import axios from 'axios';
 import { useSweetAlert } from '../../Components/useSweetAlert';
+import { useAuthStore } from '../../stores/auth'
+
 const swal = useSweetAlert();
 const props = defineProps({
   user: {
@@ -20,6 +22,9 @@ const props = defineProps({
     default: false
   }
 });
+const authStore = useAuthStore();
+
+const userRole = ref(authStore.user?.role);
 
 const toaster = useToastr();
 const emit = defineEmits(['user-updated', 'toggleSelection']);
@@ -39,6 +44,33 @@ const editUser = () => {
   isModalOpen.value = true;
 };
 
+// Check if the current user can edit a specific user
+const canEdit = (targetUser) => {
+  // SuperAdmin can edit anyone
+  if (userRole.value === 'SuperAdmin') return true;
+  
+  // Admin can edit doctors and receptionists, but not other admins or SuperAdmins
+  if (userRole.value === 'admin') {
+    return targetUser.role === 'doctor' || targetUser.role === 'receptionist';
+  }
+  
+  // Other roles can't edit
+  return false;
+};
+
+// Check if the current user can delete a specific user
+const canDelete = (targetUser) => {
+  // SuperAdmin can delete anyone
+  if (userRole.value === 'SuperAdmin') return true;
+  
+  // Admin can delete doctors and receptionists, but not other admins or SuperAdmins
+  if (userRole.value === 'admin') {
+    return targetUser.role === 'doctor' || targetUser.role === 'receptionist';
+  }
+  
+  // Other roles can't delete
+  return false;
+};
 
 const handleDelete = async (id) => {
   try {
@@ -55,8 +87,8 @@ const handleDelete = async (id) => {
     // If user confirms, proceed with deletion
     if (result.isConfirmed) {
       await axios.delete(`/api/users/${id}`);
-    toaster.success('User deleted successfully');
-    handleUserUpdate();
+      toaster.success('User deleted successfully');
+      handleUserUpdate();
 
       // Show success message
       swal.fire(
@@ -80,13 +112,12 @@ const handleDelete = async (id) => {
     } else {
       swal.fire(
         'Error!',
-        'Failed to delete Doctor.',
+        'Failed to delete User.',
         'error'
       );
     }
   }
 };
-
 
 const handleUserUpdate = () => {
   emit('user-updated');
@@ -107,7 +138,7 @@ const ChangeRole = async (user, role) => {
 const roles = [
   { name: 'doctor', value: 'doctor' },
   { name: 'receptionist', value: 'receptionist' },
-  { name: 'admin', value: 'admin' }
+  { name: 'admin', value: 'admin' },
 ];
 
 const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
@@ -129,7 +160,6 @@ const formatDate = (dateString) => {
     </td>
     <td>{{ index + 1 }}</td>
     <td>
-      
       <img v-if="user.avatar" :src="`${user.avatar}`"
         :alt="`Photo for ${user.name}`" class="img-thumbnail rounded-pill" style="max-width: 40px; max-height: 40px;" />
       <span v-else>No Photo</span>
@@ -140,7 +170,7 @@ const formatDate = (dateString) => {
     <td class="user-phone">{{ user.phone || 'N/A' }}</td>
     <td class="user-role">
       <select @change="ChangeRole(user, $event.target.value)" class="form-control form-select-sm"
-        :disabled="user.role === 'doctor' ">
+        :disabled="!canEdit(user) || user.role === 'SuperAdmin'">
         <option v-for="role in roles" :key="role.value" :value="role.value" :selected="user.role === role.name">
           {{ capitalize(role.name) }}
         </option>
@@ -150,10 +180,12 @@ const formatDate = (dateString) => {
     <td class="user-created-at">{{ formatDate(user.created_at) }}</td>
     <td class="user-actions">
       <div class="btn-group">
-        <button class="btn btn-sm btn-outline-primary mx-1" title="Edit" @click="editUser">
+        <button class="btn btn-sm btn-outline-primary mx-1" title="Edit" @click="editUser" 
+               :disabled="!canEdit(user)">
           <i class="fas fa-edit"></i>
         </button>
-        <button class="btn btn-sm btn-outline-danger" title="Delete" @click.stop="handleDelete(user.id)">
+        <button class="btn btn-sm btn-outline-danger" title="Delete" @click.stop="handleDelete(user.id)"
+               :disabled="!canDelete(user)">
           <i class="fas fa-trash-alt"></i>
         </button>
       </div>
@@ -169,8 +201,6 @@ const formatDate = (dateString) => {
       @user-deleted="handleUserUpdate" />
   </Teleport>
 </template>
-
-
 
 <style scoped>
 .user-item {
@@ -221,6 +251,11 @@ const formatDate = (dateString) => {
   font-size: 0.875rem;
   line-height: 1.5;
   border-radius: 50px;
+}
+
+.btn-group .btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .form-select-sm {

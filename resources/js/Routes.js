@@ -1,4 +1,4 @@
-import Dashboard from "./Components/Dashboard.vue";
+import Calender from "./Components/Calender.vue";
 import ListAppointment from "./Pages/Appointments/ListAppointment.vue";
 import DoctorListSchedule from "./Pages/Users/DoctorListSchedule.vue";
 import ListUsers from "./Pages/Users/ListUsers.vue";
@@ -28,12 +28,25 @@ import DoctorAvilibilte from "./Components/Doctor/DoctorAvilibilte.vue";
 import DoctorListScheduleDForDoctor from "./Components/Doctor/DoctorListScheduleDForDoctor.vue";
 import ListUsersCanForce from "./Components/Doctor/ListUsersCanForce.vue";
 import ListUsersCanForceAdmin from "./Components/Doctor/ListUsersCanForceAdmin.vue";
+import DataTable from "./Components/exclude/DataTable.vue";
+import Dashborad from "./Components/Dashborad/Dashborad.vue";
+import PlaceholdersList from "./Pages/Consultation/Section/PlaceholdersList.vue";
+import AttributesList from "./Pages/Consultation/attributes/attributesList.vue";
+import TemplateList from "./Pages/Consultation/template/templateList.vue";
+import ConsultationList from "./Pages/Consultation/consultations/consultationList.vue";
+import TemplateModel from "./Pages/Consultation/template/templateModel.vue";
+import ConsultationModel from "./Pages/Consultation/consultations/consultationModel.vue";
 // import Logout from "./auth/Logout.vue"; // Assuming you have a Logout component
 const adminRoutes = [
     {
         path: '/dashboard',
+        name: 'Dashboard',
+        component: Dashborad,
+    },
+    {
+        path: '/calander',
         name: 'admin.dashboard',
-        component: Dashboard,
+        component: Calender,
     },
     {
         path: '/login',
@@ -112,6 +125,11 @@ const adminRoutes = [
         component: ExcludeDates,
     },
     {
+        path: '/admin/excludeDates/:id',
+        name: 'admin.excludeDates.doctor',
+        component: DataTable,
+    },
+    {
         path: '/admin/doctors',
         name: 'admin.doctors',
         component: ListDoctors,
@@ -146,13 +164,61 @@ const adminRoutes = [
         name: 'admin.profile',
         component: Profile,
     },
-];
+     {
+        path: '/admin/consultations/placeholders',
+        name: 'admin.consultation.placeholders',
+        component: PlaceholdersList,
+    
+    },
+     {
+        path: '/admin/consultations/template',
+        name: 'admin.consultation.template',
+        component: TemplateList,
+    
+    },
+     {
+        path: '/admin/consultations/template/create',
+        name: 'admin.consultation.template.add',
+        component: TemplateModel,
+    
+    },
+     {
+        path: '/admin/consultations/template/edit/:id',
+        name: 'admin.consultation.template.edit',
+        component: TemplateModel,
+    
+    },
+     {
+        path: '/admin/consultations/Section/:id',
+        name: 'admin.section.attributes',
+        component: AttributesList,
+    
+    },
+     {
+        path: '/admin/consultations/consulation',
+        name: 'admin.consultations.consulation',
+        component: ConsultationList,
+    
+    },
+     {
+        path: '/admin/consultations/consulation/add',
+        name: 'admin.consultations.consulation.add',
+        component: ConsultationModel,
+    
+    },
+     {
+        path: '/admin/consultations/consulation/edit/:id',
+        name: 'admin.consultations.consulation.edit',
+        component: ConsultationModel,
+    
+    }
+    ];
 
 const doctorRoutes = [
     {
         path: '/doctor/dashboard',
         name: 'doctor.dashboard',
-        component: Dashboard,
+        component: Calender,
     },
     {
         path: '/doctor/appointments',
@@ -179,6 +245,7 @@ const doctorRoutes = [
         name: 'doctor.users',
         component: ListUsersCanForce,
     },
+   
 ];
 
 // Combine all routes

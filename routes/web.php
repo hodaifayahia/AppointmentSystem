@@ -4,19 +4,27 @@ use App\Http\Controllers\AppointmentAvailableMonthController;
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\AppointmentForcerController;
 use App\Http\Controllers\AppointmentStatus;
+use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\Auth\LogoutController;
+use App\Http\Controllers\ConsulationController;
+use App\Http\Controllers\DashboradController;
 use App\Http\Controllers\DoctorController;
 use App\Http\Controllers\ExcludedDates;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\ImportanceEnumController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\PatientController;
+use App\Http\Controllers\PlaceholderController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\specializationsController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WaitListController;
+use App\Http\Controllers\TemplateController;
 use Illuminate\Support\Facades\Route;
+
+
+
 
 
 
@@ -32,6 +40,9 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return redirect('/login');
 })->middleware('guest');
+Route::get('/', function () {
+    return redirect('/dashboard'); // or whatever your main authenticated page is
+})->middleware('auth');
 // Routes for all authenticated users
 Route::middleware(['auth'])->group(function () {
 
@@ -51,16 +62,17 @@ Route::middleware(['auth'])->group(function () {
 
 
     // Doctor Routes
+    // Route::get('/api/doctors/specializ/{specializationId}', [DoctorController::class, 'GetDoctorsBySpecilaztionsthisisfortest']);
     Route::get('/api/doctors', [DoctorController::class, 'index']);
-    Route::post('/api/doctors', [DoctorController::class, 'store'])->name('users.store');
-    Route::put('/api/doctors/{doctorid}', [DoctorController::class, 'update'])->name('users.update');
-    Route::delete('/api/doctors/{doctorid}', [DoctorController::class, 'destroy'])->name('users.destroy');
-    Route::delete('/api/doctors', [DoctorController::class, 'bulkDelete'])->name('users.bulkDelete');
-    Route::get('/api/doctors/search', [DoctorController::class, 'search'])->name('users.search');
+    Route::post('/api/doctors', [DoctorController::class, 'store']);
+    Route::put('/api/doctors/{doctorid}', [DoctorController::class, 'update']);
+    Route::delete('/api/doctors/{doctorid}', [DoctorController::class, 'destroy']);
+    Route::delete('/api/doctors', [DoctorController::class, 'bulkDelete']);
+    Route::get('/api/doctors/search', [DoctorController::class, 'search']);
     Route::get('/api/doctors/WorkingDates', [DoctorController::class, 'WorkingDates']);
     Route::get('/api/doctors/{doctorId}', [DoctorController::class, 'getDoctor']);
-    Route::get('/api/doctors/specializations/{specialization_id}', [DoctorController::class, 'GetDoctorsBySpecilaztion']);
     Route::get('/api/doctors/handel/specific', [DoctorController::class, 'getspecific']);
+    Route::get('/api/doctors/specializations/{specializationId}', [DoctorController::class, 'GetDoctorsBySpecilaztions']);
     
     // Specializations Routes
     Route::get('/api/specializations', [specializationsController::class, 'index']);
@@ -92,6 +104,7 @@ Route::middleware(['auth'])->group(function () {
     // Schedule Routes
     Route::get('/api/schedules/{doctorid}', [ScheduleController::class, 'index']);
     Route::put('/api/schedules/{doctorid}', [ScheduleController::class, 'updateSchedule']);
+    Route::delete('/api/schedules/{doctorid}', [ScheduleController::class, 'destroy']);
 
     // Patient Routes
     Route::get('/api/patients', [PatientController::class, 'index']);
@@ -102,7 +115,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/api/patients/{parentid}', [PatientController::class, 'SpecificPatient']);
     Route::delete('/api/patients/{patientid}', [PatientController::class, 'destroy']);
     
+    Route::post('/api/appointments/Confirmation/print-confirmation-ticket', [AppointmentController::class, 'printConfirmationTicket']);
     Route::post('/generate-appointments-pdf', [AppointmentController::class, 'generateAppointmentsPdf']);
+    Route::post('/api/appointments/print-ticket', [AppointmentController::class, 'printTicket']);
     
     
     Route::get('/api/setting/user', [SettingController::class, 'index']);
@@ -135,22 +150,67 @@ Route::middleware(['auth'])->group(function () {
 
 
     // Alternatively, define routes manually
-    Route::get('/api/excluded-dates', [ExcludedDates::class, 'index']);
-    Route::get('/api/excluded-dates/{doctorId}', [ExcludedDates::class, 'GetExcludedDates']);
+    Route::get('/api/excluded-dates/{doctorId}', [ExcludedDates::class, 'index']);
+    // Route::get('/api/excluded-dates', [ExcludedDates::class, 'GetExcludedDates']);
     Route::post('/api/excluded-dates', [ExcludedDates::class, 'store']);
     Route::put('/api/excluded-dates/{id}', [ExcludedDates::class, 'update']);
-    Route::delete('/api/excluded-dates/{id}', [ExcludedDates::class, 'destroy']);
+    Route::delete('/api/excluded-dates/delete-by-date', [ExcludedDates::class, 'destroyByDate']);
     Route::get('/api/monthwork/{doctorid}', [AppointmentAvailableMonthController::class, 'index']);
     
     // Logout Route for Importing and Exporting Data to Excel 
-    Route::post('/api/import/users', [ImportController::class, 'ImportUsers']);
-    Route::get('/api/export/users', [ExportController::class, 'ExportUsers']);
+    
+    
+        //routes for attributes 
+        //consultation
+        
+        //placeholser 
+        Route::post('/api/placeholders', [PlaceholderController::class, 'store']);
+        Route::get('/api/placeholders', [PlaceholderController::class, 'index']);
+        Route::put('/api/placeholders/{id}', [PlaceholderController::class, 'update']);
+        Route::delete('/api/placeholders/{id}', [PlaceholderController::class, 'destroy']);
+        Route::get('/api/placeholders/search', [PlaceholderController::class, 'search']);
 
-    Route::post('/api/import/Patients', [ImportController::class, 'ImportPatients']);
-    Route::get('/api/export/Patients', [ExportController::class, 'ExportPatients']);
+        Route::post('/api/attributes', [AttributeController::class, 'store']);
+        Route::get('/api/attributes/{id}', [AttributeController::class, 'index']);
+        Route::put('/api/attributes/{id}', [AttributeController::class, 'update']);
+        Route::delete('/api/attributes/{id}', [AttributeController::class, 'destroy']);
+        Route::get('/api/attributes/search', [AttributeController::class, 'search']); 
+        // make the same but make it for consulations
+        // consulations
 
-    Route::post('/api/import/appointment/{doctorid}', [ImportController::class, 'ImportAppointment']);
-    Route::get('/api/export/appointment', [ExportController::class, 'ExportAppointment']);
+        Route::post('/api/consulations', [ConsulationController::class, 'store']);
+        Route::get('/api/consulations', [ConsulationController::class, 'index']);
+        Route::post('/api/Consulation/generate-pdf', [ConsulationController::class, 'GeneratePdf']);
+        Route::put('/api/consulations/{id}', [ConsulationController::class, 'update']);
+        Route::delete('/api/consulations/{id}', [ConsulationController::class, 'destroy']);
+        Route::get('/api/consulations/search', [ConsulationController::class, 'search']); 
+
+        Route::post('/api/templates', [TemplateController::class, 'store']);
+        Route::get('/api/templates', [TemplateController::class, 'index']);
+        Route::put('/api/templates/{id}', [TemplateController::class, 'update']);
+        Route::delete('/api/templates/{id}', [TemplateController::class, 'destroy']);
+        Route::get('/api/templates/search', [TemplateController::class, 'search']); 
+
+        Route::post('/api/import/users', [ImportController::class, 'ImportUsers']);
+        Route::get('/api/export/users', [ExportController::class, 'ExportUsers']);
+
+        Route::post('/api/import/Patients', [ImportController::class, 'ImportPatients']);
+        Route::get('/api/export/Patients', [ExportController::class, 'ExportPatients']);
+
+        
+        Route::post('/api/import/placeholders', [ImportController::class, 'Importplaceholders']);
+        Route::get('/api/export/placeholders', [ExportController::class, 'Exportplaceholders']);
+
+        Route::post('/api/import/attributes', [ImportController::class, 'ImportAttributes']);
+        Route::get('/api/export/attributes', [ExportController::class, 'ExportAttributes']);
+
+        Route::post('/api/import/appointment/{doctorid}', [ImportController::class, 'ImportAppointment']);
+        Route::get('/api/export/appointment', [ExportController::class, 'ExportAppointment']);
+        Route::get('/api/medical-dashboard', [DashboradController::class, 'index']);
+
+
+
+
 
     // Catch-all route for views
     Route::get('{view}', [ApplicationController::class, '__invoke'])

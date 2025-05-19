@@ -9,6 +9,9 @@ class AppointmentForcer extends Model
 {
     protected $fillable =[
         'doctor_id',
+        'start_time',
+        'end_time',
+        'number_of_patients',
         'user_id',
         'is_able_to_force',
     ];
