@@ -174,8 +174,8 @@ const generatePdf = async () => {
   try {
     loading.value = true;
     
-    // Prepare data for PDF generation
-    const pdfData = {
+    // Prepare data for Word document generation
+    const documentData = {
       templateIds: selectedTemplates.value,
       placeholderData: consultationData.value,
       patientInfo: {
@@ -186,24 +186,24 @@ const generatePdf = async () => {
       }
     };
     
-    // Call API to generate PDF
-    const response = await axios.post('/api/Consulation/generate-pdf', pdfData, {
-      responseType: 'blob' // Important for handling PDF binary data
+    // Call API to generate Word document
+    const response = await axios.post('/api/Consulation/generate-pdf', documentData, {
+      responseType: 'blob' // Important for handling Word document binary data
     });
     
-    // Create a download link for the PDF
-    const blob = new Blob([response.data], { type: 'application/pdf' });
+    // Create a download link for the Word document
+    const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', 'consultation.pdf');
+    link.setAttribute('download', 'consultation.docx'); // Change extension to .docx
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     
-    toaster.success('PDF generated successfully');
+    toaster.success('Word document generated successfully');
   } catch (err) {
-    toaster.error(err.response?.data?.message || 'Failed to generate PDF');
+    toaster.error(err.response?.data?.message || 'Failed to generate document');
   } finally {
     loading.value = false;
   }
@@ -321,7 +321,7 @@ const generatePdf = async () => {
 
         <!-- Patient Info Tab Content -->
         <div v-if="activeTab === 'Generate'" class="premium-tab-content">
-          <div class="premium-section-title">Generate Consultation PDF</div>
+          <div class="premium-section-title">Generate Consultation Document</div>
           
           <div class="premium-form">
             <div class="premium-section-subtitle">Patient Information</div>
@@ -378,8 +378,8 @@ const generatePdf = async () => {
                 @click="generatePdf"
                 :disabled="loading || selectedTemplates.length === 0"
               >
-                <i class="fas fa-file-pdf me-2"></i>
-                {{ loading ? 'Generating...' : 'Generate PDF' }}
+                <i class="fas fa-file-word me-2"></i>
+                {{ loading ? 'Generating...' : 'Generate Word Document' }}
               </button>
               <p class="premium-generate-help">
                 This will generate a PDF document with your selected templates and entered data.

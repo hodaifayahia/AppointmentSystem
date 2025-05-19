@@ -180,7 +180,7 @@ Route::middleware(['auth'])->group(function () {
 
         Route::post('/api/consulations', [ConsulationController::class, 'store']);
         Route::get('/api/consulations', [ConsulationController::class, 'index']);
-        Route::post('/api/Consulation/generate-pdf', [ConsulationController::class, 'GeneratePdf']);
+        Route::post('/api/Consulation/generate-pdf', [ConsulationController::class, 'GenerateWord']);
         Route::put('/api/consulations/{id}', [ConsulationController::class, 'update']);
         Route::delete('/api/consulations/{id}', [ConsulationController::class, 'destroy']);
         Route::get('/api/consulations/search', [ConsulationController::class, 'search']); 

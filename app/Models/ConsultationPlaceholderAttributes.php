@@ -2,26 +2,31 @@
 
 namespace App\Models;
 
-use App\Models\Doctor;
-use App\Models\Placeholder;
 use Illuminate\Database\Eloquent\Model;
 
 class ConsultationPlaceholderAttributes extends Model
 {
+    protected $table = 'consultation_placeholder_attributes';
+    
     protected $fillable = [
-        'name',
-        'value',
+        'consultation_id',
         'placeholder_id',
+        'attribute_id',
+        'attribute_value'
     ];
+
+    public function consultation()
+    {
+        return $this->belongsTo(Consultation::class);
+    }
 
     public function placeholder()
     {
         return $this->belongsTo(Placeholder::class);
     }
 
-    public function doctor()
+    public function attribute()
     {
-        return $this->belongsTo(Doctor::class);
+        return $this->belongsTo(Attribute::class);
     }
-  
 }

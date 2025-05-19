@@ -2,29 +2,39 @@
 
 namespace App\Models;
 
-use App\Models\Doctor;
-use App\Models\Placeholder;
 use Illuminate\Database\Eloquent\Model;
 
 class Consultation extends Model
 {
-    
     protected $fillable = [
-        'name',
-        'description',
+        'template_id',
+        'patient_id',
         'doctor_id',
-        'placeholder_type_id',
-        'placeholder_category_id',
-        'specializations_id',
+        'appointment_id'
     ];
+
+    public function template()
+    {
+        return $this->belongsTo(Template::class);
+    }
+
+    public function patient()
+    {
+        return $this->belongsTo(Patient::class);
+    }
 
     public function doctor()
     {
         return $this->belongsTo(Doctor::class);
     }
-    public function placeholder()
+
+    public function appointment()
     {
-        return $this->hasMany(Placeholder::class);
+        return $this->belongsTo(Appointment::class);
     }
- 
+
+    public function placeholderAttributes()
+    {
+        return $this->hasMany(ConsultationPlaceholderAttributes::class);
+    }
 }
